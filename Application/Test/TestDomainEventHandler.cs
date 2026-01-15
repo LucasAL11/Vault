@@ -7,7 +7,6 @@ public class TestDomainEventHandler : INotificationHandler<TestDomainEvent>
 {
     public Task Handle(TestDomainEvent notification, CancellationToken cancellationToken = default)
     {
-        
         return Task.CompletedTask;
     }
 }
