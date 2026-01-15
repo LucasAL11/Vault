@@ -1,0 +1,6 @@
+@local = http://localhost:5065
+
+GET {{local}}/test
+Accept: application/json
+
+###
