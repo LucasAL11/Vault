@@ -1,3 +1,3 @@
 ﻿namespace Application.Abstractions.Messaging.Message;
 
-public interface INotification;
+public interface INotification : IMessage;

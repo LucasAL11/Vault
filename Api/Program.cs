@@ -1,6 +1,7 @@
 using System.Reflection;
 using Api.Extensions;
 using Application;
+using Infrastructure;
 using Serilog;
 
 namespace Api;
@@ -15,10 +16,11 @@ public static class Program
             => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
         
         builder.Services.AddControllers();
-        
+
         builder.Services
             .AddApplication()
-            .AddPresentation();
+            .AddPresentation()
+            .AddInfrastructure(builder.Configuration);
         
         builder.Services.AddSwaggerGenWithAuth();
         builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());

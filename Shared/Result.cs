@@ -15,12 +15,24 @@ public class Result
         IsSuccess = isSuccess;
         Error = error;
     }
-
+    
     public bool IsSuccess { get; }
 
     public bool IsFailure => !IsSuccess;
     public Error Error { get; set; }
+
+    public static Result Combine(params Result[] results)
+    {
+        foreach (var result in results)
+        {
+            if (result.IsFailure)
+                return Failure(result.Error);
+        }
+
+        return Success();
+    }
     
+
     public static Result Success() => new(true, Error.None);
     
     public static Result<TValue> Success<TValue>(TValue value) =>
@@ -60,4 +72,16 @@ public class Result<TValue> : Result
 
     public static Result<TValue> ValidationFailure(Error error) =>
         new(default, false, error);
+    
+    
+    public static Result Combine(params Result<TValue>[] results)
+    {
+        foreach (var result in results)
+        {
+            if (result.IsFailure)
+                return Failure(result.Error);
+        }
+        
+        return Success();
+    }
 }

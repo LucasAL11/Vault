@@ -12,6 +12,9 @@ public class MessageDispatcher : IMessageDispatcher
     private readonly ConcurrentDictionary<Type, Func<object, Task<Result>>> _handlersWithResponse;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Type, Type> _notificationHandlerTypes;
+    private readonly ConcurrentDictionary<Type, Func<object, CancellationToken, Task>> _eventDispatchers
+        = new();
+
 
     public MessageDispatcher(IServiceProvider serviceProvider)
     {
@@ -86,22 +89,28 @@ public class MessageDispatcher : IMessageDispatcher
         return await handler(message);
     }
 
-    public async Task Publish(IDomainEvent domainEvent, CancellationToken cancellationToken = default)
+    public async Task Publish(
+        IDomainEvent domainEvent, 
+        CancellationToken cancellationToken = default)
     {
         var eventType = domainEvent.GetType();
 
-        if (!_notificationHandlerTypes.TryGetValue(eventType, out var handlerType))
+        var dispatcher = _eventDispatchers.GetOrAdd(eventType, type =>
         {
-            handlerType = typeof(INotificationHandler<>)
-                .MakeGenericType(eventType);
-        }
-        
-        var handler = _serviceProvider.GetService(handlerType);
+            var handlersType = typeof(INotificationHandler<>).MakeGenericType(type);
+            var handleMethod = handlersType.GetMethod("Handle");
 
-        if (handler != null)
-        {
-            var handleMethod = handlerType.GetMethod("Handle");
-            await (Task)handleMethod.Invoke(handler, [domainEvent, CancellationToken.None]);
-        }
+            return async (evt, ct) =>
+            {
+                var handlers = _serviceProvider.GetServices(handlersType);
+
+                foreach (var handler in handlers)
+                {
+                    await (Task)handleMethod.Invoke(handler, [evt, ct]);
+                }
+            };
+        });
+        
+        await dispatcher(domainEvent, cancellationToken);
     }
 }

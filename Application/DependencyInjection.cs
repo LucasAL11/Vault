@@ -1,9 +1,9 @@
 ﻿using System.Reflection;
 using Application.Abstractions.Messaging;
 using Application.Abstractions.Messaging.Handlers;
-using Application.Abstractions.Messaging.Message;
-using Application.Test;
-using Domain.Test;
+using Application.Computers;
+using Domain.Computers;
+using Domain.Computers.Events;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application;
@@ -19,33 +19,25 @@ public static class DependencyInjection
         RegisterCommandHandlers(services, assembly);
         RegisterQueryHandlers(services, assembly);
 
-        services.AddScoped<INotificationHandler<TestDomainEvent>, TestDomainEventHandler>();
-        
+        services.AddScoped<INotificationHandler<ComputerRegisteredDomainEvent>, ComputerRegisteredDomainEventHandler>();
         
         return services;
     }
-
+    
     private static void RegisterQueryHandlers(IServiceCollection services, Assembly assembly)
     {
-        var queryHandlers =
-            assembly
-                .GetTypes()
-                .Where(t =>
-                    t.GetInterfaces()
-                        .Any(i => 
-                            i.IsGenericType &&
-                            i.GetGenericTypeDefinition() == typeof(IQueryHandler<,>)));
+        var queryHandlers = assembly
+            .GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false })
+            .SelectMany(t => t.GetInterfaces()
+                .Where(i =>
+                    i.IsGenericType && 
+                    i.GetGenericTypeDefinition() == typeof(IQueryHandler<,>))
+                .Select(i => new { Handler = t, Interface = i}));
 
-        foreach (var handlerType in queryHandlers)
+        foreach (var item in queryHandlers)
         {
-            var handlerInterface = 
-                handlerType
-                    .GetInterfaces()
-                    .FirstOrDefault(i => 
-                        i.IsGenericType &&
-                        i.GetGenericTypeDefinition() == typeof(IQueryHandler<,>));
-            
-            services.AddScoped(handlerInterface, handlerType);
+            services.AddScoped(item.Interface, item.Handler);
         }
     }
 
@@ -54,26 +46,18 @@ public static class DependencyInjection
         var commandHandlers = 
             assembly
                 .GetTypes()
-                .Where(t =>
+                .Where(t => t is { IsAbstract: false, IsInterface: false })
+                .SelectMany(t => 
                     t.GetInterfaces()
-                        .Any(i => 
-                            i.IsGenericType && 
-                            (i.GetGenericTypeDefinition() == typeof(ICommandHandler<>) 
-                            || i.GetGenericTypeDefinition() == typeof(ICommandHandler<,>))
-                            )
-                    );
+                    .Where(i => i.IsGenericType &&
+                                (i.GetGenericTypeDefinition() == typeof(ICommandHandler<,>)
+                                || i. GetGenericTypeDefinition() == typeof(ICommandHandler<,>)))
+                    .Select(i => new { Handler = t, Interface = i }));
+          
         
-        foreach (var handlerType in commandHandlers)
+        foreach (var item in commandHandlers)
         {
-            var handledInterface = 
-                handlerType
-                    .GetInterfaces()
-                    .First(i => 
-                        i.IsGenericType &&
-                        (i.GetGenericTypeDefinition() == typeof(ICommand<>)
-                        || i. GetGenericTypeDefinition() == typeof(ICommandHandler<,>)));
-            
-            services.AddScoped(handledInterface, handlerType);
+           services.AddScoped(item.Interface, item.Handler);
         }
     }
 }
