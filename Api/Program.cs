@@ -1,5 +1,6 @@
 using System.Reflection;
 using Api.Extensions;
+using Api.Middleware;
 using Application;
 using Infrastructure;
 using Microsoft.AspNetCore.Server.HttpSys;
@@ -15,32 +16,35 @@ public static class Program
 
         builder.WebHost.UseHttpSys(options =>
         {
-            options.Authentication.Schemes = 
-                AuthenticationSchemes.Negotiate 
-                | AuthenticationSchemes.NTLM ;
-            
+            options.Authentication.Schemes =
+                AuthenticationSchemes.Negotiate
+                | AuthenticationSchemes.NTLM;
+
             options.Authentication.AllowAnonymous = false;
         });
-        
-        builder.Host.UseSerilog((context, loggerConfiguration) 
+
+        builder.Host.UseSerilog((context, loggerConfiguration)
             => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
-        
+
+        builder.Services.Configure<KillSwitchOptions>(builder.Configuration.GetSection("KillSwitch"));
+        builder.Services.AddScoped<KillSwitchMiddleware>();
+
         builder.Services.AddControllers();
 
         builder.Services
             .AddApplication()
             .AddPresentation()
             .AddInfrastructure(builder.Configuration);
-        
+
         builder
             .Services
             .AddSwaggerGenWithAuth();
-        
+
         builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());
 
         var app = builder.Build();
         app.MapEndpoints();
-        
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwaggerWithUi();
@@ -48,8 +52,9 @@ public static class Program
 
         app.UseSerilogRequestLogging();
         app.UseAuthentication();
+        app.UseMiddleware<KillSwitchMiddleware>();
         app.UseAuthorization();
-        
+
         app.MapControllers();
 
         app.Run();
