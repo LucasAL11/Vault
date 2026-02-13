@@ -2,6 +2,6 @@
 
 namespace Application.User;
 
-public record ValidateUserCommand(
-    string Username, string Password)
+public record AuthenticateUserCommand(
+    string Username, string Domain)
     : ICommand<string>;

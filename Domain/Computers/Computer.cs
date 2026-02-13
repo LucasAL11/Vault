@@ -1,4 +1,4 @@
-﻿using Shared;
+using Shared;
 
 namespace Domain.Computers;
 
@@ -13,7 +13,8 @@ public class Computer : Entity
         Bios biosSerial, 
         Disk disk, 
         InternalOperatingSystem operatingSystem,
-        MachineGuid machineGuid)
+        MachineGuid machineGuid,
+        IDateTimeProvider dateTimeProvider)
     {
         Name = name;
         CpuId = cpuId;
@@ -22,8 +23,8 @@ public class Computer : Entity
         OperatingSystem = operatingSystem;
         MachineGuid = machineGuid;
         
-        FirstSeen = DateTime.UtcNow;
-        LastSeen = DateTime.UtcNow;
+        FirstSeen = dateTimeProvider.UtcNow;
+        LastSeen = dateTimeProvider.UtcNow;
         IsActive = true;
     }
 
@@ -55,9 +56,9 @@ public class Computer : Entity
         return Hash(raw);
     }
     
-    public void Touch()
+    public void Touch(IDateTimeProvider dateTimeProvider)
     {
-        LastSeen = DateTime.UtcNow;
+        LastSeen = dateTimeProvider.UtcNow;
     }
 
     private string Hash(string raw)

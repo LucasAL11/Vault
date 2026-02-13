@@ -2,6 +2,7 @@ using System.Reflection;
 using Api.Extensions;
 using Application;
 using Infrastructure;
+using Microsoft.AspNetCore.Server.HttpSys;
 using Serilog;
 
 namespace Api;
@@ -12,6 +13,15 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        builder.WebHost.UseHttpSys(options =>
+        {
+            options.Authentication.Schemes = 
+                AuthenticationSchemes.Negotiate 
+                | AuthenticationSchemes.NTLM ;
+            
+            options.Authentication.AllowAnonymous = false;
+        });
+        
         builder.Host.UseSerilog((context, loggerConfiguration) 
             => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
         
@@ -22,7 +32,10 @@ public static class Program
             .AddPresentation()
             .AddInfrastructure(builder.Configuration);
         
-        builder.Services.AddSwaggerGenWithAuth();
+        builder
+            .Services
+            .AddSwaggerGenWithAuth();
+        
         builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());
 
         var app = builder.Build();
@@ -34,6 +47,7 @@ public static class Program
         }
 
         app.UseSerilogRequestLogging();
+        app.UseAuthentication();
         app.UseAuthorization();
         
         app.MapControllers();

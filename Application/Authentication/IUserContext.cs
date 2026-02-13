@@ -1,6 +1,12 @@
-﻿namespace Application.Authentication;
+﻿using Domain.Users;
 
-public class IUserContext
+namespace Application.Authentication;
+
+public interface IUserContext
 {
-    
+    UserIdentity Identity { get; }
+    IReadOnlySet<UserGroup> Groups { get; }
+    List<string> IsInGroup  { get; }
+    bool IsSameDomain(string userDomain);
+    bool IsUserActive(string commandUsername);
 }

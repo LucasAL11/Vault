@@ -2,7 +2,7 @@
 
 namespace Api.Endpoints.Users;
 
-public class GetUser : IEndpoint
+public class Login : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
@@ -10,6 +10,7 @@ public class GetUser : IEndpoint
         {
             
              return userContext.Identity;
-        });
+        })
+            .RequireAuthorization("AdGroup:NomeDoGrupo");
     }
 }

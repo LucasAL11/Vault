@@ -1,4 +1,4 @@
-﻿using Application.Abstractions.Data;
+using Application.Abstractions.Data;
 using Application.Abstractions.Messaging.Handlers;
 using Domain.Computers;
 using Domain.Computers.Events;
@@ -6,7 +6,7 @@ using Shared;
 
 namespace Application.Computers;
 
-public class RegisterComputerCommandHandler(IApplicationDbContext context) 
+public class RegisterComputerCommandHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider) 
     : ICommandHandler<RegisterComputerCommand, string>
 {
     public async Task<Result<string>> Handle(
@@ -27,7 +27,8 @@ public class RegisterComputerCommandHandler(IApplicationDbContext context)
             biosSerial.Value,
             diskSerial.Value,
             new InternalOperatingSystem(command.OperatingSystem),
-            new MachineGuid(command.MachineGuid)
+            new MachineGuid(command.MachineGuid),
+            dateTimeProvider
             );
         
         context.Computers.Add(computer);
