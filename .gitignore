@@ -1,5 +1,39 @@
+# Build artifacts
 bin/
 obj/
+[Bb]uild/
+
+# NuGet packages
 /packages/
+
+# Rider / ReSharper / IDE
+.idea/
+.vs/
 riderModule.iml
-/_ReSharper.Caches/
+_ReSharper.Caches/
+*.DotSettings.user
+*.suo
+*.user
+*.userosscache
+
+# Logs & diagnostics
+*.log
+logs/
+Api/logs/
+
+# Entity Framework
+#migrations are source-controlled; keep Infrastructure/Migrations/
+
+# Config overrides / secrets
+appsettings.*.local.json
+secrets.json
+
+# Database files
+*.db
+*.sqlite
+
+# Frontend tooling
+node_modules/
+
+# Others
+*.DS_Store
