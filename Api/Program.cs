@@ -23,41 +23,87 @@ public partial class Program
 
         builder.Services.Configure<KillSwitchOptions>(builder.Configuration.GetSection("KillSwitch"));
         builder.Services.Configure<AuthChallengeOptions>(builder.Configuration.GetSection("AuthChallenge"));
+        builder.Services.Configure<CorsPolicyOptions>(builder.Configuration.GetSection("Cors"));
+        builder.Services.Configure<SecurityHeadersOptions>(builder.Configuration.GetSection("SecurityHeaders"));
+        builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
         builder.Services.AddSingleton<KillSwitchState>();
         builder.Services.AddScoped<KillSwitchMiddleware>();
+        builder.Services.AddTransient<SecurityHeadersMiddleware>();
 
         builder.Services.AddControllers();
+        var corsOptions = builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("ApiCors", policy =>
+            {
+                if (corsOptions.AllowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(corsOptions.AllowedOrigins);
+                }
+
+                policy.WithMethods(corsOptions.AllowedMethods);
+                policy.WithHeaders(corsOptions.AllowedHeaders);
+
+                if (corsOptions.ExposedHeaders.Length > 0)
+                {
+                    policy.WithExposedHeaders(corsOptions.ExposedHeaders);
+                }
+
+                if (corsOptions.AllowCredentials && corsOptions.AllowedOrigins.Length > 0)
+                {
+                    policy.AllowCredentials();
+                }
+            });
+        });
+
         builder.Services.AddRateLimiter(options =>
         {
+            var rateLimitingOptions = builder.Configuration.GetSection("RateLimiting").Get<RateLimitingOptions>() ?? new RateLimitingOptions();
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.AddPolicy("SecretReadPolicy", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: $"{httpContext.User.Identity?.Name ?? "anonymous"}|{httpContext.Connection.RemoteIpAddress}",
-                    factory: _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 20,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        AutoReplenishment = true
-                    }));
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.SecretRead)));
+
+            options.AddPolicy("SecretWritePolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.User.Identity?.Name ?? "anonymous"}|{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.SecretWrite)));
 
             options.AddPolicy("SecretAuditReadPolicy", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: $"{httpContext.User.Identity?.Name ?? "anonymous"}|{httpContext.Connection.RemoteIpAddress}",
-                    factory: _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        AutoReplenishment = true
-                    }));
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.SecretAuditRead)));
+
+            options.AddPolicy("AuthChallengePolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.AuthChallenge)));
+
+            options.AddPolicy("AuthChallengeVerifyPolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.AuthChallengeVerify)));
+
+            options.AddPolicy("AuthChallengeRespondPolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.AuthChallengeRespond)));
+
+            options.AddPolicy("ZkSensitivePolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.ZkSensitive)));
+
+            options.AddPolicy("OpsSensitivePolicy", httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"{httpContext.User.Identity?.Name ?? "anonymous"}|{httpContext.Connection.RemoteIpAddress}",
+                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.OpsSensitive)));
 
             options.OnRejected = async (context, cancellationToken) =>
             {
-                context.HttpContext.Response.Headers.RetryAfter = "60";
+                context.HttpContext.Response.Headers.RetryAfter = Math.Max(1, rateLimitingOptions.RetryAfterSeconds).ToString();
                 await context.HttpContext.Response.WriteAsJsonAsync(new
                 {
                     message = "Too many requests. Please try again later."
@@ -92,9 +138,15 @@ public partial class Program
         {
             app.UseSwaggerWithUi();
         }
+        else
+        {
+            app.UseHsts();
+        }
 
         app.UseExceptionHandler();
 
+        app.UseCors("ApiCors");
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseMiddleware<RequestContextLoggingMiddleware>();
 
         app.UseSerilogRequestLogging(options =>
@@ -125,5 +177,17 @@ public partial class Program
         app.MapControllers();
 
         app.Run();
+    }
+
+    private static FixedWindowRateLimiterOptions BuildFixedWindowOptions(FixedWindowPolicyOptions settings)
+    {
+        return new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, settings.PermitLimit),
+            Window = TimeSpan.FromSeconds(Math.Max(1, settings.WindowSeconds)),
+            QueueLimit = Math.Max(0, settings.QueueLimit),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        };
     }
 }

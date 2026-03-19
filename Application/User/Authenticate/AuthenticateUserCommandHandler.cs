@@ -3,6 +3,7 @@ using Application.Authentication;
 using Domain.Users;
 using Domain.Users.Errors;
 using Shared;
+using System.Linq;
 
 namespace Application.User.Authenticate;
 
@@ -22,7 +23,8 @@ public class AuthenticateUserCommandHandler(IUserContext context, ITokenProvider
         if (loginResult.IsFailure)
             return Result.Failure<string>(loginResult.Error);
 
-        var token = tokenProvider.Create(loginResult.Value);
+        var groups = context.Groups.Select(g => g.Name).ToArray();
+        var token = tokenProvider.Create(loginResult.Value, groups);
         return token;
     }
 }

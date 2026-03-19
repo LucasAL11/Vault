@@ -36,7 +36,7 @@ public sealed class Verify : IEndpoint
             Result<bool> result = await sender.Send(command, cancellationToken);
 
             return result.Match(Results.Ok, CustomResults.Problem);
-        });
+        }).RequireRateLimiting("ZkSensitivePolicy");
     }
 
     private static bool TryFromBase64Url(string input, out byte[] bytes)

@@ -34,7 +34,7 @@ public sealed class KillSwitchOperations : IEndpoint
                 current.Message,
                 current.DenyUsers
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapPost("/ops/killswitch", async (
             Response response,
@@ -63,7 +63,7 @@ public sealed class KillSwitchOperations : IEndpoint
                 current.Message,
                 current.DenyUsers
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapGet("/ops/killswitch/debug", async (
             KillSwitchState state,
@@ -81,7 +81,7 @@ public sealed class KillSwitchOperations : IEndpoint
                 requiredGroup = current.AllowedGroup,
                 canOperate
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapGet("/ops/killswitch/denylist", async (
             KillSwitchState state,
@@ -99,7 +99,7 @@ public sealed class KillSwitchOperations : IEndpoint
             }
 
             return Results.Ok(current.DenyUsers);
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapPost("/ops/killswitch/denylist", async (
             DenylistAddRequest request,
@@ -136,7 +136,7 @@ public sealed class KillSwitchOperations : IEndpoint
                 expiresAtUtc,
                 request.Reason
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapDelete("/ops/killswitch/denylist/{username}", async (
             string username,
@@ -156,7 +156,7 @@ public sealed class KillSwitchOperations : IEndpoint
 
             var removed = state.RemoveDeniedUser(username);
             return Results.Ok(new { username, removed });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
     }
 
     private static async Task<bool> CanOperateAsync(

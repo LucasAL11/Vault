@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -24,7 +25,13 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
         using var collector = new SecurityMetricsCollector();
 
         var authResponse = await client.GetAsync("/users/groups");
-        var zkResponse = await client.PostAsJsonAsync("/Cryptography/hash", new { secret = "metric-test" });
+        var hashNonce = await RequestNonceAsync(client, "metrics-client");
+        var zkResponse = await client.PostAsJsonAsync("/Cryptography/hash", new
+        {
+            secret = "metric-test",
+            clientId = "metrics-client",
+            nonce = hashNonce
+        });
         var secretResponse = await client.PutAsJsonAsync(
             $"/vaults/{ApiTestFactory.VaultId}/secrets/METRIC_SECRET",
             new { value = "metric-secret-value", contentType = "text/plain", expiresUtc = (DateTimeOffset?)null });
@@ -65,6 +72,15 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
             x.InstrumentName == "security_request_duration_ms" &&
             x.Domain == "secrets" &&
             x.Value > 0);
+    }
+
+    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId)
+    {
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId });
+        challengeResponse.EnsureSuccessStatusCode();
+
+        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
+        return challengeJson.RootElement.GetProperty("nonce").GetString()!;
     }
 
     [Fact]

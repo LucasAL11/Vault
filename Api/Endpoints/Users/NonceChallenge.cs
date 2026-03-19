@@ -52,7 +52,7 @@ public sealed class NonceChallenge : IEndpoint
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "Unable to issue nonce challenge.",
                 detail: "Please retry.");
-        }).AllowAnonymous();
+        }).AllowAnonymous().RequireRateLimiting("AuthChallengePolicy");
     }
 
     private static string ToBase64Url(ReadOnlySpan<byte> bytes)

@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Linq;
 using Application.Abstractions.Cryptography;
 using Application.Contracts.Zk;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Zk.Backends;
@@ -13,14 +15,27 @@ namespace Infrastructure.Zk.Backends;
 /// </summary>
 public sealed class InProcessZkBackend : IZkBackend
 {
+    private const int CurrentProofSchemaVersion = 1;
     private readonly byte[] _hmacKey;
+    private readonly IZkWitnessGenerator _witnessGenerator;
 
-    public InProcessZkBackend(IOptions<ZkBackendOptions> options)
+    public InProcessZkBackend(
+        IOptions<ZkBackendOptions> options,
+        IHostEnvironment hostEnvironment,
+        IZkWitnessGenerator witnessGenerator)
     {
+        _witnessGenerator = witnessGenerator;
+
         var key = options.Value.LocalHmacKey;
         if (string.IsNullOrWhiteSpace(key) || key.Length < 16)
         {
             throw new InvalidOperationException("ZkBackend:LocalHmacKey must have at least 16 characters.");
+        }
+
+        if (hostEnvironment.IsProduction() && !IsStrongKey(key))
+        {
+            throw new InvalidOperationException(
+                "ZkBackend:LocalHmacKey is weak for Production. Use at least 32 bytes of entropy (base64 or strong secret).");
         }
 
         _hmacKey = Encoding.UTF8.GetBytes(key);
@@ -28,20 +43,31 @@ public sealed class InProcessZkBackend : IZkBackend
 
     public Task<ZkProofResult> ProveAsync(PreimageRequest request, CancellationToken cancellationToken)
     {
-        byte[] secretBytes = Encoding.UTF8.GetBytes(request.Secret);
-        byte[] publicHash = NormalizeHashInput(request.HashPublic);
+        var witness = _witnessGenerator.Generate(request);
 
-        byte[] computedHash = SHA256.HashData(secretBytes);
-        if (!CryptographicOperations.FixedTimeEquals(computedHash, publicHash))
+        byte[] secretHash = Convert.FromBase64String(witness.SecretSha256Base64);
+        byte[] publicHash = Convert.FromBase64String(witness.HashPublicBase64);
+
+        if (!CryptographicOperations.FixedTimeEquals(secretHash, publicHash))
         {
             throw new InvalidOperationException("Provided hashPublic does not match SHA-256(secret).");
         }
 
-        byte[] mac = ComputeMac(secretBytes, publicHash);
+        byte[] mac = ComputeMac(
+            publicHash,
+            witness.ClientId,
+            witness.Nonce,
+            witness.CircuitId,
+            witness.Version);
 
         var payload = new LocalProofPayload(
-            SecretBase64: Convert.ToBase64String(secretBytes),
-            HashPublicBase64: Convert.ToBase64String(publicHash),
+            SchemaVersion: CurrentProofSchemaVersion,
+            Witness: new LocalProofWitness(
+                HashPublicBase64: witness.HashPublicBase64,
+                ClientId: witness.ClientId,
+                Nonce: witness.Nonce,
+                CircuitId: witness.CircuitId,
+                Version: witness.Version),
             MacBase64: Convert.ToBase64String(mac));
 
         byte[] proofBytes = JsonSerializer.SerializeToUtf8Bytes(payload);
@@ -72,29 +98,48 @@ public sealed class InProcessZkBackend : IZkBackend
             return Task.FromResult(false);
         }
 
-        if (payload is null)
+        if (payload?.Witness is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        if (payload.SchemaVersion != CurrentProofSchemaVersion)
         {
             return Task.FromResult(false);
         }
 
         try
         {
-            byte[] secretBytes = Convert.FromBase64String(payload.SecretBase64);
-            byte[] hashFromProof = Convert.FromBase64String(payload.HashPublicBase64);
+            var witness = payload.Witness;
+            byte[] hashFromProof = Convert.FromBase64String(witness.HashPublicBase64);
             byte[] macFromProof = Convert.FromBase64String(payload.MacBase64);
+
+            if (!string.Equals(witness.ClientId, request.ClientId, StringComparison.Ordinal))
+            {
+                return Task.FromResult(false);
+            }
+
+            if (!string.Equals(witness.Nonce, request.Nonce, StringComparison.Ordinal))
+            {
+                return Task.FromResult(false);
+            }
 
             if (!CryptographicOperations.FixedTimeEquals(hashFromProof, expectedHash))
             {
                 return Task.FromResult(false);
             }
 
-            byte[] recomputedHash = SHA256.HashData(secretBytes);
-            if (!CryptographicOperations.FixedTimeEquals(recomputedHash, expectedHash))
+            if (string.IsNullOrWhiteSpace(witness.CircuitId) || witness.Version <= 0)
             {
                 return Task.FromResult(false);
             }
 
-            byte[] expectedMac = ComputeMac(secretBytes, expectedHash);
+            byte[] expectedMac = ComputeMac(
+                expectedHash,
+                witness.ClientId,
+                witness.Nonce,
+                witness.CircuitId,
+                witness.Version);
             bool valid = CryptographicOperations.FixedTimeEquals(expectedMac, macFromProof);
             return Task.FromResult(valid);
         }
@@ -104,12 +149,18 @@ public sealed class InProcessZkBackend : IZkBackend
         }
     }
 
-    private byte[] ComputeMac(byte[] secretBytes, byte[] hashPublicBytes)
+    private byte[] ComputeMac(
+        byte[] hashPublicBytes,
+        string clientId,
+        string nonce,
+        string circuitId,
+        int version)
     {
         using var hmac = new HMACSHA256(_hmacKey);
-        var payload = new byte[secretBytes.Length + hashPublicBytes.Length];
-        Buffer.BlockCopy(secretBytes, 0, payload, 0, secretBytes.Length);
-        Buffer.BlockCopy(hashPublicBytes, 0, payload, secretBytes.Length, hashPublicBytes.Length);
+        var meta = Encoding.UTF8.GetBytes($"{clientId}|{nonce}|{circuitId}|{version}");
+        var payload = new byte[hashPublicBytes.Length + meta.Length];
+        Buffer.BlockCopy(hashPublicBytes, 0, payload, 0, hashPublicBytes.Length);
+        Buffer.BlockCopy(meta, 0, payload, hashPublicBytes.Length, meta.Length);
         return hmac.ComputeHash(payload);
     }
 
@@ -154,7 +205,7 @@ public sealed class InProcessZkBackend : IZkBackend
         {
             return false;
         }
-        
+
         var buffer = new byte[input.Length / 2];
         for (int i = 0; i < buffer.Length; i++)
         {
@@ -198,8 +249,49 @@ public sealed class InProcessZkBackend : IZkBackend
         return true;
     }
 
+    private static bool IsStrongKey(string key)
+    {
+        const string defaultDevKey = "dev-local-zk-key-change-me";
+        if (string.Equals(key, defaultDevKey, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            var decoded = Convert.FromBase64String(key);
+            if (decoded.Length >= 32)
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // not base64, fallback to plain-text heuristics
+        }
+
+        if (Encoding.UTF8.GetByteCount(key) < 32)
+        {
+            return false;
+        }
+
+        int classes = 0;
+        if (key.Any(char.IsLower)) classes++;
+        if (key.Any(char.IsUpper)) classes++;
+        if (key.Any(char.IsDigit)) classes++;
+        if (key.Any(c => !char.IsLetterOrDigit(c))) classes++;
+        return classes >= 3;
+    }
+
     private sealed record LocalProofPayload(
-        string SecretBase64,
-        string HashPublicBase64,
+        int SchemaVersion,
+        LocalProofWitness Witness,
         string MacBase64);
+
+    private sealed record LocalProofWitness(
+        string HashPublicBase64,
+        string ClientId,
+        string Nonce,
+        string CircuitId,
+        int Version);
 }

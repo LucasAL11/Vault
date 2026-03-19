@@ -1,4 +1,5 @@
 using System.DirectoryServices.AccountManagement;
+using System.Security.Claims;
 using Application.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -14,8 +15,30 @@ public sealed class AdGroupAuthorizationHandler(
         AuthorizationHandlerContext context,
         AdGroupRequirement requirement)
     {
-        var username = userContext.Identity.Username;
         var requiredGroup = NormalizeGroupName(requirement.GroupName);
+        var requiredFullGroup = requirement.GroupName.Trim();
+
+        if (IsInGroupClaims(context.User, requiredGroup, requiredFullGroup))
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        if (IsInUserContextGroups(userContext.Groups, requiredGroup, requiredFullGroup))
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        var tokenOverageDetected = IsTokenOverageDetected(context.User);
+        if (tokenOverageDetected)
+        {
+            logger.LogInformation(
+                "Token group overage detected. Falling back to server-side group resolution. RequiredGroup={RequiredGroup}",
+                requirement.GroupName);
+        }
+
+        var username = userContext.Identity.Username;
 
         if (string.IsNullOrWhiteSpace(username))
         {
@@ -78,6 +101,80 @@ public sealed class AdGroupAuthorizationHandler(
         }
 
         return Task.CompletedTask;
+    }
+
+    private static bool IsInGroupClaims(ClaimsPrincipal user, string requiredGroup, string requiredFullGroup)
+    {
+        foreach (var claim in user.Claims)
+        {
+            if (claim.Type != ClaimTypes.Role &&
+                !string.Equals(claim.Type, "role", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(claim.Type, "groups", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var claimValue = claim.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(claimValue))
+            {
+                continue;
+            }
+
+            var normalizedClaim = NormalizeGroupName(claimValue);
+            if (string.Equals(normalizedClaim, requiredGroup, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(claimValue, requiredFullGroup, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsInUserContextGroups(IReadOnlySet<Domain.Users.UserGroup> groups, string requiredGroup, string requiredFullGroup)
+    {
+        foreach (var group in groups)
+        {
+            var name = group.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            var normalized = NormalizeGroupName(name);
+            if (string.Equals(normalized, requiredGroup, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, requiredFullGroup, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsTokenOverageDetected(ClaimsPrincipal user)
+    {
+        foreach (var claim in user.Claims)
+        {
+            if (string.Equals(claim.Type, "hasgroups", StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(claim.Value, "true", StringComparison.OrdinalIgnoreCase) || claim.Value == "1"))
+            {
+                return true;
+            }
+
+            if (string.Equals(claim.Type, "_claim_names", StringComparison.OrdinalIgnoreCase) &&
+                claim.Value.Contains("groups", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.Equals(claim.Type, "http://schemas.microsoft.com/claims/groups.link", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string NormalizeGroupName(string groupName)

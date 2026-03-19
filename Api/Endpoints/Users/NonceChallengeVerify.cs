@@ -33,7 +33,7 @@ public sealed class NonceChallengeVerify : IEndpoint
             return consumed
                 ? Results.Ok(new { valid = true })
                 : Results.Ok(new { valid = false });
-        }).AllowAnonymous();
+        }).AllowAnonymous().RequireRateLimiting("AuthChallengeVerifyPolicy");
     }
 
     private static bool TryFromBase64Url(string input, out byte[] bytes)

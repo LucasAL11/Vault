@@ -101,7 +101,7 @@ public sealed class SecretStore : IEndpoint
                 version.KeyReference,
                 version.Expires
             });
-        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
+        }).RequireAuthorization().RequireRateLimiting("SecretWritePolicy");
 
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}", async (
             Guid vaultId,
@@ -294,7 +294,7 @@ public sealed class SecretStore : IEndpoint
                 secret.CurrentVersion,
                 Versions = versions
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
 
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/audit", async (
             Guid vaultId,

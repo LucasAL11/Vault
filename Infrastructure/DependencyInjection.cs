@@ -10,6 +10,7 @@ using Infrastructure.Data;
 using Infrastructure.Security;
 using Infrastructure.Zk;
 using Infrastructure.Zk.Backends;
+using Infrastructure.Zk.Witness;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
@@ -123,6 +124,7 @@ public static class DependencyInjection
     {
         services.Configure<ZkBackendOptions>(configuration.GetSection("ZkBackend"));
         services.AddSingleton<IZkBackend, InProcessZkBackend>();
+        services.AddSingleton<IZkWitnessGenerator, DefaultZkWitnessGenerator>();
 
         services.AddScoped<IZkProofService, ZkProofService>();
         return services;

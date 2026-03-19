@@ -7,6 +7,7 @@
 @proof =
 @zkClientId = local-dev-client
 @zkNonce =
+@hashNonce =
 @killswitchEnabled = true
 @vaultId = 11111111-1111-1111-1111-111111111111
 
@@ -34,14 +35,32 @@ Accept: application/json
 %}
 
 ###
-# 3) Gerar hashPublic automatico a partir do secret
+# 3) Obter nonce para hash
+POST {{baseUrl}}/auth/challenge
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientId": "{{zkClientId}}"
+}
+
+> {%
+  if (response.status === 200 && response.body && response.body.nonce) {
+    client.global.set("hashNonce", response.body.nonce);
+  }
+%}
+
+###
+# 4) Gerar hashPublic automatico a partir do secret
 POST {{baseUrl}}/Cryptography/hash
 Content-Type: application/json
 Accept: application/json
 Authorization: Bearer {{token}}
 
 {
-  "secret": "{{secret}}"
+  "secret": "{{secret}}",
+  "clientId": "{{zkClientId}}",
+  "nonce": "{{hashNonce}}"
 }
 
 > {%
@@ -51,25 +70,25 @@ Authorization: Bearer {{token}}
 %}
 
 ###
-# 4) Debug de autenticacao (requer auth)
+# 5) Debug de autenticacao (requer auth)
 GET {{baseUrl}}/debug/auth
 Authorization: Bearer {{token}}
 Accept: application/json
 
 ###
-# 4.1) Debug do KeyProvider (requer auth)
+# 5.1) Debug do KeyProvider (requer auth)
 GET {{baseUrl}}/debug/key-provider
 Authorization: Bearer {{token}}
 Accept: application/json
 
 ###
-# 4.2) Operacao do KeyProvider (requer auth + grupo de operadores)
+# 5.2) Operacao do KeyProvider (requer auth + grupo de operadores)
 GET {{baseUrl}}/ops/key-provider
 Authorization: Bearer {{token}}
 Accept: application/json
 
 ###
-# 4.3) Rotacionar chave corrente em runtime (requer auth + grupo de operadores)
+# 5.3) Rotacionar chave corrente em runtime (requer auth + grupo de operadores)
 POST {{baseUrl}}/ops/key-provider/rotate
 Content-Type: application/json
 Authorization: Bearer {{token}}
@@ -80,7 +99,7 @@ Accept: application/json
 }
 
 ###
-# 4.4) Re-encrypt de versoes antigas para chave corrente (requer auth + grupo de operadores)
+# 5.4) Re-encrypt de versoes antigas para chave corrente (requer auth + grupo de operadores)
 POST {{baseUrl}}/ops/key-provider/re-encrypt
 Content-Type: application/json
 Authorization: Bearer {{token}}

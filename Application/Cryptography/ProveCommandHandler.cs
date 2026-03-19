@@ -17,6 +17,7 @@ public sealed class ProveCommandHandler : ICommandHandler<ProveCommand, string>
             command.Request.HashPublic,
             command.Request.ClientId,
             command.Request.Nonce);
+        
         if (validationError is not null)
         {
             return Result.Failure<string>(validationError);

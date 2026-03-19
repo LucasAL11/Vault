@@ -56,5 +56,8 @@
     &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.HandlerTelemetryIntegrationTests&lt;/TestId&gt;&#xD;
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests.TryAddAsync_ShouldRejectDuplicateWithinTtl_AndAcceptAfterExpiry&lt;/TestId&gt;&#xD;
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests.TryAddAsync_ShouldAllowSameNonceOnDifferentScopes&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldGenerateExpectedConstraintCount&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldSatisfyConstraints_WhenAGreaterOrEqualB&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldSatisfyConstraints_WhenALessThanB&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

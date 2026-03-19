@@ -151,6 +151,7 @@ Sempre seguir esta ordem:
 - Nao existe projeto de testes automatizados na solucao.
 - A prova/verificacao roda internamente na propria API (`InProcess`), sem dependencia de servidor ZK externo.
 - O modo interno e um fallback operacional e nao substitui um prover ZK real (Circom/gnark/halo2).
+- Limites e trade-offs do modo interno estao em `docs/runbooks/zk-in-process-limits.md`.
 - Se o `KillSwitch` estiver `Enabled`, apenas grupo autorizado passa.
 - O kill switch pode ser operado em runtime via `/ops/killswitch` (sem restart), por usuario autenticado pertencente ao `AllowedGroup`.
 - A denylist temporaria pode bloquear usuarios especificos por janela de tempo via `/ops/killswitch/denylist`.

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Linq;
 using Application.Authentication;
 using Domain.Users;
 using Microsoft.Extensions.Options;
@@ -24,7 +25,7 @@ public sealed class JwtTokenProvider : ITokenProvider
         _signingCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
     }
 
-    public string Create(Login user)
+    public string Create(Login user, IReadOnlyCollection<string>? groups = null)
     {
         var userNameForIdentity = $"{Environment.UserDomainName}\\{user.UserName}";
 
@@ -33,6 +34,15 @@ public sealed class JwtTokenProvider : ITokenProvider
             new(ClaimTypes.Name, userNameForIdentity),
             new(ClaimTypes.NameIdentifier, user.UserName)
         };
+        
+        if (groups is { Count: > 0 })
+        {
+            foreach (var group in groups.Where(g => !string.IsNullOrWhiteSpace(g)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, group));
+                claims.Add(new Claim("groups", group));
+            }
+        }
 
         var now = _dateTimeProvider.UtcNow;
 

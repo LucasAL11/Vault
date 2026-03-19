@@ -23,7 +23,12 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
         using var client = _factory.CreateClient();
         using var collector = new ApplicationMetricsCollector();
 
-        var hashResponse = await client.PostAsJsonAsync("/Cryptography/hash", new { secret = "proof-secret" });
+        var hashResponse = await client.PostAsJsonAsync("/Cryptography/hash", new
+        {
+            secret = "proof-secret",
+            clientId = "zk-client",
+            nonce = await RequestNonceAsync(client, "zk-client")
+        });
         Assert.Equal(HttpStatusCode.OK, hashResponse.StatusCode);
         using var hashJson = JsonDocument.Parse(await hashResponse.Content.ReadAsStringAsync());
         var hashPublic = hashJson.RootElement.GetProperty("hashHex").GetString();

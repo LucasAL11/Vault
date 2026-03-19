@@ -36,7 +36,7 @@ public sealed class KeyProviderOperations : IEndpoint
                 CurrentKeyId = current.KeyId,
                 KnownKeyIds = knownIds
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapPost("/ops/key-provider/rotate", async (
             RotateRequest request,
@@ -77,7 +77,7 @@ public sealed class KeyProviderOperations : IEndpoint
                 CurrentKeyId = rotated.KeyId,
                 KnownKeyIds = knownIds
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
 
         builder.MapPost("/ops/key-provider/re-encrypt", async (
             ReEncryptRequest request,
@@ -182,7 +182,7 @@ public sealed class KeyProviderOperations : IEndpoint
                 RotatedCount = rotatedCount,
                 CurrentKeyId = currentKey.KeyId
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
     }
 
     private static async Task<bool> CanOperateAsync(

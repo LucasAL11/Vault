@@ -1,22 +1,42 @@
 using System.Security.Cryptography;
 using System.Text;
+using Api.Endpoints.Users;
+using Application.Abstractions.Security;
 
 namespace Api.Endpoints.Cryptography;
 
 public sealed class HashSecret : IEndpoint
 {
-    private sealed record Request(string Secret);
+    private sealed record Request(string Secret, string ClientId, string Nonce);
 
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapPost("/Cryptography/hash", (Request request) =>
+        app.MapPost("/Cryptography/hash", async (
+            Request request,
+            INonceStore nonceStore,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Secret))
             {
-                return Results.BadRequest(new
-                {
-                    Error = "secret is required"
-                });
+                return Results.BadRequest(new { Error = "secret is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ClientId))
+            {
+                return Results.BadRequest(new { Error = "clientId is required" });
+            }
+
+            if (!TryFromBase64Url(request.Nonce, out var nonceBytes))
+            {
+                return Results.BadRequest(new { Error = "nonce is invalid" });
+            }
+
+            var scope = NonceChallengeScope.Build(httpContext, request.ClientId);
+            var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
+            if (!consumed)
+            {
+                return Results.Unauthorized();
             }
 
             byte[] secretBytes = Encoding.UTF8.GetBytes(request.Secret);
@@ -29,6 +49,38 @@ public sealed class HashSecret : IEndpoint
                 HashBase64 = hashBase64,
                 HashHex = hashHex
             });
-        });
+        }).RequireRateLimiting("ZkSensitivePolicy");
+    }
+
+    private static bool TryFromBase64Url(string input, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        var normalized = input.Replace('-', '+').Replace('_', '/');
+        switch (normalized.Length % 4)
+        {
+            case 2:
+                normalized += "==";
+                break;
+            case 3:
+                normalized += "=";
+                break;
+            case 1:
+                return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(normalized);
+            return bytes.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

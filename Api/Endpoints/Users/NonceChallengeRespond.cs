@@ -90,7 +90,7 @@ public sealed class NonceChallengeRespond : IEndpoint
                 username = request.Username,
                 domain = request.Domain
             });
-        }).AllowAnonymous();
+        }).AllowAnonymous().RequireRateLimiting("AuthChallengeRespondPolicy");
     }
 
     private static bool TryGetClientSecret(string clientId, AuthChallengeOptions options, out string secret)

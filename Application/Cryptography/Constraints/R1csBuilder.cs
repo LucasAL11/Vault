@@ -11,8 +11,11 @@ namespace Application.Cryptography.Constraints;
 /// </summary>
 public sealed class R1csBuilder
 {
-    public static readonly BigInteger Bn254Prime = BigInteger.Parse(
-        "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+    public const string ConstantWireName = "1";
+    public const int ConstantWireId = 0;
+
+    public static readonly BigInteger Bls12_381ScalarFieldPrime = BigInteger.Parse(
+        "52435875175126190479447740508185965837690552500527637822603658699938581184513",
         CultureInfo.InvariantCulture);
 
     public sealed record SparseVec(Dictionary<int, BigInteger> Terms);
@@ -25,17 +28,22 @@ public sealed class R1csBuilder
 
     public R1csBuilder(BigInteger? modulus = null)
     {
-        _modulus = modulus ?? Bn254Prime;
+        _modulus = modulus ?? Bls12_381ScalarFieldPrime;
         if (_modulus <= BigInteger.One)
         {
             throw new ArgumentOutOfRangeException(nameof(modulus), "Field modulus must be greater than 1.");
         }
 
-        _ids["1"] = 0;
+        _ids[ConstantWireName] = ConstantWireId;
     }
 
     public int IdOf(string name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Wire name is required.", nameof(name));
+        }
+
         if (_ids.TryGetValue(name, out var id)) return id;
         id = _nextId++;
         _ids[name] = id;
@@ -45,18 +53,19 @@ public sealed class R1csBuilder
     public IReadOnlyDictionary<string, int> WireIndex => _ids;
     public IReadOnlyList<R1csConstraint> Constraints => _constraints;
     public BigInteger Modulus => _modulus;
+    public BigInteger Mod(BigInteger value) => ModP(value);
 
     private SparseVec Vec(params (int idx, BigInteger coeff)[] terms)
     {
         var d = new Dictionary<int, BigInteger>();
         foreach (var (idx, coeff) in terms)
         {
-            var normalized = Normalize(coeff);
+            var normalized = ModP(coeff);
             if (normalized.IsZero) continue;
 
             if (d.TryGetValue(idx, out var prev))
             {
-                var sum = Normalize(prev + normalized);
+                var sum = ModP(prev + normalized);
                 if (sum.IsZero) d.Remove(idx);
                 else d[idx] = sum;
             }
@@ -69,7 +78,7 @@ public sealed class R1csBuilder
         return new SparseVec(d);
     }
 
-    private BigInteger Normalize(BigInteger value)
+    private BigInteger ModP(BigInteger value)
     {
         var normalized = value % _modulus;
         if (normalized.Sign < 0) normalized += _modulus;
@@ -92,7 +101,7 @@ public sealed class R1csBuilder
     {
         Add(new R1csConstraint(
             Vec((IdOf(x), BigInteger.One)),
-            Vec((IdOf("1"), k)),
+            Vec((IdOf(ConstantWireName), k)),
             Vec((IdOf(r), BigInteger.One))));
     }
 
@@ -101,7 +110,7 @@ public sealed class R1csBuilder
     {
         Add(new R1csConstraint(
             Vec((IdOf(x), BigInteger.One), (IdOf(y), BigInteger.One)),
-            Vec((IdOf("1"), BigInteger.One)),
+            Vec((IdOf(ConstantWireName), BigInteger.One)),
             Vec((IdOf(r), BigInteger.One))));
     }
 
@@ -109,8 +118,8 @@ public sealed class R1csBuilder
     public void AddConst(string r, string x, BigInteger k)
     {
         Add(new R1csConstraint(
-            Vec((IdOf(x), BigInteger.One), (IdOf("1"), k)),
-            Vec((IdOf("1"), BigInteger.One)),
+            Vec((IdOf(x), BigInteger.One), (IdOf(ConstantWireName), k)),
+            Vec((IdOf(ConstantWireName), BigInteger.One)),
             Vec((IdOf(r), BigInteger.One))));
     }
 
@@ -119,7 +128,7 @@ public sealed class R1csBuilder
     {
         Add(new R1csConstraint(
             Vec((IdOf(x), BigInteger.One), (IdOf(y), -BigInteger.One)),
-            Vec((IdOf("1"), BigInteger.One)),
+            Vec((IdOf(ConstantWireName), BigInteger.One)),
             Vec((IdOf(r), BigInteger.One))));
     }
 
@@ -127,9 +136,9 @@ public sealed class R1csBuilder
     public void Const(string r, BigInteger constant)
     {
         Add(new R1csConstraint(
-            Vec((IdOf("1"), BigInteger.One)),
-            Vec((IdOf("1"), BigInteger.One)),
-            Vec((IdOf(r), BigInteger.One), (IdOf("1"), -constant))));
+            Vec((IdOf(ConstantWireName), BigInteger.One)),
+            Vec((IdOf(ConstantWireName), BigInteger.One)),
+            Vec((IdOf(r), BigInteger.One), (IdOf(ConstantWireName), -constant))));
     }
 
     /// <summary>Boolean: v in {0,1} => v*(v-1)=0</summary>
@@ -137,7 +146,7 @@ public sealed class R1csBuilder
     {
         Add(new R1csConstraint(
             Vec((IdOf(v), BigInteger.One)),
-            Vec((IdOf(v), BigInteger.One), (IdOf("1"), -BigInteger.One)),
+            Vec((IdOf(v), BigInteger.One), (IdOf(ConstantWireName), -BigInteger.One)),
             Vec()));
     }
 
@@ -156,6 +165,6 @@ public sealed class R1csBuilder
         Add(new R1csConstraint(
             Vec((IdOf(x), BigInteger.One)),
             Vec((IdOf(inv), BigInteger.One)),
-            Vec((IdOf("1"), BigInteger.One))));
+            Vec((IdOf(ConstantWireName), BigInteger.One))));
     }
 }
