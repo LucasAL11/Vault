@@ -1,10 +1,15 @@
 using System.Text;
 using Application.Abstractions.Data;
+using Application.Abstractions.Cryptography;
+using Application.Abstractions.Security;
 using Application.Authentication;
 using Infrastructure.Authentication;
 using Infrastructure.Authentication.ActiveDirectory;
 using Infrastructure.Authentication.Jwt;
 using Infrastructure.Data;
+using Infrastructure.Security;
+using Infrastructure.Zk;
+using Infrastructure.Zk.Backends;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
@@ -31,6 +36,11 @@ public static class DependencyInjection
 
         services.AddSingleton<IAuthorizationPolicyProvider, AdGroupPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, AdGroupAuthorizationHandler>();
+
+        services.AddKeyProvider(configuration);
+        services.AddNonceStore(configuration);
+        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+        services.AddZk(configuration);
 
         return services;
     }
@@ -72,7 +82,9 @@ public static class DependencyInjection
             .AddAuthentication(options =>
             {
                 options.DefaultScheme = "BearerOrNegotiate";
+                options.DefaultAuthenticateScheme = "BearerOrNegotiate";
                 options.DefaultChallengeScheme = "BearerOrNegotiate";
+                options.DefaultForbidScheme = "BearerOrNegotiate";
             })
             .AddPolicyScheme("BearerOrNegotiate", "Bearer or Negotiate", options =>
             {
@@ -104,6 +116,57 @@ public static class DependencyInjection
       
         services.AddAuthorization();
 
+        return services;
+    }
+
+    private static IServiceCollection AddZk(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<ZkBackendOptions>(configuration.GetSection("ZkBackend"));
+        services.AddSingleton<IZkBackend, InProcessZkBackend>();
+
+        services.AddScoped<IZkProofService, ZkProofService>();
+        return services;
+    }
+
+    private static IServiceCollection AddKeyProvider(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<KeyProviderOptions>(configuration.GetSection("KeyProvider"));
+
+        var keyProviderOptions = configuration.GetSection("KeyProvider").Get<KeyProviderOptions>() ?? new KeyProviderOptions();
+        var mode = keyProviderOptions.Mode.Trim();
+
+        if (string.Equals(mode, "ProdKms", StringComparison.OrdinalIgnoreCase))
+        {
+            var kms = keyProviderOptions.ProdKms;
+            if (!Uri.TryCreate(kms.BaseUrl, UriKind.Absolute, out var baseUri))
+            {
+                throw new InvalidOperationException("KeyProvider:ProdKms:BaseUrl must be a valid absolute URI.");
+            }
+
+            services.AddHttpClient("KmsKeyProvider", client =>
+            {
+                client.BaseAddress = baseUri;
+                client.Timeout = TimeSpan.FromSeconds(kms.TimeoutSeconds <= 0 ? 5 : kms.TimeoutSeconds);
+            });
+
+            services.AddSingleton<IKeyProvider, KmsKeyProvider>();
+            return services;
+        }
+
+        if (string.Equals(mode, "Prod", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IKeyProvider, ProdKeyProvider>();
+            return services;
+        }
+
+        services.AddSingleton<IKeyProvider, DevKeyProvider>();
+        return services;
+    }
+
+    private static IServiceCollection AddNonceStore(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<NonceStoreOptions>(configuration.GetSection("NonceStore"));
+        services.AddSingleton<INonceStore, InMemoryNonceStore>();
         return services;
     }
 }

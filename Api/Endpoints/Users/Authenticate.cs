@@ -1,7 +1,7 @@
 ﻿using Api.Extensions;
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
-using Application.User;
+using Application.User.Authenticate;
 using Shared;
 
 namespace Api.Endpoints.Users;

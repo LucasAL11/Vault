@@ -4,7 +4,7 @@ using Domain.Users;
 using Domain.Users.Errors;
 using Shared;
 
-namespace Application.User;
+namespace Application.User.Authenticate;
 
 public class AuthenticateUserCommandHandler(IUserContext context, ITokenProvider tokenProvider)
     : ICommandHandler<AuthenticateUserCommand, string>

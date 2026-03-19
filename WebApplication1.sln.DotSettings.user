@@ -5,6 +5,7 @@
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ADeveloperExceptionPageMiddlewareImpl_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Ff2283f61f359edccc97a22834d8c74995c494e20beff5c96a0d7bd2d691162b2_003FDeveloperExceptionPageMiddlewareImpl_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AEnvironment_002EWin32_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Fa8ed817989d3fded7c5f628e9ee9105c5f4cbd5b5b12ee11b4bacf26985e7_003FEnvironment_002EWin32_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AExceptionDispatchInfo_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Fbd1d5c50194fea68ff3559c160230b0ab50f5acf4ce3061bffd6d62958e2182_003FExceptionDispatchInfo_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AIAuthorizationService_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Ff4bcba7225cab2ec6bd79b25559cb93d2a1106161604f35eb0479f7184224_003FIAuthorizationService_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AIServiceProvider_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FDecompilerCache_003Fdecompiler_003Fd67e58400e58462694a682d22e1a5c457908_003F38_003Ff7ff589a_003FIServiceProvider_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AList_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F3cca26e6dd627c1a7919bec86cb05b6d975a30287456f7daa8773a92451a_003FList_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AMethodBaseInvoker_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F9282df70362b17ffae24d589dffe1e9bc7a730f1d7622551e6e964f_003FMethodBaseInvoker_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
@@ -13,7 +14,47 @@
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ARequestDelegateFactory_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Fc122dc6196c2679e6afe8e125bcd1ff18735d2b014810e358113f75cbc554a8_003FRequestDelegateFactory_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ARuntimeType_002ECoreCLR_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Fa3874ce7f1ea55e4427b4e6216fee3d5a82d337cb291e07f7a9d047e9661384_003FRuntimeType_002ECoreCLR_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AServiceProvider_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003Fd7e2ce30531b7a2d56142411c5e51c3d516aafcb44e7628167b959660a65c_003FServiceProvider_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AUseMiddlewareExtensions_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F782b4378d5b769abe3da8e3e431f24b38a3e53b3c023a366829e1323b22e_003FUseMiddlewareExtensions_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AWebApplication_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003FAppData_003FRoaming_003FJetBrains_003FRider2025_002E3_003Fresharper_002Dhost_003FSourcesCache_003F83674fee86c8a2af5f9fc3ddee3f772b47b07f6719f94ed85563653cdb109073_003FWebApplication_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	
 	<s:String x:Key="/Default/Environment/AssemblyExplorer/XmlDocument/@EntryValue">&lt;AssemblyExplorer&gt;&#xD;
   &lt;Assembly Path="C:\Users\lucas.luna\.dotnet\packs\Microsoft.AspNetCore.App.Ref\10.0.1\ref\net10.0\Microsoft.AspNetCore.Server.HttpSys.dll" /&gt;&#xD;
-&lt;/AssemblyExplorer&gt;</s:String></wpf:ResourceDictionary>
+&lt;/AssemblyExplorer&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=27b193b6_002D1c9a_002D4905_002D8903_002D4b2a547fbea3/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="ProdMode_ShouldPreferEnvironmentVariables #2" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.ProdMode_ShouldPreferEnvironmentVariables&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=a429c728_002Dbb8a_002D4b82_002D835d_002Dc5c2163f6002/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="NonceStoreTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=b2114ee8_002D0f10_002D4cdb_002D879b_002Dd66b9ab0a3ba/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="ProdMode_ShouldPreferEnvironmentVariables" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.ProdMode_ShouldPreferEnvironmentVariables&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.ProdMode_ShouldFailWhenNoKeyConfigured&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.DevMode_ShouldResolveConfiguredKey&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.SecretProtectorTests.ProtectAndUnprotect_WithDevKeyProvider_ShouldRoundTrip&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.SecretProtectorTests.Unprotect_WithUnknownKeyId_ShouldThrow&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.SecretStoreIntegrationTests.PutSecret_ShouldPersistEncryptedVersion_AndAuditEntry&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.SecretStoreIntegrationTests.ReadMetadataEndpoints_ShouldNotExposePlainValue_AndShouldWriteAudit&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.SecretStoreIntegrationTests.PutSecret_OnUnhandledException_ShouldNotExposeSecretInResponse&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.SecretVersionReEncryptTests.ReEncrypt_ShouldUpdateCipherNonceAndKeyReference&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.SecretVersionReEncryptTests.ReEncrypt_WithInvalidPayload_ShouldThrow&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.MachineStoreIntegrationTests&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.SecretStoreIntegrationTests&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=bedea4bf_002D15e7_002D4e66_002D9fb7_002D5e3f953646bc/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="DevMode_ShouldResolveConfiguredKey" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.DevMode_ShouldResolveConfiguredKey&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=d8494ab7_002D8e68_002D44bf_002D9e49_002D9dbdcc38196c/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="HandlerTelemetryIntegrationTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.HandlerTelemetryIntegrationTests&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests.TryAddAsync_ShouldRejectDuplicateWithinTtl_AndAcceptAfterExpiry&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests.TryAddAsync_ShouldAllowSameNonceOnDifferentScopes&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

@@ -3,7 +3,7 @@ using Shared;
 
 namespace Domain.Users;
 
-public class User
+public class User : Entity
 {
     public int Id { get; set; }
     public Login UserName { get; set; }

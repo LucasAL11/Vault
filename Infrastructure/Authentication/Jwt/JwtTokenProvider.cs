@@ -26,9 +26,12 @@ public sealed class JwtTokenProvider : ITokenProvider
 
     public string Create(Login user)
     {
+        var userNameForIdentity = $"{Environment.UserDomainName}\\{user.UserName}";
+
         var claims = new List<Claim>
         {
-            new(ClaimTypes.Name, user.UserName)
+            new(ClaimTypes.Name, userNameForIdentity),
+            new(ClaimTypes.NameIdentifier, user.UserName)
         };
 
         var now = _dateTimeProvider.UtcNow;

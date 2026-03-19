@@ -1,4 +1,5 @@
 ﻿using Domain.Computers;
+using Domain.vault;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Abstractions.Data;
@@ -6,5 +7,12 @@ namespace Application.Abstractions.Data;
 public interface IApplicationDbContext
 {
     DbSet<Computer>  Computers { get; }
+    DbSet<Domain.vault.Vault>  Vaults { get; }
+    DbSet<VaultMachine> VaultMachines { get; }
+    DbSet<ADMap> ADMaps { get; }
+    DbSet<Secret> Secrets { get; }
+    DbSet<SecretVersion> SecretVersions { get; }
+    DbSet<SecretAuditEntry> SecretAuditEntries { get; }
+    
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

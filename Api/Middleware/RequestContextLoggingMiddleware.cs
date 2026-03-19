@@ -1,28 +1,37 @@
-﻿using Microsoft.Extensions.Primitives;
-using Microsoft.IdentityModel.Logging;
 using Serilog.Context;
 
 namespace Api.Middleware;
 
 public class RequestContextLoggingMiddleware(RequestDelegate next)
 {
-    private const string CorrelationIdHeaderName = "Correlation-ID";
+    public const string TraceIdHeaderName = "X-Trace-Id";
 
-    public Task Invoke(HttpContext httpContext)
+    public async Task Invoke(HttpContext httpContext)
     {
-        using (LogContext.PushProperty("CorrelationId", httpContext.TraceIdentifier))
+        var traceId = ResolveTraceId(httpContext);
+        httpContext.TraceIdentifier = traceId;
+        httpContext.Response.OnStarting(() =>
         {
-            return next.Invoke(httpContext);
+            httpContext.Response.Headers[TraceIdHeaderName] = httpContext.TraceIdentifier;
+            return Task.CompletedTask;
+        });
+
+        using (LogContext.PushProperty("TraceId", traceId))
+        using (LogContext.PushProperty("CorrelationId", traceId))
+        {
+            await next.Invoke(httpContext);
         }
     }
 
-    private static string GetCorrelationId(HttpContext httpContext)
+    private static string ResolveTraceId(HttpContext httpContext)
     {
-        httpContext
-            .Request
-            .Headers
-            .TryGetValue(CorrelationIdHeaderName, out var correlationId);
-        
-        return correlationId.FirstOrDefault() ?? httpContext.TraceIdentifier;
+        var hasHeader = httpContext.Request.Headers.TryGetValue(TraceIdHeaderName, out var traceIdFromHeader);
+
+        if (hasHeader && !string.IsNullOrWhiteSpace(traceIdFromHeader))
+        {
+            return traceIdFromHeader.ToString();
+        }
+
+        return httpContext.TraceIdentifier;
     }
 }

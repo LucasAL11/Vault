@@ -1,25 +1,63 @@
 using Application.Authentication;
-using Microsoft.Extensions.Options;
+using Domain.KillSwitch;
 
 namespace Api.Middleware;
 
 public sealed class KillSwitchMiddleware : IMiddleware
 {
-    private readonly IOptions<KillSwitchOptions> _options;
-    private readonly IUserContext _userContext;
+    private static readonly PathString[] OperationalPaths =
+    [
+        new("/health"),
+        new("/ops/killswitch"),
+        new("/ops/key-provider")
+    ];
 
-    public KillSwitchMiddleware(IOptions<KillSwitchOptions> options, IUserContext userContext)
+    private readonly KillSwitchState _state;
+    private readonly IUserContext _userContext;
+    private readonly ILogger<KillSwitchMiddleware> _logger;
+
+    public KillSwitchMiddleware(
+        KillSwitchState state,
+        IUserContext userContext,
+        ILogger<KillSwitchMiddleware> logger)
     {
-        _options = options;
+        _state = state;
         _userContext = userContext;
+        _logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        var config = _options.Value;
-        
-        if (!config.Enabled 
-            || context.Request.Path.StartsWithSegments("/health"))
+        var config = _state.Current;
+
+        if (IsOperationalPath(context.Request.Path))
+        {
+            await next(context);
+            return;
+        }
+
+        var username = _userContext.Identity.Username;
+        if (_state.TryGetDeniedUser(username, out var denyUser))
+        {
+            _logger.LogWarning(
+                "Denylist blocked request. Path={Path}, User={User}, ExpiresAtUtc={ExpiresAtUtc}, Reason={Reason}",
+                context.Request.Path,
+                username,
+                denyUser!.ExpiresAtUtc,
+                denyUser.Reason ?? "<none>");
+
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                message = "User temporarily blocked by denylist.",
+                username = denyUser.Username,
+                expiresAtUtc = denyUser.ExpiresAtUtc,
+                reason = denyUser.Reason
+            });
+            return;
+        }
+
+        if (!config.Enabled)
         {
             await next(context);
             return;
@@ -33,15 +71,21 @@ public sealed class KillSwitchMiddleware : IMiddleware
             return;
         }
 
+        _logger.LogWarning(
+            "KillSwitch blocked request. Path={Path}, User={User}, AllowedGroup={AllowedGroup}",
+            context.Request.Path,
+            _userContext.Identity.ToString(),
+            config.AllowedGroup ?? "<none>");
+
         context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-        context.Response.Headers["Retry-After"] = "120";
-        await context.Response.WriteAsJsonAsync("Service temporarily unavailable.");
+        context.Response.Headers.RetryAfter = config.RetryAfterSeconds.ToString();
+        await context.Response.WriteAsJsonAsync(new
+        {
+            message = config.Message,
+            retryAfterSeconds = config.RetryAfterSeconds
+        });
     }
-}
 
-public sealed class KillSwitchOptions
-{
-    public bool Enabled { get; init; }
-    public string? AllowedGroup { get; init; }
+    private static bool IsOperationalPath(PathString path)
+        => OperationalPaths.Any(path.StartsWithSegments);
 }
-

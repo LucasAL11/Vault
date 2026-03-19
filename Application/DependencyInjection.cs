@@ -2,6 +2,7 @@
 using Application.Abstractions.Messaging;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Computers;
+using Application.Observability;
 using Domain.Computers;
 using Domain.Computers.Events;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddSingleton<MessageTelemetry>();
         services.AddScoped<IMessageDispatcher, MessageDispatcher>();
         
         var assembly = Assembly.GetExecutingAssembly();
