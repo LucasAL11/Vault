@@ -32,7 +32,16 @@ public sealed class HashSecret : IEndpoint
                 return Results.BadRequest(new { Error = "nonce is invalid" });
             }
 
-            var scope = NonceChallengeScope.Build(httpContext, request.ClientId);
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: null, out var subject))
+            {
+                return Results.Unauthorized();
+            }
+
+            var scope = NonceChallengeScope.Build(
+                httpContext,
+                request.ClientId,
+                subject,
+                NonceChallengeAudiences.CryptographyHash);
             var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
             if (!consumed)
             {

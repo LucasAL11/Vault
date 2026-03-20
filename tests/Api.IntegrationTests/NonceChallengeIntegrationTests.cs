@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Api.IntegrationTests.Infrastructure;
+using Api.Endpoints.Users;
 using Xunit;
 
 namespace Api.IntegrationTests;
@@ -21,7 +22,11 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     public async Task PostChallenge_ShouldReturnNonceAndTtl_WithNoStoreHeaders()
     {
         using var client = _factory.CreateClient();
-        var response = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "web-client" });
+        var response = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "web-client",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
         var payload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -43,8 +48,16 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     {
         using var client = _factory.CreateClient();
 
-        var firstResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "mobile-app" });
-        var secondResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "mobile-app" });
+        var firstResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "mobile-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+        var secondResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "mobile-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
 
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
@@ -63,7 +76,11 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     {
         using var client = _factory.CreateClient();
 
-        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "desktop-app" });
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
         Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
 
         using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
@@ -73,12 +90,14 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var verifyOk = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
             nonce,
-            clientId = "desktop-app"
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
         });
         var verifyReplay = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
             nonce,
-            clientId = "desktop-app"
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
         });
 
         Assert.Equal(HttpStatusCode.OK, verifyOk.StatusCode);
@@ -99,10 +118,179 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var response = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
             nonce = "%%%invalid-base64url%%%",
-            clientId = "desktop-app"
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task VerifyChallenge_WithDifferentAudience_ShouldReturnInvalidWithoutConsuming()
+    {
+        using var client = _factory.CreateClient();
+
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+        Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
+
+        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
+        var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+
+        var wrongAudience = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce,
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
+
+        var rightAudience = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce,
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+
+        using var wrongJson = JsonDocument.Parse(await wrongAudience.Content.ReadAsStringAsync());
+        using var rightJson = JsonDocument.Parse(await rightAudience.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, wrongAudience.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rightAudience.StatusCode);
+        Assert.False(wrongJson.RootElement.GetProperty("valid").GetBoolean());
+        Assert.True(rightJson.RootElement.GetProperty("valid").GetBoolean());
+    }
+
+    [Fact]
+    public async Task VerifyChallenge_WithDifferentSubject_ShouldReturnInvalidWithoutConsuming()
+    {
+        using var client = _factory.CreateClient();
+
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "desktop-app",
+            subject = "PLT\\expected.user",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+        Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
+
+        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
+        var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+
+        var wrongSubject = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce,
+            clientId = "desktop-app",
+            subject = "PLT\\other.user",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+
+        var rightSubject = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce,
+            clientId = "desktop-app",
+            subject = "PLT\\expected.user",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+
+        using var wrongJson = JsonDocument.Parse(await wrongSubject.Content.ReadAsStringAsync());
+        using var rightJson = JsonDocument.Parse(await rightSubject.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, wrongSubject.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rightSubject.StatusCode);
+        Assert.False(wrongJson.RootElement.GetProperty("valid").GetBoolean());
+        Assert.True(rightJson.RootElement.GetProperty("valid").GetBoolean());
+    }
+
+    [Fact]
+    public async Task NonceIssuedForHashAudience_ShouldNotAuthorizeProveEndpoint_AndShouldRemainValidForHash()
+    {
+        using var client = _factory.CreateClient();
+
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "zk-client",
+            audience = NonceChallengeAudiences.CryptographyHash
+        });
+        Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
+
+        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
+        var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+
+        var wrongEndpointAttempt = await client.PostAsJsonAsync("/Cryptography/zk", new
+        {
+            secret = "proof-secret",
+            hashPublic = "invalid-hash",
+            clientId = "zk-client",
+            nonce
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongEndpointAttempt.StatusCode);
+
+        var correctEndpointAttempt = await client.PostAsJsonAsync("/Cryptography/hash", new
+        {
+            secret = "proof-secret",
+            clientId = "zk-client",
+            nonce
+        });
+        Assert.Equal(HttpStatusCode.OK, correctEndpointAttempt.StatusCode);
+    }
+
+    [Fact]
+    public async Task NonceIssuedForVerifyAudience_ShouldNotAuthenticateRespondEndpoint_AndShouldRemainValidForVerify()
+    {
+        using var client = _factory.CreateClient();
+
+        const string username = "lucas.luna";
+        const string domain = "PLT";
+
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+        Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
+
+        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
+        var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
+        var issuedAtUtc = challengeJson.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+
+        var signature = BuildSignature(
+            "local-dev-client",
+            username,
+            domain,
+            nonce!,
+            issuedAtUtc,
+            "dev-shared-secret-please-rotate");
+
+        var wrongEndpointAttempt = await client.PostAsJsonAsync("/auth/challenge/respond", new
+        {
+            clientId = "local-dev-client",
+            username,
+            domain,
+            issuedAtUtc,
+            nonce,
+            signature
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongEndpointAttempt.StatusCode);
+
+        var correctEndpointAttempt = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce,
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+        Assert.Equal(HttpStatusCode.OK, correctEndpointAttempt.StatusCode);
+
+        using var verifyJson = JsonDocument.Parse(await correctEndpointAttempt.Content.ReadAsStringAsync());
+        Assert.True(verifyJson.RootElement.GetProperty("valid").GetBoolean());
     }
 
     [Fact]
@@ -110,7 +298,14 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     {
         using var client = _factory.CreateClient();
 
-        var challenge = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "local-dev-client" });
+        const string username = "lucas.luna";
+        const string domain = "PLT";
+        var challenge = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
         Assert.Equal(HttpStatusCode.OK, challenge.StatusCode);
 
         using var challengeJson = JsonDocument.Parse(await challenge.Content.ReadAsStringAsync());
@@ -118,8 +313,6 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var issuedAtUtc = challengeJson.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
         Assert.False(string.IsNullOrWhiteSpace(nonce));
 
-        const string username = "lucas.luna";
-        const string domain = "PLT";
         var signature = BuildSignature("local-dev-client", username, domain, nonce!, issuedAtUtc, "dev-shared-secret-please-rotate");
 
         var response = await client.PostAsJsonAsync("/auth/challenge/respond", new
@@ -143,19 +336,26 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     {
         using var client = _factory.CreateClient();
 
-        var challenge = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "local-dev-client" });
+        const string username = "lucas.luna";
+        const string domain = "PLT";
+        var challenge = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
         Assert.Equal(HttpStatusCode.OK, challenge.StatusCode);
 
         using var challengeJson = JsonDocument.Parse(await challenge.Content.ReadAsStringAsync());
         var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
         var issuedAtUtc = challengeJson.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
 
-        var validSignature = BuildSignature("local-dev-client", "lucas.luna", "PLT", nonce!, issuedAtUtc, "dev-shared-secret-please-rotate");
+        var validSignature = BuildSignature("local-dev-client", username, domain, nonce!, issuedAtUtc, "dev-shared-secret-please-rotate");
         var response = await client.PostAsJsonAsync("/auth/challenge/respond", new
         {
             clientId = "local-dev-client",
-            username = "lucas.luna",
-            domain = "PLT",
+            username,
+            domain,
             issuedAtUtc,
             nonce,
             signature = validSignature + "tampered"
@@ -165,18 +365,82 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     }
 
     [Fact]
-    public async Task RespondChallenge_ShouldRejectReplayAfterFirstUse()
+    public async Task RespondChallenge_WithUnknownClientId_ShouldNotConsumeValidNonce()
     {
         using var client = _factory.CreateClient();
 
-        var challenge = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "local-dev-client" });
+        const string username = "lucas.luna";
+        const string domain = "PLT";
+        var challenge = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
         Assert.Equal(HttpStatusCode.OK, challenge.StatusCode);
 
         using var challengeJson = JsonDocument.Parse(await challenge.Content.ReadAsStringAsync());
         var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
         var issuedAtUtc = challengeJson.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
+        Assert.False(string.IsNullOrWhiteSpace(nonce));
+
+        var invalidClientSignature = BuildSignature(
+            "unknown-client",
+            username,
+            domain,
+            nonce!,
+            issuedAtUtc,
+            "random-secret");
+
+        var unauthorizedAttempt = await client.PostAsJsonAsync("/auth/challenge/respond", new
+        {
+            clientId = "unknown-client",
+            username,
+            domain,
+            issuedAtUtc,
+            nonce,
+            signature = invalidClientSignature
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedAttempt.StatusCode);
+
+        var validSignature = BuildSignature(
+            "local-dev-client",
+            username,
+            domain,
+            nonce!,
+            issuedAtUtc,
+            "dev-shared-secret-please-rotate");
+
+        var validAttempt = await client.PostAsJsonAsync("/auth/challenge/respond", new
+        {
+            clientId = "local-dev-client",
+            username,
+            domain,
+            issuedAtUtc,
+            nonce,
+            signature = validSignature
+        });
+        Assert.Equal(HttpStatusCode.OK, validAttempt.StatusCode);
+    }
+
+    [Fact]
+    public async Task RespondChallenge_ShouldRejectReplayAfterFirstUse()
+    {
+        using var client = _factory.CreateClient();
+
         const string username = "lucas.luna";
         const string domain = "PLT";
+        var challenge = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
+        Assert.Equal(HttpStatusCode.OK, challenge.StatusCode);
+
+        using var challengeJson = JsonDocument.Parse(await challenge.Content.ReadAsStringAsync());
+        var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
+        var issuedAtUtc = challengeJson.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
         var signature = BuildSignature("local-dev-client", username, domain, nonce!, issuedAtUtc, "dev-shared-secret-please-rotate");
 
         var first = await client.PostAsJsonAsync("/auth/challenge/respond", new
@@ -207,7 +471,14 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     {
         using var client = _factory.CreateClient();
 
-        var challenge = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "local-dev-client" });
+        const string username = "lucas.luna";
+        const string domain = "PLT";
+        var challenge = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "local-dev-client",
+            subject = $"{domain}\\{username}",
+            audience = NonceChallengeAudiences.AuthChallengeRespond
+        });
         Assert.Equal(HttpStatusCode.OK, challenge.StatusCode);
 
         using var challengeJson = JsonDocument.Parse(await challenge.Content.ReadAsStringAsync());
@@ -216,8 +487,8 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
 
         var signature = BuildSignature(
             "local-dev-client",
-            "lucas.luna",
-            "PLT",
+            username,
+            domain,
             nonce!,
             issuedAtUtc,
             "dev-shared-secret-please-rotate");
@@ -225,8 +496,8 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var response = await client.PostAsJsonAsync("/auth/challenge/respond", new
         {
             clientId = "local-dev-client",
-            username = "lucas.luna",
-            domain = "PLT",
+            username,
+            domain,
             issuedAtUtc,
             nonce,
             signature

@@ -10,6 +10,7 @@ namespace Api.Endpoints.Vault;
 public sealed class SecretStore : IEndpoint
 {
     private sealed record UpsertRequest(string Value, string? ContentType, DateTimeOffset? ExpiresUtc);
+    private sealed record SecretRequestPayload(string Reason, string? TicketId);
     private sealed record AuditEntryResponse(string Action, string Actor, DateTimeOffset OccurredAtUtc, string? Details);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
@@ -45,12 +46,22 @@ public sealed class SecretStore : IEndpoint
             if (vault is null)
             {
                 logger.LogWarning("Secret write denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return Results.NotFound(new { message = "Vault was not found." });
+                return SecureNotFound();
             }
 
-            if (!await AuthorizeVaultPolicyAsync(vault.Group, authorizationService, httpContext.User, userContext, logger, vaultId, "write"))
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Write,
+                    operation: "write",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
             {
-                return Results.Forbid();
+                return SecureForbidden();
             }
 
             var secret = await dbContext.Secrets
@@ -127,12 +138,22 @@ public sealed class SecretStore : IEndpoint
             if (vault is null)
             {
                 logger.LogWarning("Secret metadata read denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return Results.NotFound(new { message = "Vault was not found." });
+                return SecureNotFound();
             }
 
-            if (!await AuthorizeVaultPolicyAsync(vault.Group, authorizationService, httpContext.User, userContext, logger, vaultId, "read-metadata"))
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Read,
+                    operation: "read-metadata",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
             {
-                return Results.Forbid();
+                return SecureForbidden();
             }
 
             var secret = await dbContext.Secrets
@@ -141,7 +162,7 @@ public sealed class SecretStore : IEndpoint
 
             if (secret is null)
             {
-                return Results.NotFound(new { message = "Secret was not found." });
+                return SecureNotFound();
             }
 
             var latestVersion = await dbContext.SecretVersions
@@ -152,7 +173,7 @@ public sealed class SecretStore : IEndpoint
 
             if (latestVersion is null)
             {
-                return Results.NotFound(new { message = "Secret has no versions." });
+                return SecureNotFound();
             }
 
             logger.LogInformation(
@@ -224,12 +245,22 @@ public sealed class SecretStore : IEndpoint
             if (vault is null)
             {
                 logger.LogWarning("Secret versions metadata read denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return Results.NotFound(new { message = "Vault was not found." });
+                return SecureNotFound();
             }
 
-            if (!await AuthorizeVaultPolicyAsync(vault.Group, authorizationService, httpContext.User, userContext, logger, vaultId, "read-versions-metadata"))
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Read,
+                    operation: "read-versions-metadata",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
             {
-                return Results.Forbid();
+                return SecureForbidden();
             }
 
             var secret = await dbContext.Secrets
@@ -238,7 +269,7 @@ public sealed class SecretStore : IEndpoint
 
             if (secret is null)
             {
-                return Results.NotFound(new { message = "Secret was not found." });
+                return SecureNotFound();
             }
 
             var versionsQuery = dbContext.SecretVersions
@@ -296,6 +327,122 @@ public sealed class SecretStore : IEndpoint
             });
         }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
 
+        builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
+            Guid vaultId,
+            string name,
+            SecretRequestPayload request,
+            IApplicationDbContext dbContext,
+            IAuthorizationService authorizationService,
+            IUserContext userContext,
+            ISecretProtector secretProtector,
+            HttpContext httpContext,
+            ILogger<SecretStore> logger,
+            CancellationToken cancellationToken) =>
+        {
+            ApplyNoStoreHeaders(httpContext.Response);
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return Results.BadRequest(new { message = "Secret name is required." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Reason))
+            {
+                return Results.BadRequest(new { message = "Reason is required to request secret value." });
+            }
+
+            var vault = await dbContext.Vaults
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
+
+            if (vault is null)
+            {
+                logger.LogWarning("Secret request denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
+                return SecureNotFound();
+            }
+
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Read,
+                    operation: "request-value",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
+            {
+                return SecureForbidden();
+            }
+
+            var secret = await dbContext.Secrets
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
+
+            if (secret is null)
+            {
+                return SecureNotFound();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var activeVersionsQuery = dbContext.SecretVersions
+                .AsNoTracking()
+                .Where(x => x.SecretId == secret.Id && !x.IsRevoked);
+
+            SecretVersion? activeVersion;
+            if (dbContext is DbContext efDb &&
+                string.Equals(efDb.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+            {
+                activeVersion = (await activeVersionsQuery.ToListAsync(cancellationToken))
+                    .Where(x => x.Expires == null || x.Expires > now)
+                    .OrderByDescending(x => x.Version)
+                    .FirstOrDefault();
+            }
+            else
+            {
+                activeVersion = await activeVersionsQuery
+                    .Where(x => x.Expires == null || x.Expires > now)
+                    .OrderByDescending(x => x.Version)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (activeVersion is null)
+            {
+                return SecureNotFound();
+            }
+
+            var plaintext = await secretProtector.UnprotectAsync(
+                new ProtectedSecret(activeVersion.CipherText, activeVersion.Nonce, activeVersion.KeyReference),
+                new SecretProtectionContext(vaultId, secret.Id, activeVersion.Version),
+                cancellationToken);
+
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_REQUEST_VALUE",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secret.Name,
+                details: $"version={activeVersion.Version};ticket={request.TicketId ?? "-"};reason={request.Reason.Trim()}",
+                cancellationToken);
+
+            logger.LogInformation(
+                "Secret request success. VaultId={VaultId}, SecretName={SecretName}, Version={Version}, User={User}",
+                vaultId,
+                secret.Name,
+                activeVersion.Version,
+                userContext.Identity.ToString());
+
+            return Results.Ok(new
+            {
+                secret.Name,
+                activeVersion.Version,
+                activeVersion.ContentType,
+                Value = plaintext,
+                activeVersion.Expires
+            });
+        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
+
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/audit", async (
             Guid vaultId,
             string name,
@@ -323,12 +470,22 @@ public sealed class SecretStore : IEndpoint
             if (vault is null)
             {
                 logger.LogWarning("Secret audit read denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return Results.NotFound(new { message = "Vault was not found." });
+                return SecureNotFound();
             }
 
-            if (!await AuthorizeVaultPolicyAsync(vault.Group, authorizationService, httpContext.User, userContext, logger, vaultId, "read-audit"))
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Admin,
+                    operation: "read-audit",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
             {
-                return Results.Forbid();
+                return SecureForbidden();
             }
 
             var auditQuery = dbContext.SecretAuditEntries
@@ -368,17 +525,51 @@ public sealed class SecretStore : IEndpoint
         }).RequireAuthorization().RequireRateLimiting("SecretAuditReadPolicy");
     }
 
-    private static async Task<bool> AuthorizeVaultPolicyAsync(
-        string? vaultGroup,
+    private static async Task<bool> AuthorizeSecretAccessAsync(
+        Domain.vault.Vault vault,
+        string secretName,
+        VaultPermission requiredPermission,
+        string operation,
+        IApplicationDbContext dbContext,
         IAuthorizationService authorizationService,
         System.Security.Claims.ClaimsPrincipal user,
         IUserContext userContext,
         ILogger<SecretStore> logger,
-        Guid vaultId,
-        string operation)
+        CancellationToken cancellationToken)
     {
+        var vaultId = vault.Id;
+        if (vault.Status != Status.Active)
+        {
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_ACCESS_DENIED",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secretName,
+                details: $"operation={operation};reason=vault-status-not-active;vaultStatus={vault.Status}",
+                cancellationToken);
+
+            logger.LogWarning(
+                "Secret {Operation} denied: vault status is not active. VaultId={VaultId}, VaultStatus={VaultStatus}, User={User}",
+                operation,
+                vaultId,
+                vault.Status,
+                userContext.Identity.ToString());
+            return false;
+        }
+
+        var vaultGroup = vault.Group;
         if (string.IsNullOrWhiteSpace(vaultGroup))
         {
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_ACCESS_DENIED",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secretName,
+                details: $"operation={operation};reason=vault-without-group-policy",
+                cancellationToken);
+
             logger.LogWarning(
                 "Secret {Operation} denied: vault without group policy. VaultId={VaultId}, User={User}",
                 operation,
@@ -387,9 +578,92 @@ public sealed class SecretStore : IEndpoint
             return false;
         }
 
-        var policy = $"AdGroup:{vaultGroup}";
-        var result = await authorizationService.AuthorizeAsync(user, policy);
-        return result.Succeeded;
+        var vaultPolicy = $"AdGroup:{vaultGroup}";
+        var vaultResult = await authorizationService.AuthorizeAsync(user, vaultPolicy);
+        if (!vaultResult.Succeeded)
+        {
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_ACCESS_DENIED",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secretName,
+                details: $"operation={operation};reason=vault-group-policy-failed;vaultGroup={vaultGroup}",
+                cancellationToken);
+
+            logger.LogWarning(
+                "Secret {Operation} denied: vault group authorization failed. VaultId={VaultId}, VaultGroup={VaultGroup}, User={User}",
+                operation,
+                vaultId,
+                vaultGroup,
+                userContext.Identity.ToString());
+            return false;
+        }
+
+        var adMapGroups = await dbContext.ADMaps
+            .AsNoTracking()
+            .Where(x => x.VaultId == vaultId && x.IsActive && (int)x.Permission >= (int)requiredPermission)
+            .Select(x => x.GroupId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (adMapGroups.Count == 0)
+        {
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_ACCESS_DENIED",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secretName,
+                details: $"operation={operation};reason=no-active-admap;requiredPermission={requiredPermission}",
+                cancellationToken);
+
+            logger.LogWarning(
+                "Secret {Operation} denied: no active ADMap with required permission. VaultId={VaultId}, RequiredPermission={RequiredPermission}, User={User}",
+                operation,
+                vaultId,
+                requiredPermission,
+                userContext.Identity.ToString());
+            return false;
+        }
+
+        foreach (var groupId in adMapGroups)
+        {
+            var adMapPolicy = $"AdGroup:{groupId}";
+            var adMapResult = await authorizationService.AuthorizeAsync(user, adMapPolicy);
+            if (adMapResult.Succeeded)
+            {
+                await AppendAuditAsync(
+                    dbContext,
+                    action: "SECRET_ACCESS_GRANTED",
+                    actor: userContext.Identity.ToString(),
+                    vaultId: vaultId,
+                    secretName: secretName,
+                    details: $"operation={operation};requiredPermission={requiredPermission};group={groupId}",
+                    cancellationToken);
+
+                return true;
+            }
+        }
+
+        await AppendAuditAsync(
+            dbContext,
+            action: "SECRET_ACCESS_DENIED",
+            actor: userContext.Identity.ToString(),
+            vaultId: vaultId,
+            secretName: secretName,
+            details: $"operation={operation};reason=admap-policy-failed;requiredPermission={requiredPermission};candidateGroups={string.Join(",", adMapGroups)}",
+            cancellationToken);
+
+        logger.LogWarning(
+            "Secret {Operation} denied: user is not authorized by ADMap. VaultId={VaultId}, RequiredPermission={RequiredPermission}, CandidateGroups={CandidateGroups}, User={User}",
+            operation,
+            vaultId,
+            requiredPermission,
+            adMapGroups,
+            userContext.Identity.ToString());
+
+        return false;
     }
 
     private static async Task AppendAuditAsync(
@@ -420,4 +694,10 @@ public sealed class SecretStore : IEndpoint
         response.Headers.Pragma = "no-cache";
         response.Headers.Expires = "0";
     }
+
+    private static IResult SecureForbidden()
+        => Results.Json(new { message = "Access denied." }, statusCode: StatusCodes.Status403Forbidden);
+
+    private static IResult SecureNotFound()
+        => Results.NotFound(new { message = "Resource not available." });
 }

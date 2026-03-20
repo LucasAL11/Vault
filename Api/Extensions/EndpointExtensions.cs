@@ -46,4 +46,16 @@ public static class EndpointExtensions
     
     public static RouteGroupBuilder HasPermission(this RouteGroupBuilder routeGroupBuilder, string permission)
         => routeGroupBuilder.RequireAuthorization(permission);
+
+    public static RouteGroupBuilder WithApiVersionHeader(this RouteGroupBuilder routeGroupBuilder, string apiVersion)
+    {
+        routeGroupBuilder.AddEndpointFilter(async (context, next) =>
+        {
+            var result = await next(context);
+            context.HttpContext.Response.Headers["X-API-Version"] = apiVersion;
+            return result;
+        });
+
+        return routeGroupBuilder;
+    }
 }

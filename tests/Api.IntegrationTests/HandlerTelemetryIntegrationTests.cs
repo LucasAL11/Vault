@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Endpoints.Users;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -27,7 +28,7 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
         {
             secret = "proof-secret",
             clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client")
+            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyHash)
         });
         Assert.Equal(HttpStatusCode.OK, hashResponse.StatusCode);
         using var hashJson = JsonDocument.Parse(await hashResponse.Content.ReadAsStringAsync());
@@ -39,7 +40,7 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
             secret = "proof-secret",
             hashPublic,
             clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client")
+            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyProve)
         });
         Assert.Equal(HttpStatusCode.OK, successResponse.StatusCode);
 
@@ -48,7 +49,7 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
             secret = "",
             hashPublic,
             clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client")
+            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyProve)
         });
         Assert.Equal(HttpStatusCode.BadRequest, failureResponse.StatusCode);
 
@@ -76,9 +77,9 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
             x.Value > 0);
     }
 
-    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId)
+    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId, string audience)
     {
-        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId });
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId, audience });
         challengeResponse.EnsureSuccessStatusCode();
 
         using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());

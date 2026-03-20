@@ -25,6 +25,11 @@
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.KeyProviderTests.ProdMode_ShouldPreferEnvironmentVariables&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=6737bb4b_002D40c1_002D476b_002D9795_002D9f067af1f4eb/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="V1_Request_ShouldExposeApiVersionHeader" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.ApiVersioningIntegrationTests.V1_Request_ShouldExposeApiVersionHeader&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=a429c728_002Dbb8a_002D4b82_002D835d_002Dc5c2163f6002/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="NonceStoreTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.NonceStoreTests&lt;/TestId&gt;&#xD;
@@ -59,5 +64,8 @@
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldGenerateExpectedConstraintCount&lt;/TestId&gt;&#xD;
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldSatisfyConstraints_WhenAGreaterOrEqualB&lt;/TestId&gt;&#xD;
     &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.CircuitR1csTests.ExampleR1cs_ShouldSatisfyConstraints_WhenALessThanB&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.AdGroupAuthorizationHandlerTests&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::B6D0AF4F-3E90-4874-94A2-E390BE8B67B8::net10.0::Infrastructure.Tests.DynamicAuthProviderTests.HybridAuth_WithOidcBearer_ShouldForwardToOidcJwt&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::C9CF9790-3C61-4988-9CE7-E622F714FDD8::net10.0-windows7.0::Api.IntegrationTests.AdMapStoreIntegrationTests.CrudAdMap_ShouldCreateReadUpdateAndDelete&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

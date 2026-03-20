@@ -2,6 +2,7 @@
 using Application.Abstractions.Messaging.Handlers;
 using Domain.Computers;
 using Domain.vault;
+using Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Shared;
@@ -21,6 +22,7 @@ public  sealed class ApplicationDbContext(
     public DbSet<SecretAuditEntry> SecretAuditEntries { get; set; }
     public DbSet<VaultMachine> VaultMachines { get; set; }
     public DbSet<ADMap> ADMaps { get; set; }
+    public DbSet<NonceStoreEntry> NonceStoreEntries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

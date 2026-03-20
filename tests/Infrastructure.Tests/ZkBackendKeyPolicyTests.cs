@@ -1,9 +1,11 @@
 using Application.Abstractions.Cryptography;
 using Application.Contracts.Zk;
+using Application.Cryptography.Constraints;
 using Infrastructure.Zk;
 using Infrastructure.Zk.Backends;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.Numerics;
 using Xunit;
 
 namespace Infrastructure.Tests;
@@ -19,7 +21,7 @@ public sealed class ZkBackendKeyPolicyTests
         });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            new InProcessZkBackend(options, new FakeHostEnvironment("Production"), new FakeWitnessGenerator()));
+            new InProcessZkBackend(options, new FakeHostEnvironment("Production"), new FakeWitnessGenerator(), new AlwaysSatisfiedR1csValidator()));
 
         Assert.Contains("weak for Production", ex.Message);
     }
@@ -33,7 +35,7 @@ public sealed class ZkBackendKeyPolicyTests
             LocalHmacKey = strongKey
         });
 
-        var backend = new InProcessZkBackend(options, new FakeHostEnvironment("Production"), new FakeWitnessGenerator());
+        var backend = new InProcessZkBackend(options, new FakeHostEnvironment("Production"), new FakeWitnessGenerator(), new AlwaysSatisfiedR1csValidator());
         Assert.NotNull(backend);
     }
 
@@ -45,7 +47,7 @@ public sealed class ZkBackendKeyPolicyTests
             LocalHmacKey = "dev-local-zk-key-change-me"
         });
 
-        var backend = new InProcessZkBackend(options, new FakeHostEnvironment("Development"), new FakeWitnessGenerator());
+        var backend = new InProcessZkBackend(options, new FakeHostEnvironment("Development"), new FakeWitnessGenerator(), new AlwaysSatisfiedR1csValidator());
         Assert.NotNull(backend);
     }
 
@@ -69,5 +71,16 @@ public sealed class ZkBackendKeyPolicyTests
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
             new Microsoft.Extensions.FileProviders.NullFileProvider();
+    }
+
+    private sealed class AlwaysSatisfiedR1csValidator : IR1csSatisfiabilityValidator
+    {
+        public R1csSatisfiabilityResult Validate(
+            IReadOnlyList<R1csBuilder.R1csConstraint> constraints,
+            IReadOnlyDictionary<int, BigInteger> witness,
+            BigInteger modulus)
+        {
+            return R1csSatisfiabilityResult.Satisfied;
+        }
     }
 }

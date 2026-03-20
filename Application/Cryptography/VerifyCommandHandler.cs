@@ -18,6 +18,7 @@ public sealed class VerifyCommandHandler : ICommandHandler<VerifyCommand, bool>
             command.Request.HashPublic,
             command.Request.ClientId,
             command.Request.Nonce);
+        
         if (validationError is not null)
         {
             return Result.Failure<bool>(validationError);

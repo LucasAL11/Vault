@@ -7,8 +7,10 @@ using Api.Security;
 using Application;
 using Domain.KillSwitch;
 using Infrastructure;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
+using System.Diagnostics;
 
 namespace Api;
 
@@ -29,6 +31,7 @@ public partial class Program
         builder.Services.AddSingleton<KillSwitchState>();
         builder.Services.AddScoped<KillSwitchMiddleware>();
         builder.Services.AddTransient<SecurityHeadersMiddleware>();
+        builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, StructuredAuthorizationResultHandler>();
 
         builder.Services.AddControllers();
         var corsOptions = builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
@@ -126,7 +129,8 @@ public partial class Program
 
         app.MapEndpoints(
             app.MapGroup("/api/v1")
-                .WithGroupName("v1"));
+                .WithGroupName("v1")
+                .WithApiVersionHeader("v1"));
 
         // Backward compatibility for existing clients while moving to versioned routes.
         app.MapEndpoints(
@@ -152,11 +156,17 @@ public partial class Program
         app.UseSerilogRequestLogging(options =>
         {
             options.MessageTemplate =
-                "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms | TraceId={TraceId} | QueryMasked={RequestQueryMasked} | HeadersMasked={RequestHeadersMasked}";
+                "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms | TraceId={TraceId} | CorrelationId={CorrelationId} | SpanId={SpanId} | QueryMasked={RequestQueryMasked} | HeadersMasked={RequestHeadersMasked}";
 
             options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
             {
+                var correlationId = httpContext.Items.TryGetValue(RequestContextLoggingMiddleware.CorrelationIdItemName, out var value)
+                    ? value?.ToString() ?? httpContext.TraceIdentifier
+                    : httpContext.TraceIdentifier;
+
                 diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
+                diagnosticContext.Set("CorrelationId", correlationId);
+                diagnosticContext.Set("SpanId", Activity.Current?.SpanId.ToString() ?? string.Empty);
                 diagnosticContext.Set(
                     "RequestHeadersMasked",
                     SensitiveDataMasker.MaskHeaders(httpContext.Request.Headers),

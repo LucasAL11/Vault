@@ -1,7 +1,9 @@
 using Api.IntegrationTests.Infrastructure;
 using Application.Abstractions.Data;
+using Application.Abstractions.Security;
 using Infrastructure.Authentication.ActiveDirectory;
 using Infrastructure.Data;
+using Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -28,6 +30,7 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
             services.RemoveAll<IDbContextOptionsConfiguration<ApplicationDbContext>>();
             services.RemoveAll<ApplicationDbContext>();
             services.RemoveAll<IApplicationDbContext>();
+            services.RemoveAll<INonceStore>();
             services.RemoveAll<IConfigureOptions<AuthenticationOptions>>();
             services.RemoveAll<IPostConfigureOptions<AuthenticationOptions>>();
 
@@ -38,6 +41,7 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
             services.AddDbContext<ApplicationDbContext>((sp, options) =>
                 options.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
             services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
+            services.AddSingleton<INonceStore, InMemoryNonceStore>();
 
             services.AddAuthentication(options =>
                 {
@@ -97,6 +101,53 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
                     {"integration.user"},
                     {0}
                 );
+                """);
+        }
+        else
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE vault
+                SET
+                    Status = {0},
+                    "Group" = {"Administradores de Chaves"}
+                WHERE Id = {VaultId};
+                """);
+        }
+
+        var adMapId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        if (!await db.ADMaps.AnyAsync(x => x.Id == adMapId))
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO vault_ad_map (
+                    Id,
+                    VaultId,
+                    GroupId,
+                    Permission,
+                    IsActive,
+                    CreatedAt,
+                    RowVersion
+                )
+                VALUES (
+                    {adMapId},
+                    {VaultId},
+                    {"Administradores de Chaves"},
+                    {3},
+                    {true},
+                    {DateTimeOffset.UtcNow},
+                    {new byte[] { 1 }}
+                );
+                """);
+        }
+        else
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE vault_ad_map
+                SET
+                    VaultId = {VaultId},
+                    GroupId = {"Administradores de Chaves"},
+                    Permission = {3},
+                    IsActive = {true}
+                WHERE Id = {adMapId};
                 """);
         }
     }

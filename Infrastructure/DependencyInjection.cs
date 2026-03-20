@@ -5,11 +5,14 @@ using Application.Abstractions.Security;
 using Application.Authentication;
 using Infrastructure.Authentication;
 using Infrastructure.Authentication.ActiveDirectory;
+using Infrastructure.Authentication.Kerberos;
 using Infrastructure.Authentication.Jwt;
+using Infrastructure.Authentication.Oidc;
 using Infrastructure.Data;
 using Infrastructure.Security;
 using Infrastructure.Zk;
 using Infrastructure.Zk.Backends;
+using Infrastructure.Zk.Crypto;
 using Infrastructure.Zk.Witness;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Negotiate;
@@ -25,6 +28,10 @@ namespace Infrastructure;
 
 public static class DependencyInjection
 {
+    private const string HybridScheme = "HybridAuth";
+    private const string LocalJwtScheme = "LocalJwt";
+    private const string OidcJwtScheme = "OidcJwt";
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDatabase(configuration);
@@ -69,35 +76,54 @@ public static class DependencyInjection
     {
         var jwtOptions = configuration.GetSection("Jwt").Get<JwtOptions>()
                          ?? throw new InvalidOperationException("JWT configuration section 'Jwt' is missing.");
+        var oidcOptions = configuration.GetSection("Authentication:Oidc").Get<OidcAuthenticationOptions>() ?? new OidcAuthenticationOptions();
+        var kerberosOptions = configuration.GetSection("Authentication:Kerberos").Get<KerberosAuthenticationOptions>() ?? new KerberosAuthenticationOptions();
 
         if (string.IsNullOrWhiteSpace(jwtOptions.Secret))
         {
             throw new InvalidOperationException("JWT secret is missing.");
         }
 
+        if (oidcOptions.Enabled &&
+            string.IsNullOrWhiteSpace(oidcOptions.Authority) &&
+            string.IsNullOrWhiteSpace(oidcOptions.Issuer))
+        {
+            throw new InvalidOperationException("Authentication:Oidc is enabled but both Authority and Issuer are missing.");
+        }
+
         services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
+        services.Configure<OidcAuthenticationOptions>(configuration.GetSection("Authentication:Oidc"));
+        services.Configure<KerberosAuthenticationOptions>(configuration.GetSection("Authentication:Kerberos"));
+        services.Configure<ActiveDirectoryOptions>(configuration.GetSection("Authentication:Ldap"));
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret));
 
         services
             .AddAuthentication(options =>
             {
-                options.DefaultScheme = "BearerOrNegotiate";
-                options.DefaultAuthenticateScheme = "BearerOrNegotiate";
-                options.DefaultChallengeScheme = "BearerOrNegotiate";
-                options.DefaultForbidScheme = "BearerOrNegotiate";
+                options.DefaultScheme = HybridScheme;
+                options.DefaultAuthenticateScheme = HybridScheme;
+                options.DefaultChallengeScheme = HybridScheme;
+                options.DefaultForbidScheme = HybridScheme;
             })
-            .AddPolicyScheme("BearerOrNegotiate", "Bearer or Negotiate", options =>
+            .AddPolicyScheme(HybridScheme, "Hybrid LocalJwt/Oidc/Kerberos", options =>
             {
                 options.ForwardDefaultSelector = context =>
                 {
                     var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-                    return authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
-                        ? JwtBearerDefaults.AuthenticationScheme
-                        : NegotiateDefaults.AuthenticationScheme;
+                    if (authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        return IsOidcToken(authHeader, oidcOptions)
+                            ? OidcJwtScheme
+                            : LocalJwtScheme;
+                    }
+
+                    return kerberosOptions.Enabled
+                        ? NegotiateDefaults.AuthenticationScheme
+                        : LocalJwtScheme;
                 };
             })
-            .AddJwtBearer(options =>
+            .AddJwtBearer(LocalJwtScheme, options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -111,8 +137,37 @@ public static class DependencyInjection
                     ClockSkew = TimeSpan.FromMinutes(1),
                     NameClaimType = System.Security.Claims.ClaimTypes.Name
                 };
-            })
-            .AddNegotiate();
+            });
+
+        if (oidcOptions.Enabled)
+        {
+            services.AddAuthentication().AddJwtBearer(OidcJwtScheme, options =>
+            {
+                if (!string.IsNullOrWhiteSpace(oidcOptions.Authority))
+                {
+                    options.Authority = oidcOptions.Authority;
+                }
+
+                options.RequireHttpsMetadata = oidcOptions.RequireHttpsMetadata;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = !string.IsNullOrWhiteSpace(oidcOptions.Issuer),
+                    ValidIssuer = oidcOptions.Issuer,
+                    ValidateAudience = !string.IsNullOrWhiteSpace(oidcOptions.Audience),
+                    ValidAudience = oidcOptions.Audience,
+                    ValidateIssuerSigningKey = true,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(1),
+                    RoleClaimType = oidcOptions.RoleClaimType,
+                    NameClaimType = oidcOptions.NameClaimType
+                };
+            });
+        }
+
+        if (kerberosOptions.Enabled)
+        {
+            services.AddAuthentication().AddNegotiate();
+        }
         
       
         services.AddAuthorization();
@@ -120,9 +175,52 @@ public static class DependencyInjection
         return services;
     }
 
+    private static bool IsOidcToken(string authorizationHeader, OidcAuthenticationOptions oidcOptions)
+    {
+        if (!oidcOptions.Enabled)
+        {
+            return false;
+        }
+
+        var token = authorizationHeader["Bearer ".Length..].Trim();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        try
+        {
+            var parsed = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(token);
+            var issuer = parsed.Issuer?.Trim();
+            if (string.IsNullOrWhiteSpace(issuer))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(oidcOptions.Issuer) &&
+                string.Equals(issuer, oidcOptions.Issuer, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(oidcOptions.Authority) &&
+                issuer.StartsWith(oidcOptions.Authority.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
     private static IServiceCollection AddZk(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<ZkBackendOptions>(configuration.GetSection("ZkBackend"));
+        services.AddSingleton<IR1csSatisfiabilityValidator, R1csSatisfiabilityValidator>();
         services.AddSingleton<IZkBackend, InProcessZkBackend>();
         services.AddSingleton<IZkWitnessGenerator, DefaultZkWitnessGenerator>();
 
@@ -168,7 +266,23 @@ public static class DependencyInjection
     private static IServiceCollection AddNonceStore(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<NonceStoreOptions>(configuration.GetSection("NonceStore"));
-        services.AddSingleton<INonceStore, InMemoryNonceStore>();
-        return services;
+
+        var nonceStoreOptions = configuration.GetSection("NonceStore").Get<NonceStoreOptions>() ?? new NonceStoreOptions();
+        var provider = nonceStoreOptions.Provider?.Trim() ?? NonceStoreProviders.InMemory;
+
+        if (string.Equals(provider, NonceStoreProviders.Postgres, StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<INonceStore, PostgresNonceStore>();
+            return services;
+        }
+
+        if (string.Equals(provider, NonceStoreProviders.InMemory, StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<INonceStore, InMemoryNonceStore>();
+            return services;
+        }
+
+        throw new InvalidOperationException(
+            $"NonceStore:Provider '{provider}' is invalid. Allowed values: '{NonceStoreProviders.InMemory}' or '{NonceStoreProviders.Postgres}'.");
     }
 }

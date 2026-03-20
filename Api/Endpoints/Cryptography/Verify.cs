@@ -25,7 +25,16 @@ public sealed class Verify : IEndpoint
                 return Results.BadRequest(new { message = "nonce is invalid." });
             }
 
-            var scope = NonceChallengeScope.Build(httpContext, request.ClientId);
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: null, out var subject))
+            {
+                return Results.Unauthorized();
+            }
+
+            var scope = NonceChallengeScope.Build(
+                httpContext,
+                request.ClientId,
+                subject,
+                NonceChallengeAudiences.CryptographyVerify);
             var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
             if (!consumed)
             {

@@ -17,6 +17,8 @@ public class VaultMachineConfiguration : IEntityTypeConfiguration<VaultMachine>
 
         builder.HasIndex(x => new { x.VaultId, x.ComputerId }).IsUnique();
         builder.HasIndex(x => new { x.VaultId, x.Status });
+        builder.HasIndex(x => new { x.VaultId, x.CreatedAt });
+        builder.HasIndex(x => new { x.VaultId, x.Status, x.CreatedAt });
 
         builder.HasOne<Domain.Computers.Computer>()
             .WithMany()

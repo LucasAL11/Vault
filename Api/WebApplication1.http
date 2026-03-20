@@ -8,6 +8,9 @@
 @zkClientId = local-dev-client
 @zkNonce =
 @hashNonce =
+@audHash = cryptography.hash
+@audProve = cryptography.prove
+@audVerify = cryptography.verify
 @killswitchEnabled = true
 @vaultId = 11111111-1111-1111-1111-111111111111
 
@@ -41,7 +44,8 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "clientId": "{{zkClientId}}"
+  "clientId": "{{zkClientId}}",
+  "audience": "{{audHash}}"
 }
 
 > {%
@@ -153,7 +157,8 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "clientId": "{{zkClientId}}"
+  "clientId": "{{zkClientId}}",
+  "audience": "{{audProve}}"
 }
 
 > {%
@@ -189,7 +194,8 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "clientId": "{{zkClientId}}"
+  "clientId": "{{zkClientId}}",
+  "audience": "{{audVerify}}"
 }
 
 > {%

@@ -10,6 +10,10 @@ namespace Api.Endpoints.Users;
 
 public sealed class NonceChallengeRespond : IEndpoint
 {
+    private const string DummyClientId = "__challenge-invalid-client__";
+    private const string DummySubject = "__challenge-invalid-subject__";
+    private static readonly byte[] DummyNonceBytes = new byte[32];
+
     private sealed record Request(
         string ClientId,
         string Username,
@@ -31,6 +35,7 @@ public sealed class NonceChallengeRespond : IEndpoint
         {
             ApplyNoStoreHeaders(httpContext.Response);
 
+            var options = challengeOptions.Value;
             if (string.IsNullOrWhiteSpace(request.ClientId) ||
                 string.IsNullOrWhiteSpace(request.Username) ||
                 string.IsNullOrWhiteSpace(request.Domain) ||
@@ -40,15 +45,12 @@ public sealed class NonceChallengeRespond : IEndpoint
                 return Results.BadRequest(new { message = "clientId, username, domain, nonce and signature are required." });
             }
 
-            if (!TryGetClientSecret(request.ClientId, challengeOptions.Value, out var clientSecret))
-            {
-                return Results.Unauthorized();
-            }
-
-            if (!TryFromBase64Url(request.Nonce, out var nonceBytes))
-            {
-                return Results.BadRequest(new { message = "nonce is invalid." });
-            }
+            var hasClientSecret = TryGetClientSecret(request.ClientId, options, out var configuredClientSecret);
+            var effectiveClientSecret = hasClientSecret
+                ? configuredClientSecret
+                : ResolveFallbackSecret(options);
+            var nonceParsed = TryFromBase64Url(request.Nonce, out var nonceBytes);
+            var effectiveNonceBytes = nonceParsed ? nonceBytes : DummyNonceBytes;
 
             var signaturePayload = BuildSignedPayload(
                 request.ClientId,
@@ -56,22 +58,24 @@ public sealed class NonceChallengeRespond : IEndpoint
                 request.Domain,
                 request.Nonce,
                 request.IssuedAtUtc);
-            if (!IsSignatureValid(signaturePayload, request.Signature, clientSecret))
-            {
-                return Results.Unauthorized();
-            }
 
-            if (!IsWithinSkewWindow(
-                    request.IssuedAtUtc,
-                    challengeOptions.Value,
-                    nonceStoreOptions.Value))
-            {
-                return Results.Unauthorized();
-            }
+            var signatureValid = IsSignatureValid(signaturePayload, request.Signature, effectiveClientSecret);
+            var withinSkewWindow = IsWithinSkewWindow(
+                request.IssuedAtUtc,
+                options,
+                nonceStoreOptions.Value);
+            var nonceAudience = NonceChallengeAudiences.AuthChallengeRespond;
+            var subject = NonceChallengeScope.BuildCredentialSubject(request.Domain, request.Username);
 
-            var scope = NonceChallengeScope.Build(httpContext, request.ClientId);
-            var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
-            if (!consumed)
+            var shouldConsumeIssuedNonce = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow;
+            var consumeScope = shouldConsumeIssuedNonce
+                ? NonceChallengeScope.Build(httpContext, request.ClientId, subject, nonceAudience)
+                : NonceChallengeScope.Build(httpContext, DummyClientId, DummySubject, nonceAudience);
+            var consumeNonceBytes = shouldConsumeIssuedNonce ? effectiveNonceBytes : DummyNonceBytes;
+            var consumed = await nonceStore.TryConsumeAsync(consumeScope, consumeNonceBytes, cancellationToken);
+
+            var authSucceeded = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow && consumed;
+            if (!authSucceeded)
             {
                 return Results.Unauthorized();
             }
@@ -106,19 +110,46 @@ public sealed class NonceChallengeRespond : IEndpoint
         return true;
     }
 
-    private static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
+    private static string ResolveFallbackSecret(AuthChallengeOptions options)
     {
-        if (!TryFromBase64Url(signatureBase64Url, out var providedSignature))
+        foreach (var entry in options.ClientSecrets)
         {
-            return false;
+            if (!string.IsNullOrWhiteSpace(entry.Value))
+            {
+                return entry.Value;
+            }
         }
 
+        return "auth-challenge-fallback-secret";
+    }
+
+    private static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
+    {
         var secretBytes = Encoding.UTF8.GetBytes(clientSecret);
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
-
         using var hmac = new HMACSHA256(secretBytes);
         var expectedSignature = hmac.ComputeHash(payloadBytes);
-        return CryptographicOperations.FixedTimeEquals(providedSignature, expectedSignature);
+
+        var signatureParsed = TryFromBase64Url(signatureBase64Url, out var providedSignature);
+        var signaturesMatch = FixedTimeEqualsWithExpectedLength(providedSignature, expectedSignature, expectedSignature.Length);
+        return signatureParsed & signaturesMatch;
+    }
+
+    private static bool FixedTimeEqualsWithExpectedLength(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int expectedLength)
+    {
+        Span<byte> leftBuffer = stackalloc byte[expectedLength];
+        Span<byte> rightBuffer = stackalloc byte[expectedLength];
+        leftBuffer.Clear();
+        rightBuffer.Clear();
+
+        var leftCopy = Math.Min(left.Length, expectedLength);
+        var rightCopy = Math.Min(right.Length, expectedLength);
+        left[..leftCopy].CopyTo(leftBuffer);
+        right[..rightCopy].CopyTo(rightBuffer);
+
+        var bytesEqual = CryptographicOperations.FixedTimeEquals(leftBuffer, rightBuffer);
+        var lengthsEqual = left.Length == expectedLength && right.Length == expectedLength;
+        return bytesEqual & lengthsEqual;
     }
 
     private static string BuildSignedPayload(

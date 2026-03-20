@@ -124,6 +124,100 @@ public class SecretStoreIntegrationTests : IClassFixture<ApiTestFactory>
         Assert.Contains("traceId", payload, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task SecretEndpoints_ShouldReturnForbidden_WhenNoActiveAdMapForVault()
+    {
+        await _factory.EnsureInitializedAsync();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ADMaps.RemoveRange(db.ADMaps.Where(x => x.VaultId == ApiTestFactory.VaultId));
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        var response = await client.GetAsync($"/vaults/{ApiTestFactory.VaultId}/secrets/ANY_SECRET");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var scope2 = _factory.Services.CreateScope();
+        var db2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var hasDeniedAudit = await db2.SecretAuditEntries
+            .AnyAsync(x => x.VaultId == ApiTestFactory.VaultId &&
+                           x.SecretName == "ANY_SECRET" &&
+                           x.Action == "SECRET_ACCESS_DENIED");
+        Assert.True(hasDeniedAudit);
+    }
+
+    [Fact]
+    public async Task SecretWrite_ShouldReturnForbidden_WhenVaultIsNotActive()
+    {
+        await _factory.EnsureInitializedAsync();
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var vault = await db.Vaults.SingleAsync(x => x.Id == ApiTestFactory.VaultId);
+            vault.Status = Domain.vault.Status.Disabled;
+            await db.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        var response = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/DB_PASSWORD",
+            new
+            {
+                value = "Senha@SuperSecreta!",
+                contentType = "text/plain",
+                expiresUtc = (DateTimeOffset?)null
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequestSecretValue_ShouldReturnPlainValue_AndWriteAudit()
+    {
+        await _factory.EnsureInitializedAsync();
+        using var client = _factory.CreateClient();
+
+        const string expectedSecret = "valor-super-secreto";
+
+        var putResponse = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET",
+            new
+            {
+                value = expectedSecret,
+                contentType = "text/plain",
+                expiresUtc = (DateTimeOffset?)null
+            });
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var requestResponse = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET/request",
+            new
+            {
+                reason = "Incidente em produção",
+                ticketId = "INC-1234"
+            });
+
+        Assert.Equal(HttpStatusCode.OK, requestResponse.StatusCode);
+        Assert.True(requestResponse.Headers.CacheControl?.NoStore ?? false);
+
+        var payload = JsonDocument.Parse(await requestResponse.Content.ReadAsStringAsync());
+        Assert.Equal(expectedSecret, payload.RootElement.GetProperty("value").GetString());
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var hasRequestAudit = await db.SecretAuditEntries
+            .AnyAsync(x => x.VaultId == ApiTestFactory.VaultId &&
+                           x.SecretName == "APP_SECRET" &&
+                           x.Action == "SECRET_REQUEST_VALUE");
+        Assert.True(hasRequestAudit);
+    }
+
     private sealed class ThrowingSecretProtector : ISecretProtector
     {
         public ValueTask<ProtectedSecret> ProtectAsync(

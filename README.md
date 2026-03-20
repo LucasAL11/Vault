@@ -24,6 +24,7 @@ Principais capacidades atuais:
 - Auth: JWT + Negotiate (policy scheme `BearerOrNegotiate`)
 - Observabilidade: Serilog (Console e Seq)
 - Swagger: habilitado em `Development`
+- Versionamento de contratos: `v1` por rota e OpenAPI
 
 ## 3) Estrutura da solucao
 `WebApplication1.sln` contem:
@@ -73,6 +74,7 @@ Perfis locais configurados:
 
 Swagger (apenas Development):
 - `http://localhost:5065/swagger`
+- docs: `v1`
 
 ### 5.3 Banco de dados e migracoes
 Aplicar migracoes:
@@ -142,7 +144,8 @@ Sempre seguir esta ordem:
 ## 10) Convencoes do repositorio
 - Endpoints sao descobertos automaticamente por reflection (`IEndpoint` + `AddEndpoints`).
 - Pipeline principal: `UseAuthentication` -> `KillSwitchMiddleware` -> `UseAuthorization`.
-- Auth default: policy scheme `BearerOrNegotiate`.
+- Auth default: policy scheme `HybridAuth`.
+- Contratos versionados por rota: `/api/v1/...` (legacy sem prefixo mantido para compatibilidade, fora do Swagger).
 - Logs estruturados com Serilog.
 - Key provider com selecao por ambiente (`DevKeyProvider`/`ProdKeyProvider`).
 - Fluxo ZK atual em camadas: `Api` (endpoints prove/verify) -> `Application` (comandos e validacao de entrada) -> `Infrastructure` (backend interno `InProcessZkBackend`).
@@ -157,6 +160,7 @@ Sempre seguir esta ordem:
 - A denylist temporaria pode bloquear usuarios especificos por janela de tempo via `/ops/killswitch/denylist`.
 - `GET /vaults/{vaultId}/secrets/{name}` retorna apenas metadados (sem valor em claro), com autorizacao por policy AD do grupo do vault e auditoria em log.
 - Endpoints de leitura de segredo possuem rate limit e retornam `429` em abuso.
+- Pre-requisitos de autenticacao AD/Kerberos/LDAP/OIDC estao em `docs/runbooks/ad-prerequisitos.md`.
 
 ## 12) Quando usar este README
 Use este arquivo como contrato de equipe:

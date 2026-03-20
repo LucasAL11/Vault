@@ -11,7 +11,7 @@ public sealed class NonceChallenge : IEndpoint
     private const int NonceSizeBytes = 32;
     private const int MaxAttempts = 5;
 
-    private sealed record Request(string? ClientId);
+    private sealed record Request(string? ClientId, string? Subject, string? Audience);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
@@ -28,7 +28,25 @@ public sealed class NonceChallenge : IEndpoint
             var now = dateTimeProvider.UtcNow;
             var ttlSeconds = Math.Max(1, nonceOptions.Value.TtlSeconds);
             var expiresAtUtc = now.AddSeconds(ttlSeconds);
-            var scope = NonceChallengeScope.Build(httpContext, request?.ClientId);
+            var clientId = request?.ClientId;
+            var requestedSubject = request?.Subject;
+            var audience = request?.Audience;
+
+            if (string.IsNullOrWhiteSpace(audience))
+            {
+                return Results.BadRequest(new { message = "audience is required." });
+            }
+
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject, out var subject))
+            {
+                return Results.BadRequest(new { message = "subject is required when request is anonymous." });
+            }
+
+            var scope = NonceChallengeScope.Build(
+                httpContext,
+                clientId,
+                subject,
+                audience);
 
             for (var attempt = 0; attempt < MaxAttempts; attempt++)
             {
@@ -42,6 +60,8 @@ public sealed class NonceChallenge : IEndpoint
                 return Results.Ok(new
                 {
                     Nonce = ToBase64Url(nonceBytes),
+                    Subject = subject,
+                    Audience = audience,
                     IssuedAtUtc = now,
                     ExpiresAtUtc = expiresAtUtc,
                     TtlSeconds = ttlSeconds

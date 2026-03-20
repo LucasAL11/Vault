@@ -5,7 +5,7 @@ namespace Api.Endpoints.Users;
 
 public sealed class NonceChallengeVerify : IEndpoint
 {
-    private sealed record Request(string Nonce, string? ClientId);
+    private sealed record Request(string Nonce, string? ClientId, string? Subject, string? Audience);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
@@ -27,7 +27,21 @@ public sealed class NonceChallengeVerify : IEndpoint
                 return Results.BadRequest(new { message = "nonce is invalid." });
             }
 
-            var scope = NonceChallengeScope.Build(httpContext, request.ClientId);
+            if (string.IsNullOrWhiteSpace(request.Audience))
+            {
+                return Results.BadRequest(new { message = "audience is required." });
+            }
+
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, request.Subject, out var subject))
+            {
+                return Results.BadRequest(new { message = "subject is required when request is anonymous." });
+            }
+
+            var scope = NonceChallengeScope.Build(
+                httpContext,
+                request.ClientId,
+                subject,
+                request.Audience);
             var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
 
             return consumed

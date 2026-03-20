@@ -92,6 +92,27 @@ public sealed class NonceStoreTests
     }
 
     [Fact]
+    public async Task TryConsumeAsync_WithWrongScope_ShouldNotConsumeNonce()
+    {
+        var clock = new FakeDateTimeProvider(DateTime.UtcNow);
+        INonceStore store = CreateStore(clock, new NonceStoreOptions
+        {
+            Enabled = true,
+            TtlSeconds = 60,
+            MaxEntries = 100
+        });
+
+        var nonce = new byte[] { 2, 4, 6, 8 };
+        await store.TryAddAsync("scope-a", nonce);
+
+        var wrongScopeConsume = await store.TryConsumeAsync("scope-b", nonce);
+        var rightScopeConsume = await store.TryConsumeAsync("scope-a", nonce);
+
+        Assert.False(wrongScopeConsume);
+        Assert.True(rightScopeConsume);
+    }
+
+    [Fact]
     public async Task TryConsumeAsync_ShouldFailAfterExpiry()
     {
         var clock = new FakeDateTimeProvider(DateTime.UtcNow);
@@ -109,6 +130,52 @@ public sealed class NonceStoreTests
         var consumed = await store.TryConsumeAsync("scope-a", nonce);
 
         Assert.False(consumed);
+    }
+
+    [Fact]
+    public async Task TryAddAsync_WithConcurrentSameNonce_ShouldAcceptOnlyOne()
+    {
+        var clock = new FakeDateTimeProvider(DateTime.UtcNow);
+        INonceStore store = CreateStore(clock, new NonceStoreOptions
+        {
+            Enabled = true,
+            TtlSeconds = 60,
+            MaxEntries = 100
+        });
+
+        var nonce = new byte[] { 1, 1, 2, 3, 5, 8 };
+        var tasks = Enumerable.Range(0, 32)
+            .Select(_ => Task.Run(() => store.TryAddAsync("scope-concurrent", nonce).AsTask()))
+            .ToArray();
+
+        var results = await Task.WhenAll(tasks);
+        var acceptedCount = results.Count(x => x);
+
+        Assert.Equal(1, acceptedCount);
+    }
+
+    [Fact]
+    public async Task TryConsumeAsync_WithConcurrentReplay_ShouldAllowOnlySingleConsume()
+    {
+        var clock = new FakeDateTimeProvider(DateTime.UtcNow);
+        INonceStore store = CreateStore(clock, new NonceStoreOptions
+        {
+            Enabled = true,
+            TtlSeconds = 60,
+            MaxEntries = 100
+        });
+
+        var nonce = new byte[] { 13, 21, 34, 55 };
+        await store.TryAddAsync("scope-concurrent", nonce);
+
+        var tasks = Enumerable.Range(0, 32)
+            .Select(_ => Task.Run(() => store.TryConsumeAsync("scope-concurrent", nonce).AsTask()))
+            .ToArray();
+
+        var results = await Task.WhenAll(tasks);
+        var consumedCount = results.Count(x => x);
+
+        Assert.Equal(1, consumedCount);
     }
 
     private static INonceStore CreateStore(FakeDateTimeProvider clock, NonceStoreOptions options)

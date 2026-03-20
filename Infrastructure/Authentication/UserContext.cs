@@ -3,17 +3,23 @@ using System.Security.Claims;
 using System.Security.Principal;
 using Application.Authentication;
 using Domain.Users;
+using Infrastructure.Authentication.ActiveDirectory;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Authentication;
 
 public class UserContext : IUserContext
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ActiveDirectoryOptions _adOptions;
 
-    public UserContext(IHttpContextAccessor httpContextAccessor)
+    public UserContext(
+        IHttpContextAccessor httpContextAccessor,
+        IOptions<ActiveDirectoryOptions> adOptions)
     {
         _httpContextAccessor = httpContextAccessor;
+        _adOptions = adOptions.Value;
     }
 
     public UserIdentity Identity
@@ -59,13 +65,18 @@ public class UserContext : IUserContext
 
             try
             {
+                if (!_adOptions.Enabled)
+                {
+                    return new HashSet<UserGroup>();
+                }
+
                 var username = Identity.Username;
                 if (string.IsNullOrWhiteSpace(username) || username.Equals("anonymous", StringComparison.OrdinalIgnoreCase))
                 {
                     return new HashSet<UserGroup>();
                 }
 
-                using var ad = new PrincipalContext(ContextType.Domain);
+                using var ad = BuildPrincipalContext();
                 using var user =
                     UserPrincipal.FindByIdentity(ad, IdentityType.SamAccountName, username)
                     ?? UserPrincipal.FindByIdentity(ad, username);
@@ -89,7 +100,7 @@ public class UserContext : IUserContext
         }
     }
 
-    public List<string> IsInGroup { get; }
+    public List<string> IsInGroup { get; } = new();
 
     public bool IsSameDomain(string userDomain)
     {
@@ -110,9 +121,29 @@ public class UserContext : IUserContext
             return false;
         }
 
-        using var ad = new PrincipalContext(contextType: ContextType.Domain);
+        if (!_adOptions.Enabled)
+        {
+            return false;
+        }
+
+        using var ad = BuildPrincipalContext();
         using var user = UserPrincipal.FindByIdentity(ad, commandUsername);
 
         return user?.Enabled == true;
+    }
+
+    private PrincipalContext BuildPrincipalContext()
+    {
+        if (!string.IsNullOrWhiteSpace(_adOptions.Domain) && !string.IsNullOrWhiteSpace(_adOptions.Container))
+        {
+            return new PrincipalContext(ContextType.Domain, _adOptions.Domain, _adOptions.Container);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_adOptions.Domain))
+        {
+            return new PrincipalContext(ContextType.Domain, _adOptions.Domain);
+        }
+
+        return new PrincipalContext(ContextType.Domain);
     }
 }

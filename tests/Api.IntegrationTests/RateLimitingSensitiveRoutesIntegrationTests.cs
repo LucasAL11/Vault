@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Api.Endpoints.Users;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -22,7 +23,11 @@ public sealed class RateLimitingSensitiveRoutesIntegrationTests : IClassFixture<
 
         for (var i = 0; i < 31; i++)
         {
-            last = await client.PostAsJsonAsync("/auth/challenge", new { clientId = "rate-limit-client" });
+            last = await client.PostAsJsonAsync("/auth/challenge", new
+            {
+                clientId = "rate-limit-client",
+                audience = NonceChallengeAudiences.AuthChallengeVerify
+            });
         }
 
         Assert.NotNull(last);

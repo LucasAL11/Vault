@@ -19,5 +19,6 @@ public class ADMapConfiguration : IEntityTypeConfiguration<ADMap>
 
         builder.HasIndex(x => new { x.VaultId, x.GroupId }).IsUnique();
         builder.HasIndex(x => new { x.VaultId, x.Permission, x.IsActive });
+        builder.HasIndex(x => new { x.VaultId, x.IsActive, x.Permission, x.CreatedAt });
     }
 }

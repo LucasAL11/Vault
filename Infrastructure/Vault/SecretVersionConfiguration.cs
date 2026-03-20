@@ -18,5 +18,7 @@ public class SecretVersionConfiguration : IEntityTypeConfiguration<SecretVersion
         builder.Property(x => x.ContentType).HasMaxLength(80).IsRequired();
 
         builder.HasIndex(x => new { x.SecretId, x.Version }).IsUnique();
+        builder.HasIndex(x => new { x.SecretId, x.IsRevoked, x.Version });
+        builder.HasIndex(x => new { x.SecretId, x.Expires });
     }
 }

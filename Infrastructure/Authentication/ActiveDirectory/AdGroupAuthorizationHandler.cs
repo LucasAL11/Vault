@@ -3,11 +3,13 @@ using System.Security.Claims;
 using Application.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Authentication.ActiveDirectory;
 
 public sealed class AdGroupAuthorizationHandler(
     IUserContext userContext,
+    IOptions<ActiveDirectoryOptions> adOptions,
     ILogger<AdGroupAuthorizationHandler> logger)
     : AuthorizationHandler<AdGroupRequirement>
 {
@@ -20,12 +22,22 @@ public sealed class AdGroupAuthorizationHandler(
 
         if (IsInGroupClaims(context.User, requiredGroup, requiredFullGroup))
         {
+            logger.LogInformation(
+                "AD authorization succeeded source={Source} username={Username} requiredGroup={RequiredGroup}",
+                "claims",
+                userContext.Identity.Username,
+                requirement.GroupName);
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
         if (IsInUserContextGroups(userContext.Groups, requiredGroup, requiredFullGroup))
         {
+            logger.LogInformation(
+                "AD authorization succeeded source={Source} username={Username} requiredGroup={RequiredGroup}",
+                "user_context",
+                userContext.Identity.Username,
+                requirement.GroupName);
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
@@ -38,6 +50,14 @@ public sealed class AdGroupAuthorizationHandler(
                 requirement.GroupName);
         }
 
+        if (!adOptions.Value.Enabled)
+        {
+            logger.LogWarning(
+                "AD group authorization denied: LDAP/AD lookup is disabled. RequiredGroup={RequiredGroup}",
+                requirement.GroupName);
+            return Task.CompletedTask;
+        }
+
         var username = userContext.Identity.Username;
 
         if (string.IsNullOrWhiteSpace(username))
@@ -48,7 +68,7 @@ public sealed class AdGroupAuthorizationHandler(
 
         try
         {
-            using var ad = new PrincipalContext(ContextType.Domain);
+            using var ad = BuildPrincipalContext(adOptions.Value);
             using var user =
                 UserPrincipal.FindByIdentity(ad, IdentityType.SamAccountName, username)
                 ?? UserPrincipal.FindByIdentity(ad, username);
@@ -70,6 +90,11 @@ public sealed class AdGroupAuthorizationHandler(
 
             if (isInAuthorizationGroups)
             {
+                logger.LogInformation(
+                    "AD authorization succeeded source={Source} username={Username} requiredGroup={RequiredGroup}",
+                    "ad_lookup_groups",
+                    username,
+                    requirement.GroupName);
                 context.Succeed(requirement);
                 return Task.CompletedTask;
             }
@@ -81,14 +106,21 @@ public sealed class AdGroupAuthorizationHandler(
 
             if (group is not null && user.IsMemberOf(group))
             {
+                logger.LogInformation(
+                    "AD authorization succeeded source={Source} username={Username} requiredGroup={RequiredGroup}",
+                    "ad_lookup_membership",
+                    username,
+                    requirement.GroupName);
                 context.Succeed(requirement);
                 return Task.CompletedTask;
             }
 
-            logger.LogWarning(
-                "AD group authorization denied. Username={Username}, RequiredGroup={RequiredGroup}",
+            logger.LogInformation(
+                "AD authorization denied source={Source} username={Username} requiredGroup={RequiredGroup} tokenOverage={TokenOverage}",
+                "ad_lookup",
                 username,
-                requirement.GroupName);
+                requirement.GroupName,
+                tokenOverageDetected);
         }
         catch (Exception ex)
         {
@@ -101,6 +133,21 @@ public sealed class AdGroupAuthorizationHandler(
         }
 
         return Task.CompletedTask;
+    }
+
+    private static PrincipalContext BuildPrincipalContext(ActiveDirectoryOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.Domain) && !string.IsNullOrWhiteSpace(options.Container))
+        {
+            return new PrincipalContext(ContextType.Domain, options.Domain, options.Container);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Domain))
+        {
+            return new PrincipalContext(ContextType.Domain, options.Domain);
+        }
+
+        return new PrincipalContext(ContextType.Domain);
     }
 
     private static bool IsInGroupClaims(ClaimsPrincipal user, string requiredGroup, string requiredFullGroup)

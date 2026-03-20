@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Endpoints.Users;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -25,7 +26,7 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
         using var collector = new SecurityMetricsCollector();
 
         var authResponse = await client.GetAsync("/users/groups");
-        var hashNonce = await RequestNonceAsync(client, "metrics-client");
+        var hashNonce = await RequestNonceAsync(client, "metrics-client", NonceChallengeAudiences.CryptographyHash);
         var zkResponse = await client.PostAsJsonAsync("/Cryptography/hash", new
         {
             secret = "metric-test",
@@ -74,9 +75,9 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
             x.Value > 0);
     }
 
-    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId)
+    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId, string audience)
     {
-        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId });
+        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId, audience });
         challengeResponse.EnsureSuccessStatusCode();
 
         using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
