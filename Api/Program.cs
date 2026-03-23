@@ -94,11 +94,6 @@ public partial class Program
                     partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
                     factory: _ => BuildFixedWindowOptions(rateLimitingOptions.AuthChallengeRespond)));
 
-            options.AddPolicy("ZkSensitivePolicy", httpContext =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: $"{httpContext.Connection.RemoteIpAddress}",
-                    factory: _ => BuildFixedWindowOptions(rateLimitingOptions.ZkSensitive)));
-
             options.AddPolicy("OpsSensitivePolicy", httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: $"{httpContext.User.Identity?.Name ?? "anonymous"}|{httpContext.Connection.RemoteIpAddress}",

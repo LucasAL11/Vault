@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Application.Abstractions.Data;
 using Application.Abstractions.Security;
 using Application.Authentication;
@@ -10,6 +11,8 @@ namespace Api.Endpoints.Operations;
 
 public sealed class KeyProviderOperations : IEndpoint
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ReEncryptGates = new(StringComparer.OrdinalIgnoreCase);
+
     private sealed record RotateRequest(string KeyId);
     private sealed record ReEncryptRequest(Guid VaultId, string SecretName, bool IncludeRevoked = false, bool IncludeExpired = false);
 
@@ -101,87 +104,122 @@ public sealed class KeyProviderOperations : IEndpoint
                 return Results.BadRequest(new { message = "secretName is required." });
             }
 
-            var secret = await dbContext.Secrets
-                .SingleOrDefaultAsync(x => x.VaultId == request.VaultId && x.Name == request.SecretName, cancellationToken);
+            var normalizedSecretName = request.SecretName.Trim();
+            var gateKey = $"{request.VaultId:D}:{normalizedSecretName}";
+            var gate = ReEncryptGates.GetOrAdd(gateKey, static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken);
 
-            if (secret is null)
+            try
             {
-                return Results.NotFound(new { message = "Secret was not found." });
-            }
+                var now = DateTimeOffset.UtcNow;
+                var currentKey = await keyProvider.GetCurrentKeyAsync(cancellationToken);
+                var db = dbContext as DbContext;
+                await using var transaction = db is null
+                    ? null
+                    : await db.Database.BeginTransactionAsync(cancellationToken);
 
-            var versions = await dbContext.SecretVersions
-                .Where(x => x.SecretId == secret.Id)
-                .OrderBy(x => x.Version)
-                .ToListAsync(cancellationToken);
+                var secret = await dbContext.Secrets
+                    .SingleOrDefaultAsync(x => x.VaultId == request.VaultId && x.Name == normalizedSecretName, cancellationToken);
 
-            if (versions.Count == 0)
-            {
-                return Results.NotFound(new { message = "Secret has no versions." });
-            }
-
-            var currentKey = await keyProvider.GetCurrentKeyAsync(cancellationToken);
-            var rotatedCount = 0;
-
-            foreach (var version in versions)
-            {
-                if (!request.IncludeRevoked && version.IsRevoked)
+                if (secret is null)
                 {
-                    continue;
+                    return Results.NotFound(new { message = "Secret was not found." });
                 }
 
-                if (!request.IncludeExpired && version.Expires.HasValue && version.Expires.Value <= DateTimeOffset.UtcNow)
+                var versions = await dbContext.SecretVersions
+                    .Where(x => x.SecretId == secret.Id)
+                    .OrderBy(x => x.Version)
+                    .ToListAsync(cancellationToken);
+
+                if (versions.Count == 0)
                 {
-                    continue;
+                    return Results.NotFound(new { message = "Secret has no versions." });
                 }
 
-                if (string.Equals(version.KeyReference, currentKey.KeyId, StringComparison.OrdinalIgnoreCase))
+                var targetVersions = versions
+                    .Where(version =>
+                    {
+                        if (!request.IncludeRevoked && version.IsRevoked)
+                        {
+                            return false;
+                        }
+
+                        if (!request.IncludeExpired && version.Expires.HasValue && version.Expires.Value <= now)
+                        {
+                            return false;
+                        }
+
+                        return !string.Equals(version.KeyReference, currentKey.KeyId, StringComparison.OrdinalIgnoreCase);
+                    })
+                    .ToList();
+
+                var rotatedCount = 0;
+                foreach (var version in targetVersions)
                 {
-                    continue;
+                    var context = new SecretProtectionContext(request.VaultId, secret.Id, version.Version);
+
+                    var plaintext = await secretProtector.UnprotectAsync(
+                        new ProtectedSecret(version.CipherText, version.Nonce, version.KeyReference),
+                        context,
+                        cancellationToken);
+
+                    var reProtected = await secretProtector.ProtectAsync(plaintext, context, cancellationToken);
+                    version.ReEncrypt(reProtected.CipherText, reProtected.Nonce, reProtected.KeyId);
+                    rotatedCount++;
                 }
 
-                var context = new SecretProtectionContext(request.VaultId, secret.Id, version.Version);
-
-                var plaintext = await secretProtector.UnprotectAsync(
-                    new ProtectedSecret(version.CipherText, version.Nonce, version.KeyReference),
-                    context,
+                await dbContext.SecretAuditEntries.AddAsync(
+                    new Domain.vault.SecretAuditEntry(
+                        vaultId: request.VaultId,
+                        secretName: normalizedSecretName,
+                        action: "SECRET_REENCRYPT",
+                        actor: userContext.Identity.ToString(),
+                        occurredAtUtc: now,
+                        details: $"targetCount={targetVersions.Count};rotatedCount={rotatedCount};currentKeyId={currentKey.KeyId};idempotent={(rotatedCount == 0).ToString().ToLowerInvariant()}"),
                     cancellationToken);
 
-                var reProtected = await secretProtector.ProtectAsync(plaintext, context, cancellationToken);
-                version.ReEncrypt(reProtected.CipherText, reProtected.Nonce, reProtected.KeyId);
-                rotatedCount++;
-            }
-
-            if (rotatedCount > 0)
-            {
                 await dbContext.SaveChangesAsync(cancellationToken);
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                logger.LogInformation(
+                    "Secret re-encrypt completed. VaultId={VaultId}, SecretName={SecretName}, TargetCount={TargetCount}, RotatedCount={RotatedCount}, CurrentKeyId={CurrentKeyId}, User={User}",
+                    request.VaultId,
+                    normalizedSecretName,
+                    targetVersions.Count,
+                    rotatedCount,
+                    currentKey.KeyId,
+                    httpContext.User.Identity?.Name);
+
+                return Results.Ok(new
+                {
+                    request.VaultId,
+                    SecretName = normalizedSecretName,
+                    TargetCount = targetVersions.Count,
+                    RotatedCount = rotatedCount,
+                    CurrentKeyId = currentKey.KeyId
+                });
             }
-
-            await dbContext.SecretAuditEntries.AddAsync(
-                new Domain.vault.SecretAuditEntry(
-                    vaultId: request.VaultId,
-                    secretName: request.SecretName,
-                    action: "SECRET_REENCRYPT",
-                    actor: userContext.Identity.ToString(),
-                    occurredAtUtc: DateTimeOffset.UtcNow,
-                    details: $"rotatedCount={rotatedCount};currentKeyId={currentKey.KeyId}"),
-                cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            logger.LogInformation(
-                "Secret re-encrypt completed. VaultId={VaultId}, SecretName={SecretName}, RotatedCount={RotatedCount}, CurrentKeyId={CurrentKeyId}, User={User}",
-                request.VaultId,
-                request.SecretName,
-                rotatedCount,
-                currentKey.KeyId,
-                httpContext.User.Identity?.Name);
-
-            return Results.Ok(new
+            catch (DbUpdateConcurrencyException exception)
             {
-                request.VaultId,
-                request.SecretName,
-                RotatedCount = rotatedCount,
-                CurrentKeyId = currentKey.KeyId
-            });
+                logger.LogWarning(
+                    exception,
+                    "Secret re-encrypt conflict. VaultId={VaultId}, SecretName={SecretName}, User={User}",
+                    request.VaultId,
+                    normalizedSecretName,
+                    httpContext.User.Identity?.Name);
+
+                return Results.Conflict(new
+                {
+                    message = "Secret re-encrypt conflicted with another update. Retry is safe."
+                });
+            }
+            finally
+            {
+                gate.Release();
+            }
         }).RequireAuthorization().RequireRateLimiting("OpsSensitivePolicy");
     }
 

@@ -10,10 +10,6 @@ using Infrastructure.Authentication.Jwt;
 using Infrastructure.Authentication.Oidc;
 using Infrastructure.Data;
 using Infrastructure.Security;
-using Infrastructure.Zk;
-using Infrastructure.Zk.Backends;
-using Infrastructure.Zk.Crypto;
-using Infrastructure.Zk.Witness;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
@@ -48,7 +44,6 @@ public static class DependencyInjection
         services.AddKeyProvider(configuration);
         services.AddNonceStore(configuration);
         services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
-        services.AddZk(configuration);
 
         return services;
     }
@@ -215,17 +210,6 @@ public static class DependencyInjection
         }
 
         return false;
-    }
-
-    private static IServiceCollection AddZk(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.Configure<ZkBackendOptions>(configuration.GetSection("ZkBackend"));
-        services.AddSingleton<IR1csSatisfiabilityValidator, R1csSatisfiabilityValidator>();
-        services.AddSingleton<IZkBackend, InProcessZkBackend>();
-        services.AddSingleton<IZkWitnessGenerator, DefaultZkWitnessGenerator>();
-
-        services.AddScoped<IZkProofService, ZkProofService>();
-        return services;
     }
 
     private static IServiceCollection AddKeyProvider(this IServiceCollection services, IConfiguration configuration)

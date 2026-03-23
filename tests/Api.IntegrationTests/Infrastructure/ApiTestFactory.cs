@@ -31,6 +31,7 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
             services.RemoveAll<ApplicationDbContext>();
             services.RemoveAll<IApplicationDbContext>();
             services.RemoveAll<INonceStore>();
+            services.RemoveAll<IKeyProvider>();
             services.RemoveAll<IConfigureOptions<AuthenticationOptions>>();
             services.RemoveAll<IPostConfigureOptions<AuthenticationOptions>>();
 
@@ -42,6 +43,7 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
                 options.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
             services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddSingleton<INonceStore, InMemoryNonceStore>();
+            services.AddSingleton<IKeyProvider, TestRotatingKeyProvider>();
 
             services.AddAuthentication(options =>
                 {
@@ -156,5 +158,72 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
     {
         base.Dispose(disposing);
         _connection?.Dispose();
+    }
+
+    private sealed class TestRotatingKeyProvider : IKeyProvider
+    {
+        private readonly Lock _gate = new();
+        private readonly Dictionary<string, KeyMaterial> _keyRing = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["test-key-v1"] = new(
+                "test-key-v1",
+                Convert.FromBase64String("YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=")),
+            ["test-key-v2"] = new(
+                "test-key-v2",
+                Convert.FromBase64String("MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1ub3BxcnN0dXY="))
+        };
+
+        private string _currentKeyId = "test-key-v1";
+
+        public ValueTask<KeyMaterial> GetCurrentKeyAsync(CancellationToken cancellationToken = default)
+        {
+            lock (_gate)
+            {
+                return ValueTask.FromResult(_keyRing[_currentKeyId]);
+            }
+        }
+
+        public ValueTask<KeyMaterial?> GetKeyByIdAsync(string keyId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                return ValueTask.FromResult<KeyMaterial?>(null);
+            }
+
+            lock (_gate)
+            {
+                return ValueTask.FromResult(_keyRing.TryGetValue(keyId.Trim(), out var key)
+                    ? key
+                    : null);
+            }
+        }
+
+        public ValueTask<IReadOnlyCollection<string>> GetKnownKeyIdsAsync(CancellationToken cancellationToken = default)
+        {
+            lock (_gate)
+            {
+                return ValueTask.FromResult<IReadOnlyCollection<string>>(_keyRing.Keys.OrderBy(x => x).ToArray());
+            }
+        }
+
+        public ValueTask<KeyMaterial> RotateCurrentKeyAsync(string keyId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                throw new InvalidOperationException("keyId is required.");
+            }
+
+            lock (_gate)
+            {
+                var normalized = keyId.Trim();
+                if (!_keyRing.TryGetValue(normalized, out var key))
+                {
+                    throw new InvalidOperationException($"Unknown keyId: {normalized}");
+                }
+
+                _currentKeyId = normalized;
+                return ValueTask.FromResult(key);
+            }
+        }
     }
 }

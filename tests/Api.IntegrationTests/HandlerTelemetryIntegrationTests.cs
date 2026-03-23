@@ -2,8 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using Api.Endpoints.Users;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -21,69 +19,54 @@ public sealed class HandlerTelemetryIntegrationTests : IClassFixture<ApiTestFact
     [Fact]
     public async Task Should_Record_Handler_Metrics_For_Success_And_Failure()
     {
+        await _factory.EnsureInitializedAsync();
         using var client = _factory.CreateClient();
         using var collector = new ApplicationMetricsCollector();
 
-        var hashResponse = await client.PostAsJsonAsync("/Cryptography/hash", new
+        var successResponse = await client.PostAsJsonAsync("/computers", new
         {
-            secret = "proof-secret",
-            clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyHash)
-        });
-        Assert.Equal(HttpStatusCode.OK, hashResponse.StatusCode);
-        using var hashJson = JsonDocument.Parse(await hashResponse.Content.ReadAsStringAsync());
-        var hashPublic = hashJson.RootElement.GetProperty("hashHex").GetString();
-        Assert.False(string.IsNullOrWhiteSpace(hashPublic));
-
-        var successResponse = await client.PostAsJsonAsync("/Cryptography/zk", new
-        {
-            secret = "proof-secret",
-            hashPublic,
-            clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyProve)
+            name = "PC-METRICS-OK",
+            cpuId = "BFEBFBFF000906ED",
+            biosSerial = "12345678901234567890123456789012",
+            diskSerial = "ABCDEFGHIJKLMNOPQRSTUVWX12345678",
+            operatingSystem = "Windows 11 Pro",
+            machineGuid = Guid.NewGuid().ToString()
         });
         Assert.Equal(HttpStatusCode.OK, successResponse.StatusCode);
 
-        var failureResponse = await client.PostAsJsonAsync("/Cryptography/zk", new
+        var failureResponse = await client.PostAsJsonAsync("/computers", new
         {
-            secret = "",
-            hashPublic,
-            clientId = "zk-client",
-            nonce = await RequestNonceAsync(client, "zk-client", NonceChallengeAudiences.CryptographyProve)
+            name = "PC-METRICS-FAIL",
+            cpuId = "BFEBFBFF000906ED",
+            biosSerial = "short",
+            diskSerial = "short",
+            operatingSystem = "Windows 11 Pro",
+            machineGuid = Guid.NewGuid().ToString()
         });
         Assert.Equal(HttpStatusCode.BadRequest, failureResponse.StatusCode);
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "application_handler_requests_total" &&
             x.MessageKind == "command" &&
-            x.MessageName == "ProveCommand" &&
+            x.MessageName == "RegisterComputerCommand" &&
             x.Outcome == "success");
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "application_handler_requests_total" &&
             x.MessageKind == "command" &&
-            x.MessageName == "ProveCommand" &&
+            x.MessageName == "RegisterComputerCommand" &&
             x.Outcome == "failure");
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "application_handler_failures_total" &&
             x.MessageKind == "command" &&
-            x.MessageName == "ProveCommand");
+            x.MessageName == "RegisterComputerCommand");
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "application_handler_duration_ms" &&
             x.MessageKind == "command" &&
-            x.MessageName == "ProveCommand" &&
+            x.MessageName == "RegisterComputerCommand" &&
             x.Value > 0);
-    }
-
-    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId, string audience)
-    {
-        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId, audience });
-        challengeResponse.EnsureSuccessStatusCode();
-
-        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
-        return challengeJson.RootElement.GetProperty("nonce").GetString()!;
     }
 
     private sealed class ApplicationMetricsCollector : IDisposable

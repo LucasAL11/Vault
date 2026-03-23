@@ -1,5 +1,9 @@
 # Runbook: BLS12-381 calculo completo (logica + execucao)
 
+> STATUS: LEGADO (fora do escopo do MVP sem ZK desde 2026-03-23).
+> Documento mantido apenas para referencia tecnica historica.
+> Rotas ZK foram removidas do runtime da API no caminho MVP.
+
 ## Escopo
 Este documento descreve a logica completa do calculo de pairing no projeto, do inicio ao fim:
 - campo primo e campos de extensao

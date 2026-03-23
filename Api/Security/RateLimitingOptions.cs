@@ -12,7 +12,6 @@ public sealed class RateLimitingOptions
     public FixedWindowPolicyOptions AuthChallengeVerify { get; set; } = new() { PermitLimit = 60 };
     public FixedWindowPolicyOptions AuthChallengeRespond { get; set; } = new() { PermitLimit = 20 };
 
-    public FixedWindowPolicyOptions ZkSensitive { get; set; } = new() { PermitLimit = 30 };
     public FixedWindowPolicyOptions OpsSensitive { get; set; } = new() { PermitLimit = 20 };
 }
 

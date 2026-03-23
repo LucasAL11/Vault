@@ -1,5 +1,9 @@
 # Runbook: Limites do ZK In-Process
 
+> STATUS: LEGADO (fora do escopo do MVP sem ZK desde 2026-03-23).
+> Uso permitido apenas para compatibilidade controlada.
+> Rotas ZK foram removidas do runtime da API no caminho MVP.
+
 ## Objetivo
 Documentar limites técnicos e operacionais do backend `InProcessZkBackend` para evitar uso incorreto em produção.
 

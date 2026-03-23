@@ -1,5 +1,8 @@
 # Inventario de Operacoes com Segredo
 
+> STATUS: PARCIALMENTE LEGADO.
+> A secao de operacoes ZK/Cryptography e historica; rotas ZK foram removidas do runtime da API no caminho MVP sem ZK.
+
 ## Escopo
 
 Inventario dos fluxos que manipulam segredo ou derivados de segredo nas categorias:
@@ -20,7 +23,7 @@ Legenda de material sensivel:
 
 | Operacao | Material | Codigo | Controles atuais | Risco residual |
 |---|---|---|---|---|
-| Hash SHA-256 de segredo recebido via API | segredo bruto -> derivado | `Api/Endpoints/Cryptography/HashSecret.cs:42-45` | Nonce obrigatorio e consumido antes (`:35-37`), rate limit `ZkSensitivePolicy` (`:52`) | Endpoint recebe segredo em claro no corpo |
+| Hash SHA-256 de segredo recebido via API (historico, endpoint removido) | segredo bruto -> derivado | `Api/Endpoints/Cryptography/HashSecret.cs` | Nonce obrigatorio e consumido antes | Endpoint removido do runtime MVP |
 | Hash SHA-256 para witness de prova | segredo bruto -> derivado | `Infrastructure/Zk/Witness/DefaultZkWitnessGenerator.cs:20-27` | Entrada validada no fluxo de comando; hash publico normalizado (`:34-52`) | `SecretBase64` existe em memoria durante geracao do witness |
 | Comparacao hash(segredo) vs hash publico | derivado | `Infrastructure/Zk/Backends/InProcessZkBackend.cs:48-53` | `CryptographicOperations.FixedTimeEquals` (`:51`) | Backend in-process (nao substitui stack zk externa) |
 

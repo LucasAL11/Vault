@@ -14,7 +14,7 @@ API ASP.NET Core com arquitetura em camadas:
 Principais capacidades atuais:
 - Registro de computadores
 - Autenticacao hibrida (`JWT` ou `Windows/Negotiate`)
-- Integracao com backend ZK (prova/verificacao)
+- Fluxo de segredo com challenge/proof HMAC e auditoria
 - Kill switch por grupo autorizado
 
 ## 2) Stack tecnica
@@ -52,7 +52,6 @@ dotnet tool install --global dotnet-ef
 Ajustar no minimo:
 - `ConnectionStrings:Database`
 - `Jwt:Issuer`, `Jwt:Audience`, `Jwt:Secret`
-- `ZkBackend:LocalHmacKey`
 - `KeyProvider` (`Mode=Dev` para local; `Mode=Prod` com `APP_KEY_ID` e `APP_KEY_BASE64`)
 - `KillSwitch` (se necessario)
 
@@ -94,11 +93,11 @@ dotnet ef migrations add <NomeDaMigracao> --project Infrastructure/Infrastructur
 - `GET /users/ad-group-example`
 - `POST /computers`
 - `PUT /vaults/{vaultId}/secrets/{name}`
+- `GET /vaults/{vaultId}/secrets`
 - `GET /vaults/{vaultId}/secrets/{name}`
 - `GET /vaults/{vaultId}/secrets/{name}/versions`
+- `POST /vaults/{vaultId}/secrets/{name}/request`
 - `GET /vaults/{vaultId}/secrets/{name}/audit`
-- `POST /Cryptography/zk`
-- `POST /Cryptography/verify`
 - `GET /debug/auth`
 - `GET /debug/key-provider`
 - `GET /ops/key-provider`
@@ -148,21 +147,47 @@ Sempre seguir esta ordem:
 - Contratos versionados por rota: `/api/v1/...` (legacy sem prefixo mantido para compatibilidade, fora do Swagger).
 - Logs estruturados com Serilog.
 - Key provider com selecao por ambiente (`DevKeyProvider`/`ProdKeyProvider`).
-- Fluxo ZK atual em camadas: `Api` (endpoints prove/verify) -> `Application` (comandos e validacao de entrada) -> `Infrastructure` (backend interno `InProcessZkBackend`).
+- Fluxo oficial do MVP: `POST /auth/challenge` -> `POST /vaults/{vaultId}/secrets/{name}/request` com contrato `v1` e `proof` HMAC.
+- Roadmap tecnico oficial do MVP sem ZK: `docs/runbooks/mvp-sem-zk-roadmap.md`.
 
 ## 11) Pontos de atencao atuais
-- Nao existe projeto de testes automatizados na solucao.
-- A prova/verificacao roda internamente na propria API (`InProcess`), sem dependencia de servidor ZK externo.
-- O modo interno e um fallback operacional e nao substitui um prover ZK real (Circom/gnark/halo2).
-- Limites e trade-offs do modo interno estao em `docs/runbooks/zk-in-process-limits.md`.
+- Decisao oficial de escopo em 2026-03-23: MVP segue padrao sem ZK.
+- Rotas ZK (`/Cryptography/hash`, `/Cryptography/zk`, `/Cryptography/verify`) foram removidas do runtime.
+- Todo item de roadmap dependente de prover ZK (in-process ou externo) permanece fora do escopo do MVP.
+- Documentacao de ZK foi mantida apenas como referencia historica nos runbooks de legado.
 - Se o `KillSwitch` estiver `Enabled`, apenas grupo autorizado passa.
 - O kill switch pode ser operado em runtime via `/ops/killswitch` (sem restart), por usuario autenticado pertencente ao `AllowedGroup`.
 - A denylist temporaria pode bloquear usuarios especificos por janela de tempo via `/ops/killswitch/denylist`.
 - `GET /vaults/{vaultId}/secrets/{name}` retorna apenas metadados (sem valor em claro), com autorizacao por policy AD do grupo do vault e auditoria em log.
+- `GET /vaults/{vaultId}/secrets` retorna lista paginada de metadados com filtros por `name`/`status` e ordenacao estavel.
+- `POST /vaults/{vaultId}/secrets/{name}/request` exige `proof` HMAC vinculado a nonce (`audience=vault.secret.request`) para liberar valor em claro.
+- Contrato obrigatorio `v1` para `POST /vaults/{vaultId}/secrets/{name}/request`: `contractVersion`, `reason`, `ticket`, `clientId`, `nonce`, `issuedAt`, `proof`.
+- Compatibilidade legada temporaria: `ticketId` e `issuedAtUtc` ainda sao aceitos como alias de `ticket` e `issuedAt`.
 - Endpoints de leitura de segredo possuem rate limit e retornam `429` em abuso.
 - Pre-requisitos de autenticacao AD/Kerberos/LDAP/OIDC estao em `docs/runbooks/ad-prerequisitos.md`.
 
-## 12) Quando usar este README
+Exemplo de payload do contrato `v1`:
+
+```json
+{
+  "contractVersion": "v1",
+  "reason": "Incidente em producao",
+  "ticket": "INC-1234",
+  "clientId": "local-dev-client",
+  "nonce": "<base64url>",
+  "issuedAt": "2026-03-23T12:00:00Z",
+  "proof": "<hmac-sha256-base64url>"
+}
+```
+
+## 12) Roadmap tecnico do MVP sem ZK
+Roadmap atualizado e oficial:
+- `docs/runbooks/mvp-sem-zk-roadmap.md`
+
+Diretriz de escopo:
+- ZK (`/Cryptography/*`, `Infrastructure/Zk/*`) e legado tecnico, nao objetivo do MVP.
+
+## 13) Quando usar este README
 Use este arquivo como contrato de equipe:
 - Toda nova tarefa parte daqui.
 - Toda mudanca de arquitetura/execucao deve refletir aqui no mesmo PR/commit.

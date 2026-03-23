@@ -64,6 +64,35 @@ public class SecretProtectorTests
     }
 
     [Fact]
+    public async Task Unprotect_WithTamperedCipherText_ShouldFail()
+    {
+        using var serviceProvider = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["KeyProvider:Mode"] = "Dev",
+            ["KeyProvider:Dev:KeyId"] = "dev-test-key-v1",
+            ["KeyProvider:Dev:Base64Key"] = ToBase64("01234567890123456789012345678901")
+        });
+
+        var protector = serviceProvider.GetRequiredService<ISecretProtector>();
+        var context = new SecretProtectionContext(
+            VaultId: Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            SecretId: Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            Version: 1);
+
+        var protectedSecret = await protector.ProtectAsync("valor-com-integridade", context);
+        var tamperedCipherText = (byte[])protectedSecret.CipherText.Clone();
+        tamperedCipherText[0] ^= 0x01;
+
+        var exception = await Record.ExceptionAsync(async () =>
+            await protector.UnprotectAsync(
+                new ProtectedSecret(tamperedCipherText, protectedSecret.Nonce, protectedSecret.KeyId),
+                context));
+
+        Assert.NotNull(exception);
+        Assert.IsAssignableFrom<CryptographicException>(exception);
+    }
+
+    [Fact]
     public async Task Unprotect_WithUnknownKeyId_ShouldThrow()
     {
         using var serviceProvider = BuildServiceProvider(new Dictionary<string, string?>

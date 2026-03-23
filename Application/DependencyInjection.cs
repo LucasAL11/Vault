@@ -48,7 +48,8 @@ public static class DependencyInjection
         var commandHandlers = 
             assembly
                 .GetTypes()
-                .Where(t => t is { IsAbstract: false, IsInterface: false })
+                .Where(t => t is { IsAbstract: false, IsInterface: false } &&
+                            !string.Equals(t.Namespace, "Application.Cryptography", StringComparison.Ordinal))
                 .SelectMany(t => 
                     t.GetInterfaces()
                     .Where(i => i.IsGenericType &&

@@ -2,8 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using Api.Endpoints.Users;
 using Api.IntegrationTests.Infrastructure;
 using Xunit;
 
@@ -19,26 +17,18 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
     }
 
     [Fact]
-    public async Task Should_Record_Request_And_Duration_Metrics_For_Auth_Zk_Secrets()
+    public async Task Should_Record_Request_And_Duration_Metrics_For_Auth_And_Secrets()
     {
         await _factory.EnsureInitializedAsync();
         using var client = _factory.CreateClient();
         using var collector = new SecurityMetricsCollector();
 
         var authResponse = await client.GetAsync("/users/groups");
-        var hashNonce = await RequestNonceAsync(client, "metrics-client", NonceChallengeAudiences.CryptographyHash);
-        var zkResponse = await client.PostAsJsonAsync("/Cryptography/hash", new
-        {
-            secret = "metric-test",
-            clientId = "metrics-client",
-            nonce = hashNonce
-        });
         var secretResponse = await client.PutAsJsonAsync(
             $"/vaults/{ApiTestFactory.VaultId}/secrets/METRIC_SECRET",
             new { value = "metric-secret-value", contentType = "text/plain", expiresUtc = (DateTimeOffset?)null });
 
         Assert.Equal(HttpStatusCode.OK, authResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, zkResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, secretResponse.StatusCode);
 
         Assert.Contains(collector.Entries, x =>
@@ -49,12 +39,6 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "security_requests_total" &&
-            x.Domain == "zk" &&
-            x.StatusCode == 200 &&
-            x.Outcome == "success");
-
-        Assert.Contains(collector.Entries, x =>
-            x.InstrumentName == "security_requests_total" &&
             x.Domain == "secrets" &&
             x.StatusCode == 200 &&
             x.Outcome == "success");
@@ -66,22 +50,8 @@ public sealed class SecurityMetricsIntegrationTests : IClassFixture<ApiTestFacto
 
         Assert.Contains(collector.Entries, x =>
             x.InstrumentName == "security_request_duration_ms" &&
-            x.Domain == "zk" &&
-            x.Value > 0);
-
-        Assert.Contains(collector.Entries, x =>
-            x.InstrumentName == "security_request_duration_ms" &&
             x.Domain == "secrets" &&
             x.Value > 0);
-    }
-
-    private static async Task<string> RequestNonceAsync(HttpClient client, string clientId, string audience)
-    {
-        var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new { clientId, audience });
-        challengeResponse.EnsureSuccessStatusCode();
-
-        using var challengeJson = JsonDocument.Parse(await challengeResponse.Content.ReadAsStringAsync());
-        return challengeJson.RootElement.GetProperty("nonce").GetString()!;
     }
 
     [Fact]

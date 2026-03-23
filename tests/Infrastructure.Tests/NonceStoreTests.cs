@@ -9,6 +9,36 @@ namespace Infrastructure.Tests;
 public sealed class NonceStoreTests
 {
     [Fact]
+    [Trait("Category", "CriticalNonce")]
+    public async Task NonceBaseline_TtlAndSingleUse_ShouldHoldAcrossReplayAndExpiry()
+    {
+        var clock = new FakeDateTimeProvider(DateTime.UtcNow);
+        INonceStore store = CreateStore(clock, new NonceStoreOptions
+        {
+            Enabled = true,
+            TtlSeconds = 2,
+            MaxEntries = 100
+        });
+
+        var singleUseNonce = new byte[] { 5, 4, 3, 2, 1 };
+        var ttlNonce = new byte[] { 9, 8, 7, 6, 5 };
+
+        var addedSingleUse = await store.TryAddAsync("scope-baseline", singleUseNonce);
+        var firstConsume = await store.TryConsumeAsync("scope-baseline", singleUseNonce);
+        var replayConsume = await store.TryConsumeAsync("scope-baseline", singleUseNonce);
+
+        var addedTtl = await store.TryAddAsync("scope-baseline", ttlNonce);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        var consumeAfterTtl = await store.TryConsumeAsync("scope-baseline", ttlNonce);
+
+        Assert.True(addedSingleUse);
+        Assert.True(firstConsume);
+        Assert.False(replayConsume);
+        Assert.True(addedTtl);
+        Assert.False(consumeAfterTtl);
+    }
+
+    [Fact]
     public async Task TryAddAsync_ShouldRejectDuplicateWithinTtl_AndAcceptAfterExpiry()
     {
         var clock = new FakeDateTimeProvider(DateTime.UtcNow);

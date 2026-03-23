@@ -2,15 +2,12 @@
 @username = lucas.luna
 @domain = plt
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiUExUXFxsdWNhcy5sdW5hIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJsdWNhcy5sdW5hIiwibmJmIjoxNzczODM2NzI4LCJleHAiOjE3NzM4NDAzMjgsImlzcyI6IldlYkFwcGxpY2F0aW9uMSIsImF1ZCI6IldlYkFwcGxpY2F0aW9uMSJ9.qHPjjgZM2Z4ZSm4ii6DrYiossYmGUYnX-9F7OPIME5s
-@secret = 42
-@hashPublic =
-@proof =
-@zkClientId = local-dev-client
-@zkNonce =
-@hashNonce =
-@audHash = cryptography.hash
-@audProve = cryptography.prove
-@audVerify = cryptography.verify
+@vaultClientId = local-dev-client
+@audVaultSecretRequest = vault.secret.request
+@authSubject = PLT\\lucas.luna
+@vaultRequestNonce =
+@vaultIssuedAt =
+@vaultProof =
 @killswitchEnabled = true
 @vaultId = 11111111-1111-1111-1111-111111111111
 
@@ -34,42 +31,6 @@ Accept: application/json
 > {%
   if (response.status === 200) {
     client.global.set("token", response.body);
-  }
-%}
-
-###
-# 3) Obter nonce para hash
-POST {{baseUrl}}/auth/challenge
-Content-Type: application/json
-Accept: application/json
-
-{
-  "clientId": "{{zkClientId}}",
-  "audience": "{{audHash}}"
-}
-
-> {%
-  if (response.status === 200 && response.body && response.body.nonce) {
-    client.global.set("hashNonce", response.body.nonce);
-  }
-%}
-
-###
-# 4) Gerar hashPublic automatico a partir do secret
-POST {{baseUrl}}/Cryptography/hash
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{token}}
-
-{
-  "secret": "{{secret}}",
-  "clientId": "{{zkClientId}}",
-  "nonce": "{{hashNonce}}"
-}
-
-> {%
-  if (response.status === 200 && response.body && response.body.HashBase64) {
-    client.global.set("hashPublic", response.body.HashBase64);
   }
 %}
 
@@ -148,74 +109,6 @@ Authorization: Bearer {{token}}
   "diskSerial": "DISK-SERIAL-67890",
   "operatingSystem": "Windows 11 Pro",
   "machineGuid": "31f232f2-84f4-4c8d-9002-f33e5364ad14"
-}
-
-###
-# 9) Gerar prova ZK (hashPublic vem do passo 3)
-POST {{baseUrl}}/auth/challenge
-Content-Type: application/json
-Accept: application/json
-
-{
-  "clientId": "{{zkClientId}}",
-  "audience": "{{audProve}}"
-}
-
-> {%
-  if (response.status === 200 && response.body && response.body.nonce) {
-    client.global.set("zkNonce", response.body.nonce);
-  }
-%}
-
-###
-# 10) Gerar prova ZK (hashPublic vem do passo 3)
-POST {{baseUrl}}/Cryptography/zk
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{token}}
-
-{
-  "secret": "{{secret}}",
-  "hashPublic": "{{hashPublic}}",
-  "clientId": "{{zkClientId}}",
-  "nonce": "{{zkNonce}}"
-}
-
-> {%
-  if (response.status === 200) {
-    client.global.set("proof", response.body);
-  }
-%}
-
-###
-# 11) Obter nonce para verify
-POST {{baseUrl}}/auth/challenge
-Content-Type: application/json
-Accept: application/json
-
-{
-  "clientId": "{{zkClientId}}",
-  "audience": "{{audVerify}}"
-}
-
-> {%
-  if (response.status === 200 && response.body && response.body.nonce) {
-    client.global.set("zkNonce", response.body.nonce);
-  }
-%}
-
-###
-# 12) Verificar prova ZK
-POST {{baseUrl}}/Cryptography/verify
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{token}}
-
-{
-  "proof": "{{proof}}",
-  "hashPublic": "{{hashPublic}}",
-  "clientId": "{{zkClientId}}",
-  "nonce": "{{zkNonce}}"
 }
 
 ###
@@ -305,6 +198,51 @@ Accept: application/json
 GET {{baseUrl}}/vaults/{{vaultId}}/secrets/DB_PASSWORD
 Authorization: Bearer {{token}}
 Accept: application/json
+
+###
+# 21.1) Listar segredos do vault (metadados paginados com filtros e ordenacao estavel)
+GET {{baseUrl}}/vaults/{{vaultId}}/secrets?name=DB&status=Active&page=1&pageSize=20&orderBy=name&orderDirection=asc
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+# 21.2) Obter nonce para request de valor do segredo (audience vault.secret.request)
+POST {{baseUrl}}/auth/challenge
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{token}}
+
+{
+  "clientId": "{{vaultClientId}}",
+  "subject": "{{authSubject}}",
+  "audience": "{{audVaultSecretRequest}}"
+}
+
+> {%
+  if (response.status === 200 && response.body && response.body.nonce) {
+    client.global.set("vaultRequestNonce", response.body.nonce);
+    client.global.set("vaultIssuedAt", response.body.issuedAtUtc);
+  }
+%}
+
+###
+# 21.3) Solicitar valor em claro com contrato obrigatorio v1
+# proof = HMAC-SHA256(base64url) de:
+# "{vaultId}|{secretName}|{clientId}|{subjectUpper}|{reason}|{ticket}|{nonce}|{issuedAt}"
+POST {{baseUrl}}/vaults/{{vaultId}}/secrets/DB_PASSWORD/request
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "contractVersion": "v1",
+  "reason": "Incidente em producao",
+  "ticket": "INC-1234",
+  "clientId": "{{vaultClientId}}",
+  "nonce": "{{vaultRequestNonce}}",
+  "issuedAt": "{{vaultIssuedAt}}",
+  "proof": "{{vaultProof}}"
+}
 
 ###
 # 22) Listar metadados de versoes do segredo (sem plaintext)

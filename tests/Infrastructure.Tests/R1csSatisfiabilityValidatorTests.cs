@@ -1,9 +1,6 @@
 using System.Numerics;
 using Application.Abstractions.Cryptography;
 using Application.Cryptography.Constraints;
-using Infrastructure;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Infrastructure.Tests;
@@ -13,8 +10,7 @@ public sealed class R1csSatisfiabilityValidatorTests
     [Fact]
     public void Validate_ShouldReturnSatisfied_WhenWitnessSatisfiesConstraints()
     {
-        using var serviceProvider = BuildServiceProvider();
-        var validator = serviceProvider.GetRequiredService<IR1csSatisfiabilityValidator>();
+        var validator = CreateValidator();
 
         var (constraints, wires) = ExampleR1csFactory.Build("a", "b", "x", "y");
         var p = R1csBuilder.Bls12_381ScalarFieldPrime;
@@ -31,8 +27,7 @@ public sealed class R1csSatisfiabilityValidatorTests
     [Fact]
     public void Validate_ShouldReturnUnsatisfied_WhenConstraintIsBroken()
     {
-        using var serviceProvider = BuildServiceProvider();
-        var validator = serviceProvider.GetRequiredService<IR1csSatisfiabilityValidator>();
+        var validator = CreateValidator();
 
         var (constraints, wires) = ExampleR1csFactory.Build("a", "b", "x", "y");
         var p = R1csBuilder.Bls12_381ScalarFieldPrime;
@@ -52,8 +47,7 @@ public sealed class R1csSatisfiabilityValidatorTests
     [Fact]
     public void Validate_ShouldReturnUnsatisfied_WhenWitnessIsMissingWire()
     {
-        using var serviceProvider = BuildServiceProvider();
-        var validator = serviceProvider.GetRequiredService<IR1csSatisfiabilityValidator>();
+        var validator = CreateValidator();
 
         var (constraints, wires) = ExampleR1csFactory.Build("a", "b", "x", "y");
         var p = R1csBuilder.Bls12_381ScalarFieldPrime;
@@ -144,21 +138,13 @@ public sealed class R1csSatisfiabilityValidatorTests
         return BigInteger.ModPow(Mod(value, p), p - 2, p);
     }
 
-    private static ServiceProvider BuildServiceProvider()
+    private static IR1csSatisfiabilityValidator CreateValidator()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Database"] = "Host=localhost;Port=5432;Database=test;Username=test;Password=test",
-                ["Jwt:Issuer"] = "test-issuer",
-                ["Jwt:Audience"] = "test-audience",
-                ["Jwt:Secret"] = "01234567890123456789012345678901",
-                ["ZkBackend:LocalHmacKey"] = "test-zk-key-with-16chars"
-            })
-            .Build();
+        var infrastructureAssembly = typeof(Infrastructure.DependencyInjection).Assembly;
+        var implementationType = infrastructureAssembly.GetType(
+            "Infrastructure.Zk.Crypto.R1csSatisfiabilityValidator",
+            throwOnError: true)!;
 
-        var services = new ServiceCollection();
-        services.AddInfrastructure(config);
-        return services.BuildServiceProvider();
+        return (IR1csSatisfiabilityValidator)Activator.CreateInstance(implementationType, nonPublic: true)!;
     }
 }

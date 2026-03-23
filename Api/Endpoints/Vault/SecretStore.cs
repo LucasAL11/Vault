@@ -1,16 +1,55 @@
+using System.Security.Cryptography;
+using System.Text;
+using Api.Endpoints.Users;
+using Api.Security;
 using Application.Abstractions.Data;
 using Application.Abstractions.Security;
 using Application.Authentication;
 using Domain.vault;
+using Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Api.Endpoints.Vault;
 
 public sealed class SecretStore : IEndpoint
 {
+    private const string DummyClientId = "__vault-proof-invalid-client__";
+    private const string DummySubject = "__vault-proof-invalid-subject__";
+    private const string SecretRequestContractVersion = "v1";
+    private static readonly byte[] DummyNonceBytes = new byte[32];
+
     private sealed record UpsertRequest(string Value, string? ContentType, DateTimeOffset? ExpiresUtc);
-    private sealed record SecretRequestPayload(string Reason, string? TicketId);
+    private sealed class SecretRequestPayload
+    {
+        public string? ContractVersion { get; init; }
+        public string? Reason { get; init; }
+        public string? Ticket { get; init; }
+        public string? TicketId { get; init; }
+        public string? ClientId { get; init; }
+        public string? Nonce { get; init; }
+        public DateTimeOffset? IssuedAt { get; init; }
+        public DateTimeOffset? IssuedAtUtc { get; init; }
+        public string? Proof { get; init; }
+    }
+    private sealed record RevokeSecretVersionRequest(string? Reason);
+    private sealed record SecretListItemResponse(
+        string Name,
+        string Status,
+        int CurrentVersion,
+        int? LatestVersion,
+        string? ContentType,
+        string? KeyReference,
+        bool? IsRevoked,
+        DateTimeOffset? Expires);
+    private sealed record SecretLatestVersionSnapshot(
+        Guid SecretId,
+        int Version,
+        string ContentType,
+        string KeyReference,
+        bool IsRevoked,
+        DateTimeOffset? Expires);
     private sealed record AuditEntryResponse(string Action, string Actor, DateTimeOffset OccurredAtUtc, string? Details);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
@@ -113,6 +152,210 @@ public sealed class SecretStore : IEndpoint
                 version.Expires
             });
         }).RequireAuthorization().RequireRateLimiting("SecretWritePolicy");
+
+        builder.MapGet("/vaults/{vaultId:guid}/secrets", async (
+            Guid vaultId,
+            string? name,
+            string? status,
+            int? page,
+            int? pageSize,
+            string? orderBy,
+            string? orderDirection,
+            IApplicationDbContext dbContext,
+            IAuthorizationService authorizationService,
+            IUserContext userContext,
+            HttpContext httpContext,
+            ILogger<SecretStore> logger,
+            CancellationToken cancellationToken) =>
+        {
+            ApplyNoStoreHeaders(httpContext.Response);
+
+            var normalizedPage = page ?? 1;
+            if (normalizedPage <= 0)
+            {
+                return Results.BadRequest(new { message = "page must be greater than zero." });
+            }
+
+            var normalizedPageSize = pageSize ?? 20;
+            if (normalizedPageSize is < 1 or > 100)
+            {
+                return Results.BadRequest(new { message = "pageSize must be between 1 and 100." });
+            }
+
+            if (!TryParseStatusFilter(status, out var parsedStatus))
+            {
+                return Results.BadRequest(new
+                {
+                    message = $"status is invalid. Allowed values: {string.Join(", ", Enum.GetNames<Status>())}."
+                });
+            }
+
+            if (!TryNormalizeSecretSortBy(orderBy, out var normalizedSortBy))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "orderBy is invalid. Allowed values: name, status, currentVersion."
+                });
+            }
+
+            if (!TryNormalizeSortDirection(orderDirection, out var normalizedSortDirection))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "orderDirection is invalid. Allowed values: asc, desc."
+                });
+            }
+
+            var nameFilter = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            if (nameFilter is { Length: > 120 })
+            {
+                return Results.BadRequest(new { message = "name filter cannot exceed 120 characters." });
+            }
+
+            var vault = await dbContext.Vaults
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
+
+            if (vault is null)
+            {
+                logger.LogWarning(
+                    "Secret list metadata denied: vault not found. VaultId={VaultId}, User={User}",
+                    vaultId,
+                    userContext.Identity.ToString());
+                return SecureNotFound();
+            }
+
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: "*",
+                    requiredPermission: VaultPermission.Read,
+                    operation: "list-metadata",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
+            {
+                return SecureForbidden();
+            }
+
+            var secretsQuery = dbContext.Secrets
+                .AsNoTracking()
+                .Where(x => x.VaultId == vaultId);
+
+            if (!string.IsNullOrWhiteSpace(nameFilter))
+            {
+                var normalizedNameFilter = nameFilter.ToLowerInvariant();
+                secretsQuery = secretsQuery.Where(x => x.Name.ToLower().Contains(normalizedNameFilter));
+            }
+
+            if (parsedStatus.HasValue)
+            {
+                secretsQuery = secretsQuery.Where(x => x.Status == parsedStatus.Value);
+            }
+
+            var sortedSecretsQuery = ApplySecretSorting(secretsQuery, normalizedSortBy, normalizedSortDirection);
+            var totalCount = await sortedSecretsQuery.CountAsync(cancellationToken);
+            var skip = (normalizedPage - 1) * normalizedPageSize;
+
+            var pagedSecrets = await sortedSecretsQuery
+                .Skip(skip)
+                .Take(normalizedPageSize)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Name,
+                    x.Status,
+                    x.CurrentVersion
+                })
+                .ToListAsync(cancellationToken);
+
+            var secretIds = pagedSecrets
+                .Select(x => x.Id)
+                .ToArray();
+
+            var latestVersionsBySecretId = new Dictionary<Guid, SecretLatestVersionSnapshot>();
+            if (secretIds.Length > 0)
+            {
+                var latestCandidates = await dbContext.SecretVersions
+                    .AsNoTracking()
+                    .Where(x => secretIds.Contains(x.SecretId))
+                    .OrderByDescending(x => x.Version)
+                    .Select(x => new SecretLatestVersionSnapshot(
+                        x.SecretId,
+                        x.Version,
+                        x.ContentType,
+                        x.KeyReference,
+                        x.IsRevoked,
+                        x.Expires))
+                    .ToListAsync(cancellationToken);
+
+                foreach (var candidate in latestCandidates)
+                {
+                    if (!latestVersionsBySecretId.ContainsKey(candidate.SecretId))
+                    {
+                        latestVersionsBySecretId[candidate.SecretId] = candidate;
+                    }
+                }
+            }
+
+            var items = pagedSecrets
+                .Select(secret =>
+                {
+                    latestVersionsBySecretId.TryGetValue(secret.Id, out var latestVersion);
+                    return new SecretListItemResponse(
+                        Name: secret.Name,
+                        Status: secret.Status.ToString(),
+                        CurrentVersion: secret.CurrentVersion,
+                        LatestVersion: latestVersion?.Version,
+                        ContentType: latestVersion?.ContentType,
+                        KeyReference: latestVersion?.KeyReference,
+                        IsRevoked: latestVersion?.IsRevoked,
+                        Expires: latestVersion?.Expires);
+                })
+                .ToList();
+
+            var totalPages = totalCount == 0
+                ? 0
+                : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
+
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_LIST_METADATA",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: null,
+                details:
+                $"page={normalizedPage};pageSize={normalizedPageSize};returned={items.Count};total={totalCount};name={nameFilter ?? "-"};status={parsedStatus?.ToString() ?? "-"};orderBy={normalizedSortBy};orderDirection={normalizedSortDirection}",
+                cancellationToken);
+
+            logger.LogInformation(
+                "Secret list metadata success. VaultId={VaultId}, Page={Page}, PageSize={PageSize}, Returned={Returned}, Total={Total}, User={User}",
+                vaultId,
+                normalizedPage,
+                normalizedPageSize,
+                items.Count,
+                totalCount,
+                userContext.Identity.ToString());
+
+            return Results.Ok(new
+            {
+                VaultId = vaultId,
+                Page = normalizedPage,
+                PageSize = normalizedPageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                OrderBy = normalizedSortBy,
+                OrderDirection = normalizedSortDirection,
+                Filters = new
+                {
+                    Name = nameFilter,
+                    Status = parsedStatus?.ToString()
+                },
+                Items = items
+            });
+        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
 
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}", async (
             Guid vaultId,
@@ -327,14 +570,14 @@ public sealed class SecretStore : IEndpoint
             });
         }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
 
-        builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
+        builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/versions/{version:int}/revoke", async (
             Guid vaultId,
             string name,
-            SecretRequestPayload request,
+            int version,
+            RevokeSecretVersionRequest request,
             IApplicationDbContext dbContext,
             IAuthorizationService authorizationService,
             IUserContext userContext,
-            ISecretProtector secretProtector,
             HttpContext httpContext,
             ILogger<SecretStore> logger,
             CancellationToken cancellationToken) =>
@@ -346,10 +589,160 @@ public sealed class SecretStore : IEndpoint
                 return Results.BadRequest(new { message = "Secret name is required." });
             }
 
-            if (string.IsNullOrWhiteSpace(request.Reason))
+            if (version <= 0)
             {
-                return Results.BadRequest(new { message = "Reason is required to request secret value." });
+                return Results.BadRequest(new { message = "version must be greater than zero." });
             }
+
+            var reason = request.Reason?.Trim();
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                return Results.BadRequest(new { message = "reason is required." });
+            }
+
+            if (reason.Length > 500)
+            {
+                return Results.BadRequest(new { message = "reason cannot exceed 500 characters." });
+            }
+
+            var vault = await dbContext.Vaults
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
+
+            if (vault is null)
+            {
+                logger.LogWarning(
+                    "Secret version revoke denied: vault not found. VaultId={VaultId}, User={User}",
+                    vaultId,
+                    userContext.Identity.ToString());
+                return SecureNotFound();
+            }
+
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Admin,
+                    operation: "revoke-version",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
+            {
+                return SecureForbidden();
+            }
+
+            var secret = await dbContext.Secrets
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
+
+            if (secret is null)
+            {
+                return SecureNotFound();
+            }
+
+            var secretVersion = await dbContext.SecretVersions
+                .SingleOrDefaultAsync(x => x.SecretId == secret.Id && x.Version == version, cancellationToken);
+
+            if (secretVersion is null)
+            {
+                return SecureNotFound();
+            }
+
+            var wasAlreadyRevoked = secretVersion.IsRevoked;
+            if (!wasAlreadyRevoked)
+            {
+                secretVersion.Revoke();
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            var actor = userContext.Identity.ToString();
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_VERSION_REVOKE",
+                actor: actor,
+                vaultId: vaultId,
+                secretName: secret.Name,
+                details: $"version={secretVersion.Version};reason={reason};alreadyRevoked={wasAlreadyRevoked}",
+                cancellationToken);
+
+            logger.LogInformation(
+                "Secret version revoke success. VaultId={VaultId}, SecretName={SecretName}, Version={Version}, AlreadyRevoked={AlreadyRevoked}, User={User}",
+                vaultId,
+                secret.Name,
+                secretVersion.Version,
+                wasAlreadyRevoked,
+                actor);
+
+            return Results.Ok(new
+            {
+                secret.Name,
+                Version = secretVersion.Version,
+                secretVersion.IsRevoked,
+                Reason = reason,
+                Actor = actor,
+                AlreadyRevoked = wasAlreadyRevoked
+            });
+        }).RequireAuthorization().RequireRateLimiting("SecretWritePolicy");
+
+        builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
+            Guid vaultId,
+            string name,
+            SecretRequestPayload request,
+            IApplicationDbContext dbContext,
+            IAuthorizationService authorizationService,
+            IUserContext userContext,
+            ISecretProtector secretProtector,
+            INonceStore nonceStore,
+            IOptions<AuthChallengeOptions> challengeOptions,
+            IOptions<NonceStoreOptions> nonceStoreOptions,
+            HttpContext httpContext,
+            ILogger<SecretStore> logger,
+            CancellationToken cancellationToken) =>
+        {
+            ApplyNoStoreHeaders(httpContext.Response);
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return Results.BadRequest(new { message = "Secret name is required." });
+            }
+
+            var contractVersion = request.ContractVersion?.Trim();
+            if (!string.Equals(contractVersion, SecretRequestContractVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new
+                {
+                    message = $"contractVersion is invalid. Supported value: {SecretRequestContractVersion}."
+                });
+            }
+
+            var reason = request.Reason?.Trim();
+            var ticket = ResolveTicket(request);
+            var clientId = request.ClientId?.Trim();
+            var nonce = request.Nonce?.Trim();
+            var proof = request.Proof?.Trim();
+            var issuedAt = request.IssuedAt ?? request.IssuedAtUtc;
+
+            if (string.IsNullOrWhiteSpace(reason) ||
+                string.IsNullOrWhiteSpace(ticket) ||
+                string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(nonce) ||
+                string.IsNullOrWhiteSpace(proof) ||
+                !issuedAt.HasValue)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Required contract fields: reason, ticket, clientId, nonce, issuedAt, proof."
+                });
+            }
+
+            var normalizedReason = reason!;
+            var normalizedTicket = ticket!;
+            var normalizedClientId = clientId!;
+            var normalizedNonce = nonce!;
+            var normalizedProof = proof!;
+            var normalizedIssuedAt = issuedAt.Value;
 
             var vault = await dbContext.Vaults
                 .AsNoTracking()
@@ -374,6 +767,71 @@ public sealed class SecretStore : IEndpoint
                     cancellationToken: cancellationToken))
             {
                 return SecureForbidden();
+            }
+
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: null, out var subject))
+            {
+                logger.LogWarning(
+                    "Secret request denied: unable to resolve subject. VaultId={VaultId}, SecretName={SecretName}, User={User}",
+                    vaultId,
+                    name,
+                    userContext.Identity.ToString());
+                return Results.Unauthorized();
+            }
+
+            var authChallengeOptions = challengeOptions.Value;
+            var nonceOptions = nonceStoreOptions.Value;
+            var hasClientSecret = TryGetClientSecret(normalizedClientId, authChallengeOptions, out var configuredClientSecret);
+            var effectiveClientSecret = hasClientSecret
+                ? configuredClientSecret
+                : ResolveFallbackSecret(authChallengeOptions);
+            var nonceParsed = TryFromBase64Url(normalizedNonce, out var nonceBytes);
+            var effectiveNonceBytes = nonceParsed ? nonceBytes : DummyNonceBytes;
+            var proofPayload = BuildSecretRequestProofPayload(
+                vaultId,
+                name,
+                normalizedClientId,
+                subject,
+                normalizedReason,
+                normalizedTicket,
+                normalizedNonce,
+                normalizedIssuedAt);
+            var signatureValid = IsSignatureValid(proofPayload, normalizedProof, effectiveClientSecret);
+            var withinSkewWindow = IsWithinSkewWindow(normalizedIssuedAt, authChallengeOptions, nonceOptions);
+
+            var shouldConsumeIssuedNonce = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow;
+            var consumeScope = shouldConsumeIssuedNonce
+                ? NonceChallengeScope.Build(
+                    httpContext,
+                    normalizedClientId,
+                    subject,
+                    NonceChallengeAudiences.VaultSecretRequest)
+                : NonceChallengeScope.Build(
+                    httpContext,
+                    DummyClientId,
+                    DummySubject,
+                    NonceChallengeAudiences.VaultSecretRequest);
+            var consumeNonceBytes = shouldConsumeIssuedNonce ? effectiveNonceBytes : DummyNonceBytes;
+            var nonceConsumed = await nonceStore.TryConsumeAsync(consumeScope, consumeNonceBytes, cancellationToken);
+
+            var proofValid = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow && nonceConsumed;
+            if (!proofValid)
+            {
+                await AppendAuditAsync(
+                    dbContext,
+                    action: "SECRET_REQUEST_VALUE_DENIED",
+                    actor: userContext.Identity.ToString(),
+                    vaultId: vaultId,
+                    secretName: name,
+                    details: $"reason=invalid-proof;clientId={normalizedClientId}",
+                    cancellationToken);
+
+                logger.LogWarning(
+                    "Secret request denied: proof validation failed. VaultId={VaultId}, SecretName={SecretName}, User={User}",
+                    vaultId,
+                    name,
+                    userContext.Identity.ToString());
+                return Results.Unauthorized();
             }
 
             var secret = await dbContext.Secrets
@@ -423,7 +881,7 @@ public sealed class SecretStore : IEndpoint
                 actor: userContext.Identity.ToString(),
                 vaultId: vaultId,
                 secretName: secret.Name,
-                details: $"version={activeVersion.Version};ticket={request.TicketId ?? "-"};reason={request.Reason.Trim()}",
+                details: $"version={activeVersion.Version};ticket={NormalizeTicketId(normalizedTicket)};reason={normalizedReason};clientId={normalizedClientId};contractVersion={SecretRequestContractVersion}",
                 cancellationToken);
 
             logger.LogInformation(
@@ -666,6 +1124,118 @@ public sealed class SecretStore : IEndpoint
         return false;
     }
 
+    private static bool TryParseStatusFilter(string? status, out Status? parsedStatus)
+    {
+        parsedStatus = null;
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return true;
+        }
+
+        if (Enum.TryParse<Status>(status.Trim(), ignoreCase: true, out var value))
+        {
+            parsedStatus = value;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryNormalizeSecretSortBy(string? orderBy, out string normalizedSortBy)
+    {
+        if (string.IsNullOrWhiteSpace(orderBy))
+        {
+            normalizedSortBy = "name";
+            return true;
+        }
+
+        var normalized = orderBy.Trim();
+        if (normalized.Equals("name", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSortBy = "name";
+            return true;
+        }
+
+        if (normalized.Equals("status", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSortBy = "status";
+            return true;
+        }
+
+        if (normalized.Equals("currentVersion", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSortBy = "currentVersion";
+            return true;
+        }
+
+        normalizedSortBy = string.Empty;
+        return false;
+    }
+
+    private static bool TryNormalizeSortDirection(string? orderDirection, out string normalizedSortDirection)
+    {
+        if (string.IsNullOrWhiteSpace(orderDirection))
+        {
+            normalizedSortDirection = "asc";
+            return true;
+        }
+
+        var normalized = orderDirection.Trim();
+        if (normalized.Equals("asc", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSortDirection = "asc";
+            return true;
+        }
+
+        if (normalized.Equals("desc", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSortDirection = "desc";
+            return true;
+        }
+
+        normalizedSortDirection = string.Empty;
+        return false;
+    }
+
+    private static IQueryable<Secret> ApplySecretSorting(
+        IQueryable<Secret> query,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        return sortBy switch
+        {
+            "status" when descending => query
+                .OrderByDescending(x => x.Status)
+                .ThenBy(x => x.Name)
+                .ThenBy(x => x.Id),
+
+            "status" => query
+                .OrderBy(x => x.Status)
+                .ThenBy(x => x.Name)
+                .ThenBy(x => x.Id),
+
+            "currentVersion" when descending => query
+                .OrderByDescending(x => x.CurrentVersion)
+                .ThenBy(x => x.Name)
+                .ThenBy(x => x.Id),
+
+            "currentVersion" => query
+                .OrderBy(x => x.CurrentVersion)
+                .ThenBy(x => x.Name)
+                .ThenBy(x => x.Id),
+
+            "name" when descending => query
+                .OrderByDescending(x => x.Name)
+                .ThenBy(x => x.Id),
+
+            _ => query
+                .OrderBy(x => x.Name)
+                .ThenBy(x => x.Id)
+        };
+    }
+
     private static async Task AppendAuditAsync(
         IApplicationDbContext dbContext,
         string action,
@@ -700,4 +1270,138 @@ public sealed class SecretStore : IEndpoint
 
     private static IResult SecureNotFound()
         => Results.NotFound(new { message = "Resource not available." });
+
+    private static bool TryGetClientSecret(string clientId, AuthChallengeOptions options, out string secret)
+    {
+        secret = string.Empty;
+        if (!options.ClientSecrets.TryGetValue(clientId, out var configuredSecret) ||
+            string.IsNullOrWhiteSpace(configuredSecret))
+        {
+            return false;
+        }
+
+        secret = configuredSecret;
+        return true;
+    }
+
+    private static string ResolveFallbackSecret(AuthChallengeOptions options)
+    {
+        foreach (var entry in options.ClientSecrets)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Value))
+            {
+                return entry.Value;
+            }
+        }
+
+        return "vault-secret-request-fallback-secret";
+    }
+
+    private static string BuildSecretRequestProofPayload(
+        Guid vaultId,
+        string secretName,
+        string clientId,
+        string subject,
+        string reason,
+        string ticket,
+        string nonce,
+        DateTimeOffset issuedAtUtc)
+    {
+        return $"{vaultId:D}|{secretName.Trim()}|{clientId.Trim()}|{subject.Trim().ToUpperInvariant()}|{reason.Trim()}|{NormalizeTicketId(ticket)}|{nonce.Trim()}|{issuedAtUtc:O}";
+    }
+
+    private static string? ResolveTicket(SecretRequestPayload request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Ticket))
+        {
+            return request.Ticket.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TicketId))
+        {
+            return request.TicketId.Trim();
+        }
+
+        return null;
+    }
+
+    private static string NormalizeTicketId(string? ticket)
+    {
+        return string.IsNullOrWhiteSpace(ticket) ? "-" : ticket.Trim();
+    }
+
+    private static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
+    {
+        var secretBytes = Encoding.UTF8.GetBytes(clientSecret);
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        using var hmac = new HMACSHA256(secretBytes);
+        var expectedSignature = hmac.ComputeHash(payloadBytes);
+
+        var signatureParsed = TryFromBase64Url(signatureBase64Url, out var providedSignature);
+        var signaturesMatch = FixedTimeEqualsWithExpectedLength(providedSignature, expectedSignature, expectedSignature.Length);
+        return signatureParsed & signaturesMatch;
+    }
+
+    private static bool FixedTimeEqualsWithExpectedLength(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int expectedLength)
+    {
+        Span<byte> leftBuffer = stackalloc byte[expectedLength];
+        Span<byte> rightBuffer = stackalloc byte[expectedLength];
+        leftBuffer.Clear();
+        rightBuffer.Clear();
+
+        var leftCopy = Math.Min(left.Length, expectedLength);
+        var rightCopy = Math.Min(right.Length, expectedLength);
+        left[..leftCopy].CopyTo(leftBuffer);
+        right[..rightCopy].CopyTo(rightBuffer);
+
+        var bytesEqual = CryptographicOperations.FixedTimeEquals(leftBuffer, rightBuffer);
+        var lengthsEqual = left.Length == expectedLength && right.Length == expectedLength;
+        return bytesEqual & lengthsEqual;
+    }
+
+    private static bool IsWithinSkewWindow(
+        DateTimeOffset issuedAtUtc,
+        AuthChallengeOptions challengeOptions,
+        NonceStoreOptions nonceStoreOptions)
+    {
+        var skewSeconds = Math.Max(0, challengeOptions.ClockSkewSeconds);
+        var nonceTtlSeconds = Math.Max(1, nonceStoreOptions.TtlSeconds);
+        var now = DateTimeOffset.UtcNow;
+        var earliestAccepted = issuedAtUtc.AddSeconds(-skewSeconds);
+        var latestAccepted = issuedAtUtc.AddSeconds(nonceTtlSeconds + skewSeconds);
+
+        return now >= earliestAccepted && now <= latestAccepted;
+    }
+
+    private static bool TryFromBase64Url(string input, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        var normalized = input.Replace('-', '+').Replace('_', '/');
+        switch (normalized.Length % 4)
+        {
+            case 2:
+                normalized += "==";
+                break;
+            case 3:
+                normalized += "=";
+                break;
+            case 1:
+                return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(normalized);
+            return bytes.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 }

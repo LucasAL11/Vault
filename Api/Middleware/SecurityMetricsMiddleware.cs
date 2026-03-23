@@ -44,11 +44,6 @@ public sealed class SecurityMetricsMiddleware(RequestDelegate next)
             return "auth";
         }
 
-        if (value.Contains("/cryptography/", StringComparison.OrdinalIgnoreCase))
-        {
-            return "zk";
-        }
-
         if (value.Contains("/vaults/", StringComparison.OrdinalIgnoreCase) &&
             value.Contains("/secrets", StringComparison.OrdinalIgnoreCase))
         {

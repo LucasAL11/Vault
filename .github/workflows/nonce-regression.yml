@@ -1,0 +1,50 @@
+name: nonce-regression
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  nonce-baseline:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore WebApplication1.sln
+
+      - name: Run critical nonce regression
+        run: >
+          dotnet test tests/Infrastructure.Tests/Infrastructure.Tests.csproj
+          --configuration Release
+          --no-restore
+          --filter "Category=CriticalNonce"
+          --results-directory "tests/Infrastructure.Tests/TestResults"
+          --logger "trx;LogFileName=nonce-critical.trx"
+
+      - name: Enforce mandatory execution
+        shell: pwsh
+        run: |
+          $trxPath = Join-Path $PWD "tests/Infrastructure.Tests/TestResults/nonce-critical.trx"
+          if (-not (Test-Path $trxPath)) {
+            throw "TRX result not found at $trxPath."
+          }
+
+          [xml]$trx = Get-Content $trxPath
+          $results = @($trx.TestRun.Results.UnitTestResult)
+          if ($results.Count -lt 1) {
+            throw "Mandatory nonce regression test did not execute."
+          }
+
+          $failed = @($results | Where-Object { $_.outcome -ne "Passed" })
+          if ($failed.Count -gt 0) {
+            throw "Mandatory nonce regression test failed."
+          }

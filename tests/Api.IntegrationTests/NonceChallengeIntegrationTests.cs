@@ -207,14 +207,14 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     }
 
     [Fact]
-    public async Task NonceIssuedForHashAudience_ShouldNotAuthorizeProveEndpoint_AndShouldRemainValidForHash()
+    public async Task NonceIssuedForVaultAudience_ShouldNotValidateAsAuthVerify_AndShouldRemainValidForVaultAudience()
     {
         using var client = _factory.CreateClient();
 
         var challengeResponse = await client.PostAsJsonAsync("/auth/challenge", new
         {
-            clientId = "zk-client",
-            audience = NonceChallengeAudiences.CryptographyHash
+            clientId = "vault-client",
+            audience = NonceChallengeAudiences.VaultSecretRequest
         });
         Assert.Equal(HttpStatusCode.OK, challengeResponse.StatusCode);
 
@@ -222,22 +222,27 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var nonce = challengeJson.RootElement.GetProperty("nonce").GetString();
         Assert.False(string.IsNullOrWhiteSpace(nonce));
 
-        var wrongEndpointAttempt = await client.PostAsJsonAsync("/Cryptography/zk", new
+        var wrongAudienceAttempt = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
-            secret = "proof-secret",
-            hashPublic = "invalid-hash",
-            clientId = "zk-client",
-            nonce
+            nonce,
+            clientId = "vault-client",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
         });
-        Assert.Equal(HttpStatusCode.Unauthorized, wrongEndpointAttempt.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, wrongAudienceAttempt.StatusCode);
 
-        var correctEndpointAttempt = await client.PostAsJsonAsync("/Cryptography/hash", new
+        var rightAudienceAttempt = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
-            secret = "proof-secret",
-            clientId = "zk-client",
-            nonce
+            nonce,
+            clientId = "vault-client",
+            audience = NonceChallengeAudiences.VaultSecretRequest
         });
-        Assert.Equal(HttpStatusCode.OK, correctEndpointAttempt.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rightAudienceAttempt.StatusCode);
+
+        using var wrongJson = JsonDocument.Parse(await wrongAudienceAttempt.Content.ReadAsStringAsync());
+        using var rightJson = JsonDocument.Parse(await rightAudienceAttempt.Content.ReadAsStringAsync());
+
+        Assert.False(wrongJson.RootElement.GetProperty("valid").GetBoolean());
+        Assert.True(rightJson.RootElement.GetProperty("valid").GetBoolean());
     }
 
     [Fact]

@@ -2,9 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Application.Abstractions.Cryptography;
 using Application.Contracts.Zk;
-using Infrastructure;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Infrastructure.Tests;
@@ -14,8 +11,7 @@ public sealed class ZkWitnessGeneratorTests
     [Fact]
     public void Generate_ShouldProduceDeterministicWitness()
     {
-        using var serviceProvider = BuildServiceProvider();
-        var generator = serviceProvider.GetRequiredService<IZkWitnessGenerator>();
+        var generator = CreateWitnessGenerator();
 
         const string secret = "witness-secret";
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
@@ -40,8 +36,7 @@ public sealed class ZkWitnessGeneratorTests
     [Fact]
     public void Generate_WithInvalidHashFormat_ShouldThrow()
     {
-        using var serviceProvider = BuildServiceProvider();
-        var generator = serviceProvider.GetRequiredService<IZkWitnessGenerator>();
+        var generator = CreateWitnessGenerator();
 
         var request = new PreimageRequest(
             Secret: "abc",
@@ -53,21 +48,13 @@ public sealed class ZkWitnessGeneratorTests
         Assert.Contains("hashPublic", ex.Message);
     }
 
-    private static ServiceProvider BuildServiceProvider()
+    private static IZkWitnessGenerator CreateWitnessGenerator()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Database"] = "Host=localhost;Port=5432;Database=test;Username=test;Password=test",
-                ["Jwt:Issuer"] = "test-issuer",
-                ["Jwt:Audience"] = "test-audience",
-                ["Jwt:Secret"] = "01234567890123456789012345678901",
-                ["ZkBackend:LocalHmacKey"] = "test-zk-key"
-            })
-            .Build();
+        var infrastructureAssembly = typeof(Infrastructure.DependencyInjection).Assembly;
+        var implementationType = infrastructureAssembly.GetType(
+            "Infrastructure.Zk.Witness.DefaultZkWitnessGenerator",
+            throwOnError: true)!;
 
-        var services = new ServiceCollection();
-        services.AddInfrastructure(config);
-        return services.BuildServiceProvider();
+        return (IZkWitnessGenerator)Activator.CreateInstance(implementationType, nonPublic: true)!;
     }
 }
