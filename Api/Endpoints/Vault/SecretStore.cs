@@ -981,6 +981,172 @@ public sealed class SecretStore : IEndpoint
                 Entries = audit
             });
         }).RequireAuthorization().RequireRateLimiting("SecretAuditReadPolicy");
+
+        builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/value", async (
+            Guid vaultId,
+            string name,
+            IApplicationDbContext dbContext,
+            IAuthorizationService authorizationService,
+            IUserContext userContext,
+            ISecretProtector secretProtector,
+            HttpContext httpContext,
+            ILogger<SecretStore> logger,
+            CancellationToken cancellationToken) =>
+        {
+            ApplyNoStoreHeaders(httpContext.Response);
+
+            if (string.IsNullOrWhiteSpace(name))
+                return Results.BadRequest(new { message = "Secret name is required." });
+
+            var vault = await dbContext.Vaults
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
+
+            if (vault is null)
+            {
+                logger.LogWarning("Secret value read denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
+                return SecureNotFound();
+            }
+
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Read,
+                    operation: "get-value",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
+            {
+                return SecureForbidden();
+            }
+
+            var secret = await dbContext.Secrets
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
+
+            if (secret is null || secret.Status == Status.Disabled)
+                return SecureNotFound();
+
+            var now = DateTimeOffset.UtcNow;
+            var activeVersionsQuery = dbContext.SecretVersions
+                .AsNoTracking()
+                .Where(x => x.SecretId == secret.Id && !x.IsRevoked);
+
+            SecretVersion? activeVersion;
+            if (dbContext is DbContext efDb &&
+                string.Equals(efDb.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+            {
+                activeVersion = (await activeVersionsQuery.ToListAsync(cancellationToken))
+                    .Where(x => x.Expires == null || x.Expires > now)
+                    .OrderByDescending(x => x.Version)
+                    .FirstOrDefault();
+            }
+            else
+            {
+                activeVersion = await activeVersionsQuery
+                    .Where(x => x.Expires == null || x.Expires > now)
+                    .OrderByDescending(x => x.Version)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (activeVersion is null)
+                return SecureNotFound();
+
+            var plaintext = await secretProtector.UnprotectAsync(
+                new ProtectedSecret(activeVersion.CipherText, activeVersion.Nonce, activeVersion.KeyReference),
+                new SecretProtectionContext(vaultId, secret.Id, activeVersion.Version),
+                cancellationToken);
+
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_GET_VALUE",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: secret.Name,
+                details: $"version={activeVersion.Version}",
+                cancellationToken);
+
+            logger.LogInformation(
+                "Secret value read. VaultId={VaultId}, SecretName={SecretName}, Version={Version}, User={User}",
+                vaultId, secret.Name, activeVersion.Version, userContext.Identity.ToString());
+
+            return Results.Ok(new
+            {
+                secret.Name,
+                activeVersion.Version,
+                activeVersion.ContentType,
+                Value = plaintext,
+                activeVersion.Expires
+            });
+        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
+
+        builder.MapDelete("/vaults/{vaultId:guid}/secrets/{name}", async (
+            Guid vaultId,
+            string name,
+            IApplicationDbContext dbContext,
+            IAuthorizationService authorizationService,
+            IUserContext userContext,
+            HttpContext httpContext,
+            ILogger<SecretStore> logger,
+            CancellationToken cancellationToken) =>
+        {
+            ApplyNoStoreHeaders(httpContext.Response);
+
+            if (string.IsNullOrWhiteSpace(name))
+                return Results.BadRequest(new { message = "Secret name is required." });
+
+            var vault = await dbContext.Vaults
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
+
+            if (vault is null)
+            {
+                logger.LogWarning("Secret delete denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
+                return SecureNotFound();
+            }
+
+            if (!await AuthorizeSecretAccessAsync(
+                    vault: vault,
+                    secretName: name,
+                    requiredPermission: VaultPermission.Admin,
+                    operation: "delete",
+                    dbContext: dbContext,
+                    authorizationService: authorizationService,
+                    user: httpContext.User,
+                    userContext: userContext,
+                    logger: logger,
+                    cancellationToken: cancellationToken))
+            {
+                return SecureForbidden();
+            }
+
+            var secret = await dbContext.Secrets
+                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
+
+            if (secret is null || secret.Status == Status.Disabled)
+                return SecureNotFound();
+
+            secret.Disable();
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            await AppendAuditAsync(
+                dbContext,
+                action: "SECRET_DELETE",
+                actor: userContext.Identity.ToString(),
+                vaultId: vaultId,
+                secretName: name,
+                details: null,
+                cancellationToken);
+
+            logger.LogInformation(
+                "Secret deleted. VaultId={VaultId}, SecretName={SecretName}, User={User}",
+                vaultId, name, userContext.Identity.ToString());
+
+            return Results.NoContent();
+        }).RequireAuthorization().RequireRateLimiting("SecretWritePolicy");
     }
 
     private static async Task<bool> AuthorizeSecretAccessAsync(
