@@ -54,7 +54,7 @@ public static class DependencyInjection
                     t.GetInterfaces()
                     .Where(i => i.IsGenericType &&
                                 (i.GetGenericTypeDefinition() == typeof(ICommandHandler<,>)
-                                || i. GetGenericTypeDefinition() == typeof(ICommandHandler<,>)))
+                                || i.GetGenericTypeDefinition() == typeof(ICommandHandler<>)))
                     .Select(i => new { Handler = t, Interface = i }));
           
         

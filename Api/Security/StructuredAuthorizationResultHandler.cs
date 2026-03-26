@@ -22,7 +22,9 @@ public sealed class StructuredAuthorizationResultHandler(
         if (authorizeResult.Challenged || authorizeResult.Forbidden)
         {
             var user = context.User;
+            
             var failure = authorizeResult.AuthorizationFailure;
+            
             var failedRequirements = failure?.FailedRequirements
                 .Select(r => r.GetType().Name)
                 .ToArray() ?? [];

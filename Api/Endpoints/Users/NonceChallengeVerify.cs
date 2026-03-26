@@ -1,3 +1,4 @@
+using Api.Security;
 using Application.Abstractions.Security;
 using Shared;
 
@@ -5,7 +6,12 @@ namespace Api.Endpoints.Users;
 
 public sealed class NonceChallengeVerify : IEndpoint
 {
-    private sealed record Request(string Nonce, string? ClientId, string? Subject, string? Audience);
+    private const int MaxClientIdLength = 80;
+    private const int MaxSubjectLength = 180;
+    private const int MaxNonceEncodedLength = 128;
+    private const int ExpectedNonceByteLength = 32;
+
+    private sealed record Request(string? Nonce, string? ClientId, string? Subject, string? Audience);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
@@ -22,60 +28,61 @@ public sealed class NonceChallengeVerify : IEndpoint
                 return Results.BadRequest(new { message = "nonce is required." });
             }
 
-            if (!TryFromBase64Url(request.Nonce, out var nonceBytes))
+            if (!InputValidation.TryDecodeBase64Url(
+                    request.Nonce,
+                    minByteLength: ExpectedNonceByteLength,
+                    maxByteLength: ExpectedNonceByteLength,
+                    maxEncodedLength: MaxNonceEncodedLength,
+                    out _,
+                    out var nonceBytes))
             {
                 return Results.BadRequest(new { message = "nonce is invalid." });
             }
 
-            if (string.IsNullOrWhiteSpace(request.Audience))
+            string? normalizedClientId = null;
+            if (!string.IsNullOrWhiteSpace(request.ClientId))
             {
-                return Results.BadRequest(new { message = "audience is required." });
+                if (!InputValidation.TryNormalizeAsciiToken(request.ClientId, minLength: 1, maxLength: MaxClientIdLength, allowedSymbols: "._:-", out var validatedClientId))
+                {
+                    return Results.BadRequest(new { message = "clientId is invalid." });
+                }
+
+                normalizedClientId = validatedClientId;
             }
 
-            if (!NonceChallengeScope.TryResolveSubject(httpContext, request.Subject, out var subject))
+            string? normalizedRequestedSubject = null;
+            if (!string.IsNullOrWhiteSpace(request.Subject))
+            {
+                if (!InputValidation.TryNormalizeText(request.Subject, minLength: 1, maxLength: MaxSubjectLength, out var validatedSubject) ||
+                    validatedSubject.Contains('|'))
+                {
+                    return Results.BadRequest(new { message = "subject is invalid." });
+                }
+
+                normalizedRequestedSubject = validatedSubject;
+            }
+
+            if (!NonceChallengeAudiences.TryNormalize(request.Audience, out var audience))
+            {
+                return Results.BadRequest(new { message = "audience is required and must be supported." });
+            }
+
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, normalizedRequestedSubject, out var subject))
             {
                 return Results.BadRequest(new { message = "subject is required when request is anonymous." });
             }
 
             var scope = NonceChallengeScope.Build(
                 httpContext,
-                request.ClientId,
+                normalizedClientId,
                 subject,
-                request.Audience);
+                audience);
             var consumed = await nonceStore.TryConsumeAsync(scope, nonceBytes, cancellationToken);
 
             return consumed
                 ? Results.Ok(new { valid = true })
                 : Results.Ok(new { valid = false });
         }).AllowAnonymous().RequireRateLimiting("AuthChallengeVerifyPolicy");
-    }
-
-    private static bool TryFromBase64Url(string input, out byte[] bytes)
-    {
-        bytes = Array.Empty<byte>();
-
-        var normalized = input.Replace('-', '+').Replace('_', '/');
-        switch (normalized.Length % 4)
-        {
-            case 2:
-                normalized += "==";
-                break;
-            case 3:
-                normalized += "=";
-                break;
-            case 1:
-                return false;
-        }
-
-        try
-        {
-            bytes = Convert.FromBase64String(normalized);
-            return bytes.Length > 0;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
     }
 
     private static void ApplyNoStoreHeaders(HttpResponse response)

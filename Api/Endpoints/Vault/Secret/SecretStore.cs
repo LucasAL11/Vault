@@ -11,17 +11,26 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace Api.Endpoints.Vault;
+namespace Api.Endpoints.Vault.Secret;
 
-public sealed class SecretStore : IEndpoint
+public abstract class SecretStore : IEndpoint
 {
-    private const string DummyClientId = "__vault-proof-invalid-client__";
-    private const string DummySubject = "__vault-proof-invalid-subject__";
-    private const string SecretRequestContractVersion = "v1";
-    private static readonly byte[] DummyNonceBytes = new byte[32];
+    protected const string DummyClientId = "__vault-proof-invalid-client__";
+    protected const string DummySubject = "__vault-proof-invalid-subject__";
+    protected const string SecretRequestContractVersion = "v1";
+    protected static readonly byte[] DummyNonceBytes = new byte[32];
+
+    protected const int MaxContentTypeLength = 256;
+    protected const int MaxClientIdLength = 256;
+    protected const int MaxReasonLength = 500;
+    protected const int MaxTicketLength = 512;
+    protected const int ExpectedNonceByteLength = 32;
+    protected const int MaxNonceEncodedLength = 48;
+    protected const int ExpectedProofByteLength = 32;
+    protected const int MaxProofEncodedLength = 48;
 
     private sealed record UpsertRequest(string Value, string? ContentType, DateTimeOffset? ExpiresUtc);
-    private sealed class SecretRequestPayload
+    protected sealed class SecretRequestPayload
     {
         public string? ContractVersion { get; init; }
         public string? Reason { get; init; }
@@ -52,7 +61,7 @@ public sealed class SecretStore : IEndpoint
         DateTimeOffset? Expires);
     private sealed record AuditEntryResponse(string Action, string Actor, DateTimeOffset OccurredAtUtc, string? Details);
 
-    public void MapEndpoint(IEndpointRouteBuilder builder)
+    public virtual void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPut("/vaults/{vaultId:guid}/secrets/{name}", async (
             Guid vaultId,
@@ -109,7 +118,7 @@ public sealed class SecretStore : IEndpoint
 
             if (secret is null)
             {
-                secret = new Secret(vaultId, name);
+                secret = new Domain.vault.Secret(vaultId, name);
                 await dbContext.Secrets.AddAsync(secret, cancellationToken);
             }
 
@@ -981,172 +990,6 @@ public sealed class SecretStore : IEndpoint
                 Entries = audit
             });
         }).RequireAuthorization().RequireRateLimiting("SecretAuditReadPolicy");
-
-        builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/value", async (
-            Guid vaultId,
-            string name,
-            IApplicationDbContext dbContext,
-            IAuthorizationService authorizationService,
-            IUserContext userContext,
-            ISecretProtector secretProtector,
-            HttpContext httpContext,
-            ILogger<SecretStore> logger,
-            CancellationToken cancellationToken) =>
-        {
-            ApplyNoStoreHeaders(httpContext.Response);
-
-            if (string.IsNullOrWhiteSpace(name))
-                return Results.BadRequest(new { message = "Secret name is required." });
-
-            var vault = await dbContext.Vaults
-                .AsNoTracking()
-                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
-
-            if (vault is null)
-            {
-                logger.LogWarning("Secret value read denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return SecureNotFound();
-            }
-
-            if (!await AuthorizeSecretAccessAsync(
-                    vault: vault,
-                    secretName: name,
-                    requiredPermission: VaultPermission.Read,
-                    operation: "get-value",
-                    dbContext: dbContext,
-                    authorizationService: authorizationService,
-                    user: httpContext.User,
-                    userContext: userContext,
-                    logger: logger,
-                    cancellationToken: cancellationToken))
-            {
-                return SecureForbidden();
-            }
-
-            var secret = await dbContext.Secrets
-                .AsNoTracking()
-                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
-
-            if (secret is null || secret.Status == Status.Disabled)
-                return SecureNotFound();
-
-            var now = DateTimeOffset.UtcNow;
-            var activeVersionsQuery = dbContext.SecretVersions
-                .AsNoTracking()
-                .Where(x => x.SecretId == secret.Id && !x.IsRevoked);
-
-            SecretVersion? activeVersion;
-            if (dbContext is DbContext efDb &&
-                string.Equals(efDb.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
-            {
-                activeVersion = (await activeVersionsQuery.ToListAsync(cancellationToken))
-                    .Where(x => x.Expires == null || x.Expires > now)
-                    .OrderByDescending(x => x.Version)
-                    .FirstOrDefault();
-            }
-            else
-            {
-                activeVersion = await activeVersionsQuery
-                    .Where(x => x.Expires == null || x.Expires > now)
-                    .OrderByDescending(x => x.Version)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
-
-            if (activeVersion is null)
-                return SecureNotFound();
-
-            var plaintext = await secretProtector.UnprotectAsync(
-                new ProtectedSecret(activeVersion.CipherText, activeVersion.Nonce, activeVersion.KeyReference),
-                new SecretProtectionContext(vaultId, secret.Id, activeVersion.Version),
-                cancellationToken);
-
-            await AppendAuditAsync(
-                dbContext,
-                action: "SECRET_GET_VALUE",
-                actor: userContext.Identity.ToString(),
-                vaultId: vaultId,
-                secretName: secret.Name,
-                details: $"version={activeVersion.Version}",
-                cancellationToken);
-
-            logger.LogInformation(
-                "Secret value read. VaultId={VaultId}, SecretName={SecretName}, Version={Version}, User={User}",
-                vaultId, secret.Name, activeVersion.Version, userContext.Identity.ToString());
-
-            return Results.Ok(new
-            {
-                secret.Name,
-                activeVersion.Version,
-                activeVersion.ContentType,
-                Value = plaintext,
-                activeVersion.Expires
-            });
-        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
-
-        builder.MapDelete("/vaults/{vaultId:guid}/secrets/{name}", async (
-            Guid vaultId,
-            string name,
-            IApplicationDbContext dbContext,
-            IAuthorizationService authorizationService,
-            IUserContext userContext,
-            HttpContext httpContext,
-            ILogger<SecretStore> logger,
-            CancellationToken cancellationToken) =>
-        {
-            ApplyNoStoreHeaders(httpContext.Response);
-
-            if (string.IsNullOrWhiteSpace(name))
-                return Results.BadRequest(new { message = "Secret name is required." });
-
-            var vault = await dbContext.Vaults
-                .AsNoTracking()
-                .SingleOrDefaultAsync(x => x.Id == vaultId, cancellationToken);
-
-            if (vault is null)
-            {
-                logger.LogWarning("Secret delete denied: vault not found. VaultId={VaultId}, User={User}", vaultId, userContext.Identity.ToString());
-                return SecureNotFound();
-            }
-
-            if (!await AuthorizeSecretAccessAsync(
-                    vault: vault,
-                    secretName: name,
-                    requiredPermission: VaultPermission.Admin,
-                    operation: "delete",
-                    dbContext: dbContext,
-                    authorizationService: authorizationService,
-                    user: httpContext.User,
-                    userContext: userContext,
-                    logger: logger,
-                    cancellationToken: cancellationToken))
-            {
-                return SecureForbidden();
-            }
-
-            var secret = await dbContext.Secrets
-                .SingleOrDefaultAsync(x => x.VaultId == vaultId && x.Name == name, cancellationToken);
-
-            if (secret is null || secret.Status == Status.Disabled)
-                return SecureNotFound();
-
-            secret.Disable();
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            await AppendAuditAsync(
-                dbContext,
-                action: "SECRET_DELETE",
-                actor: userContext.Identity.ToString(),
-                vaultId: vaultId,
-                secretName: name,
-                details: null,
-                cancellationToken);
-
-            logger.LogInformation(
-                "Secret deleted. VaultId={VaultId}, SecretName={SecretName}, User={User}",
-                vaultId, name, userContext.Identity.ToString());
-
-            return Results.NoContent();
-        }).RequireAuthorization().RequireRateLimiting("SecretWritePolicy");
     }
 
     private static async Task<bool> AuthorizeSecretAccessAsync(
@@ -1290,7 +1133,7 @@ public sealed class SecretStore : IEndpoint
         return false;
     }
 
-    private static bool TryParseStatusFilter(string? status, out Status? parsedStatus)
+    protected static bool TryParseStatusFilter(string? status, out Status? parsedStatus)
     {
         parsedStatus = null;
         if (string.IsNullOrWhiteSpace(status))
@@ -1307,7 +1150,7 @@ public sealed class SecretStore : IEndpoint
         return false;
     }
 
-    private static bool TryNormalizeSecretSortBy(string? orderBy, out string normalizedSortBy)
+    protected static bool TryNormalizeSecretSortBy(string? orderBy, out string normalizedSortBy)
     {
         if (string.IsNullOrWhiteSpace(orderBy))
         {
@@ -1338,7 +1181,7 @@ public sealed class SecretStore : IEndpoint
         return false;
     }
 
-    private static bool TryNormalizeSortDirection(string? orderDirection, out string normalizedSortDirection)
+    protected static bool TryNormalizeSortDirection(string? orderDirection, out string normalizedSortDirection)
     {
         if (string.IsNullOrWhiteSpace(orderDirection))
         {
@@ -1363,8 +1206,8 @@ public sealed class SecretStore : IEndpoint
         return false;
     }
 
-    private static IQueryable<Secret> ApplySecretSorting(
-        IQueryable<Secret> query,
+    private static IQueryable<Domain.vault.Secret> ApplySecretSorting(
+        IQueryable<Domain.vault.Secret> query,
         string sortBy,
         string sortDirection)
     {
@@ -1402,7 +1245,7 @@ public sealed class SecretStore : IEndpoint
         };
     }
 
-    private static async Task AppendAuditAsync(
+    protected static async Task AppendAuditAsync(
         IApplicationDbContext dbContext,
         string action,
         string actor,
@@ -1424,20 +1267,20 @@ public sealed class SecretStore : IEndpoint
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static void ApplyNoStoreHeaders(HttpResponse response)
+    protected static void ApplyNoStoreHeaders(HttpResponse response)
     {
         response.Headers.CacheControl = "no-store, no-cache, max-age=0";
         response.Headers.Pragma = "no-cache";
         response.Headers.Expires = "0";
     }
 
-    private static IResult SecureForbidden()
+    protected static IResult SecureForbidden()
         => Results.Json(new { message = "Access denied." }, statusCode: StatusCodes.Status403Forbidden);
 
-    private static IResult SecureNotFound()
+    protected static IResult SecureNotFound()
         => Results.NotFound(new { message = "Resource not available." });
 
-    private static bool TryGetClientSecret(string clientId, AuthChallengeOptions options, out string secret)
+    protected static bool TryGetClientSecret(string clientId, AuthChallengeOptions options, out string secret)
     {
         secret = string.Empty;
         if (!options.ClientSecrets.TryGetValue(clientId, out var configuredSecret) ||
@@ -1450,7 +1293,7 @@ public sealed class SecretStore : IEndpoint
         return true;
     }
 
-    private static string ResolveFallbackSecret(AuthChallengeOptions options)
+    protected static string ResolveFallbackSecret(AuthChallengeOptions options)
     {
         foreach (var entry in options.ClientSecrets)
         {
@@ -1463,7 +1306,7 @@ public sealed class SecretStore : IEndpoint
         return "vault-secret-request-fallback-secret";
     }
 
-    private static string BuildSecretRequestProofPayload(
+    protected static string BuildSecretRequestProofPayload(
         Guid vaultId,
         string secretName,
         string clientId,
@@ -1476,7 +1319,7 @@ public sealed class SecretStore : IEndpoint
         return $"{vaultId:D}|{secretName.Trim()}|{clientId.Trim()}|{subject.Trim().ToUpperInvariant()}|{reason.Trim()}|{NormalizeTicketId(ticket)}|{nonce.Trim()}|{issuedAtUtc:O}";
     }
 
-    private static string? ResolveTicket(SecretRequestPayload request)
+    protected static string? ResolveTicket(SecretRequestPayload request)
     {
         if (!string.IsNullOrWhiteSpace(request.Ticket))
         {
@@ -1491,12 +1334,12 @@ public sealed class SecretStore : IEndpoint
         return null;
     }
 
-    private static string NormalizeTicketId(string? ticket)
+    protected static string NormalizeTicketId(string? ticket)
     {
         return string.IsNullOrWhiteSpace(ticket) ? "-" : ticket.Trim();
     }
 
-    private static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
+    protected static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
     {
         var secretBytes = Encoding.UTF8.GetBytes(clientSecret);
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
@@ -1508,7 +1351,26 @@ public sealed class SecretStore : IEndpoint
         return signatureParsed & signaturesMatch;
     }
 
-    private static bool FixedTimeEqualsWithExpectedLength(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int expectedLength)
+    protected static bool IsSignatureValid(string payload, byte[] providedSignature, bool signatureParsed, string clientSecret)
+    {
+        var secretBytes = Encoding.UTF8.GetBytes(clientSecret);
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        using var hmac = new HMACSHA256(secretBytes);
+        var expectedSignature = hmac.ComputeHash(payloadBytes);
+        var signaturesMatch = FixedTimeEqualsWithExpectedLength(providedSignature, expectedSignature, expectedSignature.Length);
+        return signatureParsed & signaturesMatch;
+    }
+
+    protected static string? ResolveTicket(string? ticket, string? ticketId)
+    {
+        if (!string.IsNullOrWhiteSpace(ticket))
+            return ticket.Trim();
+        if (!string.IsNullOrWhiteSpace(ticketId))
+            return ticketId.Trim();
+        return null;
+    }
+
+    protected static bool FixedTimeEqualsWithExpectedLength(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int expectedLength)
     {
         Span<byte> leftBuffer = stackalloc byte[expectedLength];
         Span<byte> rightBuffer = stackalloc byte[expectedLength];
@@ -1525,7 +1387,7 @@ public sealed class SecretStore : IEndpoint
         return bytesEqual & lengthsEqual;
     }
 
-    private static bool IsWithinSkewWindow(
+    protected static bool IsWithinSkewWindow(
         DateTimeOffset issuedAtUtc,
         AuthChallengeOptions challengeOptions,
         NonceStoreOptions nonceStoreOptions)
@@ -1539,7 +1401,7 @@ public sealed class SecretStore : IEndpoint
         return now >= earliestAccepted && now <= latestAccepted;
     }
 
-    private static bool TryFromBase64Url(string input, out byte[] bytes)
+    protected static bool TryFromBase64Url(string input, out byte[] bytes)
     {
         bytes = Array.Empty<byte>();
         if (string.IsNullOrWhiteSpace(input))

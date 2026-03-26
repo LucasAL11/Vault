@@ -20,7 +20,7 @@ public class Secret
     public Status Status {get; private set;}
     
     /// <summary>Controle de concorrência otimista da entidade.</summary>
-    public byte[] RowVersion {get; init;}
+    public byte[] RowVersion { get; private set; } = Array.Empty<byte>();
 
     /// <summary>Coleção somente leitura com o histórico de versões do segredo.</summary>
     private readonly List<SecretVersion> _versions = [];
