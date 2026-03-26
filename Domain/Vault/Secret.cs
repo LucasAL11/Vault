@@ -17,7 +17,7 @@ public class Secret
     /// <summary>Número da versão atual ativa do segredo.</summary>
     public int CurrentVersion {get; set;}
     /// <summary>Status atual do segredo.</summary>
-    public Status Status {get; init;}
+    public Status Status {get; private set;}
     
     /// <summary>Controle de concorrência otimista da entidade.</summary>
     public byte[] RowVersion {get; init;}
@@ -36,6 +36,8 @@ public class Secret
         Name = name.Trim();
         Status = Status.Active;
     }
+
+    public void Disable() => Status = Status.Disabled;
 
     public SecretVersion AddVersion
     (byte[] cipherText,
