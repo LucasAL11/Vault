@@ -1,4 +1,4 @@
-﻿using Api.Endpoints.Vault.Secret;
+﻿using Api.Endpoints;
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
@@ -8,11 +8,11 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret.Versions;
 
-public sealed class RevokeVersion : SecretStore
+public sealed class RevokeVersion : IEndpoint
 {
     private sealed record RevokeSecretVersionRequest(string? Reason);
 
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/versions/{version:int}/revoke", async (
             Guid vaultId,
@@ -23,10 +23,10 @@ public sealed class RevokeVersion : SecretStore
             ISecretAccessAuthorizer secretAccessAuthorizer,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<SecretStore> logger,
+            ILogger<RevokeVersion> logger,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -61,12 +61,12 @@ public sealed class RevokeVersion : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             var result = await sender.Send(
@@ -82,7 +82,7 @@ public sealed class RevokeVersion : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 return CustomResults.Problem(result);
