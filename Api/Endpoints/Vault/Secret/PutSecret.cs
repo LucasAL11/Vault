@@ -12,7 +12,7 @@ public sealed class PutSecret : SecretStore
 {
     private sealed record UpsertRequest(string Value, string? ContentType, DateTimeOffset? ExpiresUtc);
 
-    public void MapEndpoint(IEndpointRouteBuilder builder)
+    public override void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPut("/vaults/{vaultId:guid}/secrets/{name}", async (
             Guid vaultId,

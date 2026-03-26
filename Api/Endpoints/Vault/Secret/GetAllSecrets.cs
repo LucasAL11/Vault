@@ -9,7 +9,7 @@ namespace Api.Endpoints.Vault.Secret;
 
 public sealed class GetAllSecrets : SecretStore
 {
-    public void MapEndpoint(IEndpointRouteBuilder builder)
+    public override void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapGet("/vaults/{vaultId:guid}/secrets", async (
             Guid vaultId,

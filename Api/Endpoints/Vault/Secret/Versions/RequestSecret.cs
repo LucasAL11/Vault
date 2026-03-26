@@ -28,7 +28,7 @@ public sealed class RequestSecret : SecretStore
         public string? Proof { get; init; }
     }
 
-    public void MapEndpoint(IEndpointRouteBuilder builder)
+    public override void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
             Guid vaultId,
