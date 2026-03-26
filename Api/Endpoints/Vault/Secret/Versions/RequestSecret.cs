@@ -1,5 +1,5 @@
-﻿using Api.Endpoints.Users;
-using Api.Endpoints.Vault.Secret;
+﻿using Api.Endpoints;
+using Api.Endpoints.Users;
 using Api.Infrastructure;
 using Api.Security;
 using Application.Abstractions.Messaging.Handlers;
@@ -13,8 +13,20 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret.Versions;
 
-public sealed class RequestSecret : SecretStore
+public sealed class RequestSecret : IEndpoint
 {
+    private const string ContractVersion = "v1";
+    private const string DummyClientId = "__vault-proof-invalid-client__";
+    private const string DummySubject = "__vault-proof-invalid-subject__";
+    private static readonly byte[] DummyNonceBytes = new byte[32];
+    private const int MaxReasonLength = 500;
+    private const int MaxTicketLength = 512;
+    private const int MaxClientIdLength = 256;
+    private const int ExpectedNonceByteLength = 32;
+    private const int MaxNonceEncodedLength = 48;
+    private const int ExpectedProofByteLength = 32;
+    private const int MaxProofEncodedLength = 48;
+
     private sealed class SecretRequestPayload
     {
         public string? ContractVersion { get; init; }
@@ -28,7 +40,7 @@ public sealed class RequestSecret : SecretStore
         public string? Proof { get; init; }
     }
 
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
             Guid vaultId,
@@ -41,10 +53,10 @@ public sealed class RequestSecret : SecretStore
             IOptions<AuthChallengeOptions> challengeOptions,
             IOptions<NonceStoreOptions> nonceStoreOptions,
             HttpContext httpContext,
-            ILogger<SecretStore> logger,
+            ILogger<RequestSecret> logger,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -57,11 +69,11 @@ public sealed class RequestSecret : SecretStore
                     maxLength: 16,
                     allowedSymbols: "._-",
                     out var contractVersion) ||
-                !string.Equals(contractVersion, SecretRequestContractVersion, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(contractVersion, ContractVersion, StringComparison.OrdinalIgnoreCase))
             {
                 return Results.BadRequest(new
                 {
-                    message = $"contractVersion is invalid. Supported value: {SecretRequestContractVersion}."
+                    message = $"contractVersion is invalid. Supported value: {ContractVersion}."
                 });
             }
 
@@ -71,7 +83,7 @@ public sealed class RequestSecret : SecretStore
                 return Results.BadRequest(new { message = "reason is invalid." });
             }
 
-            var ticket = ResolveTicket(request.Ticket, request.TicketId);
+            var ticket = SecretProofHelpers.ResolveTicket(request.Ticket, request.TicketId);
             if (!InputValidation.TryNormalizeText(ticket, minLength: 1, maxLength: MaxTicketLength, out var normalizedTicket) ||
                 normalizedTicket.Contains('|'))
             {
@@ -137,12 +149,12 @@ public sealed class RequestSecret : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: null, out var subject))
@@ -157,12 +169,12 @@ public sealed class RequestSecret : SecretStore
 
             var authChallengeOptions = challengeOptions.Value;
             var nonceOptions = nonceStoreOptions.Value;
-            var hasClientSecret = TryGetClientSecret(normalizedClientId, authChallengeOptions, out var configuredClientSecret);
+            var hasClientSecret = SecretProofHelpers.TryGetClientSecret(normalizedClientId, authChallengeOptions, out var configuredClientSecret);
             var effectiveClientSecret = hasClientSecret
                 ? configuredClientSecret
-                : ResolveFallbackSecret(authChallengeOptions);
+                : SecretProofHelpers.ResolveFallbackSecret(authChallengeOptions);
             var effectiveNonceBytes = nonceParsed ? nonceBytes : DummyNonceBytes;
-            var proofPayload = BuildSecretRequestProofPayload(
+            var proofPayload = SecretProofHelpers.BuildProofPayload(
                 vaultId,
                 name,
                 normalizedClientId,
@@ -171,8 +183,8 @@ public sealed class RequestSecret : SecretStore
                 normalizedTicket,
                 normalizedNonce,
                 normalizedIssuedAt);
-            var signatureValid = IsSignatureValid(proofPayload, providedSignature, signatureParsed, effectiveClientSecret);
-            var withinSkewWindow = IsWithinSkewWindow(normalizedIssuedAt, authChallengeOptions, nonceOptions);
+            var signatureValid = SecretProofHelpers.IsSignatureValid(proofPayload, providedSignature, signatureParsed, effectiveClientSecret);
+            var withinSkewWindow = SecretProofHelpers.IsWithinSkewWindow(normalizedIssuedAt, authChallengeOptions, nonceOptions);
 
             var shouldConsumeIssuedNonce = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow;
             var consumeScope = shouldConsumeIssuedNonce
@@ -222,7 +234,7 @@ public sealed class RequestSecret : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 return CustomResults.Problem(result);
@@ -235,7 +247,7 @@ public sealed class RequestSecret : SecretStore
                     SecretName: requestedSecret.Name,
                     Action: "SECRET_REQUEST_VALUE",
                     Actor: actor,
-                    Details: $"version={requestedSecret.Version};ticket={NormalizeTicketId(normalizedTicket)};reason={normalizedReason};clientId={normalizedClientId};contractVersion={SecretRequestContractVersion}"),
+                    Details: $"version={requestedSecret.Version};ticket={SecretProofHelpers.NormalizeTicketId(normalizedTicket)};reason={normalizedReason};clientId={normalizedClientId};contractVersion={ContractVersion}"),
                 cancellationToken);
 
             if (successAuditResult.IsFailure)

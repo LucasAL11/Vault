@@ -1,4 +1,5 @@
-﻿using Api.Infrastructure;
+﻿using Api.Endpoints;
+using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
 using Application.Vault.Secrets;
@@ -7,9 +8,9 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret;
 
-public sealed class GetSecretAudit : SecretStore
+public sealed class GetSecretAudit : IEndpoint
 {
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/audit", async (
             Guid vaultId,
@@ -21,7 +22,7 @@ public sealed class GetSecretAudit : SecretStore
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -41,12 +42,12 @@ public sealed class GetSecretAudit : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             var result = await sender.Send(
@@ -57,7 +58,7 @@ public sealed class GetSecretAudit : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 return CustomResults.Problem(result);

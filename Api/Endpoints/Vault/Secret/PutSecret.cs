@@ -1,4 +1,5 @@
-﻿using Api.Infrastructure;
+﻿using Api.Endpoints;
+using Api.Infrastructure;
 using Api.Security;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
@@ -8,11 +9,12 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret;
 
-public sealed class PutSecret : SecretStore
+public sealed class PutSecret : IEndpoint
 {
+    private const int MaxContentTypeLength = 256;
     private sealed record UpsertRequest(string Value, string? ContentType, DateTimeOffset? ExpiresUtc);
 
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPut("/vaults/{vaultId:guid}/secrets/{name}", async (
             Guid vaultId,
@@ -22,10 +24,10 @@ public sealed class PutSecret : SecretStore
             ISecretAccessAuthorizer secretAccessAuthorizer,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<SecretStore> logger,
+            ILogger<PutSecret> logger,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -58,12 +60,12 @@ public sealed class PutSecret : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             var result = await sender.Send(
@@ -80,7 +82,7 @@ public sealed class PutSecret : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 if (result.Error.Type == ErrorType.BadRequest)

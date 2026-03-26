@@ -1,4 +1,4 @@
-﻿using Api.Endpoints.Vault.Secret;
+﻿using Api.Endpoints;
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
@@ -8,9 +8,9 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret.Versions;
 
-public sealed class GetVersion : SecretStore
+public sealed class GetVersion : IEndpoint
 {
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapGet("/vaults/{vaultId:guid}/secrets/{name}/versions", async (
             Guid vaultId,
@@ -22,10 +22,10 @@ public sealed class GetVersion : SecretStore
             ISecretAccessAuthorizer secretAccessAuthorizer,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<SecretStore> logger,
+            ILogger<GetVersion> logger,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -59,12 +59,12 @@ public sealed class GetVersion : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             var result = await sender.Send(
@@ -75,7 +75,7 @@ public sealed class GetVersion : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 return CustomResults.Problem(result);

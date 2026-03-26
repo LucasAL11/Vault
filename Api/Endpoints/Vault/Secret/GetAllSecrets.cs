@@ -1,4 +1,5 @@
-﻿using Api.Infrastructure;
+﻿using Api.Endpoints;
+using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
 using Application.Vault.Secrets;
@@ -7,9 +8,9 @@ using Shared;
 
 namespace Api.Endpoints.Vault.Secret;
 
-public sealed class GetAllSecrets : SecretStore
+public sealed class GetAllSecrets : IEndpoint
 {
-    public override void MapEndpoint(IEndpointRouteBuilder builder)
+    public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapGet("/vaults/{vaultId:guid}/secrets", async (
             Guid vaultId,
@@ -23,10 +24,10 @@ public sealed class GetAllSecrets : SecretStore
             ISecretAccessAuthorizer secretAccessAuthorizer,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<SecretStore> logger,
+            ILogger<GetAllSecrets> logger,
             CancellationToken cancellationToken) =>
         {
-            ApplyNoStoreHeaders(httpContext.Response);
+            httpContext.Response.ApplyNoStoreHeaders();
 
             var normalizedPage = page ?? 1;
             if (normalizedPage <= 0)
@@ -40,7 +41,7 @@ public sealed class GetAllSecrets : SecretStore
                 return Results.BadRequest(new { message = "pageSize must be between 1 and 100." });
             }
 
-            if (!TryParseStatusFilter(status, out var parsedStatus))
+            if (!SecretQueryHelpers.TryParseStatusFilter(status, out var parsedStatus))
             {
                 return Results.BadRequest(new
                 {
@@ -48,7 +49,7 @@ public sealed class GetAllSecrets : SecretStore
                 });
             }
 
-            if (!TryNormalizeSecretSortBy(orderBy, out var normalizedSortBy))
+            if (!SecretQueryHelpers.TryNormalizeSecretSortBy(orderBy, out var normalizedSortBy))
             {
                 return Results.BadRequest(new
                 {
@@ -56,7 +57,7 @@ public sealed class GetAllSecrets : SecretStore
                 });
             }
 
-            if (!TryNormalizeSortDirection(orderDirection, out var normalizedSortDirection))
+            if (!SecretQueryHelpers.TryNormalizeSortDirection(orderDirection, out var normalizedSortDirection))
             {
                 return Results.BadRequest(new
                 {
@@ -82,12 +83,12 @@ public sealed class GetAllSecrets : SecretStore
 
             if (authorization.IsNotFound)
             {
-                return SecureNotFound();
+                return SecretHttpHelpers.SecureNotFound();
             }
 
             if (!authorization.IsGranted)
             {
-                return SecureForbidden();
+                return SecretHttpHelpers.SecureForbidden();
             }
 
             var result = await sender.Send(
@@ -105,7 +106,7 @@ public sealed class GetAllSecrets : SecretStore
             {
                 if (result.Error.Type == ErrorType.NotFound)
                 {
-                    return SecureNotFound();
+                    return SecretHttpHelpers.SecureNotFound();
                 }
 
                 return CustomResults.Problem(result);
