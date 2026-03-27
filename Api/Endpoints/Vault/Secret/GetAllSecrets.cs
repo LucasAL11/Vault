@@ -30,16 +30,7 @@ public sealed class GetAllSecrets : IEndpoint
             httpContext.Response.ApplyNoStoreHeaders();
 
             var normalizedPage = page ?? 1;
-            if (normalizedPage <= 0)
-            {
-                return Results.BadRequest(new { message = "page must be greater than zero." });
-            }
-
             var normalizedPageSize = pageSize ?? 20;
-            if (normalizedPageSize is < 1 or > 100)
-            {
-                return Results.BadRequest(new { message = "pageSize must be between 1 and 100." });
-            }
 
             if (!SecretQueryHelpers.TryParseStatusFilter(status, out var parsedStatus))
             {
@@ -66,10 +57,6 @@ public sealed class GetAllSecrets : IEndpoint
             }
 
             var nameFilter = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
-            if (nameFilter is { Length: > 120 })
-            {
-                return Results.BadRequest(new { message = "name filter cannot exceed 120 characters." });
-            }
 
             var actor = userContext.Identity.ToString();
             var authorization = await secretAccessAuthorizer.AuthorizeAsync(

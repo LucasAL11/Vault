@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Abstractions.Messaging.Message;
 using Application.Observability;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
 
@@ -38,6 +39,23 @@ public class MessageDispatcher : IMessageDispatcher
             async (message, _) => await handler((TMessage)message));
     }
 
+    private async Task<ValidationError?> RunValidationAsync(object message, Type messageType, CancellationToken ct)
+    {
+        var validatorType = typeof(IValidator<>).MakeGenericType(messageType);
+        if (_serviceProvider.GetService(validatorType) is not IValidator validator)
+            return null;
+
+        var context = new ValidationContext<object>(message);
+        var result = await validator.ValidateAsync(context, ct);
+        if (result.IsValid)
+            return null;
+
+        var errors = result.Errors
+            .Select(e => Error.BadRequest(e.PropertyName, e.ErrorMessage))
+            .ToArray();
+        return new ValidationError(errors);
+    }
+
     public async Task<Result<TResponse>> Send<TResponse>(
         IMessage<TResponse> message,
         CancellationToken cancellationToken = default)
@@ -45,6 +63,10 @@ public class MessageDispatcher : IMessageDispatcher
         var messageType = message.GetType();
         var messageName = messageType.Name;
         var messageKind = message is IQuery<TResponse> ? "query" : "command";
+
+        var validationError = await RunValidationAsync(message, messageType, cancellationToken);
+        if (validationError is not null)
+            return Result.Failure<TResponse>(validationError);
 
         var handler = _handlersWithResponse.GetOrAdd(messageType, _ =>
         {
@@ -98,6 +120,10 @@ public class MessageDispatcher : IMessageDispatcher
         var messageType = message.GetType();
         var messageName = messageType.Name;
         const string messageKind = "command";
+
+        var validationError = await RunValidationAsync(message, messageType, cancellationToken);
+        if (validationError is not null)
+            return Result.Failure(validationError);
 
         var handler = _handlers.GetOrAdd(messageType, _ =>
         {

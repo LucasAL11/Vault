@@ -29,16 +29,6 @@ public sealed class PutSecret : IEndpoint
         {
             httpContext.Response.ApplyNoStoreHeaders();
 
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return Results.BadRequest(new { message = "Secret name is required." });
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Value))
-            {
-                return Results.BadRequest(new { message = "Secret value is required." });
-            }
-
             if (!InputValidation.TryNormalizeText(
                     request.ContentType,
                     minLength: 1,
