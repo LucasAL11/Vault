@@ -26,25 +26,22 @@ public partial class App : Application
         services.AddSingleton<CredentialStore>();
         services.AddSingleton<AutoTypeService>();
 
-        // HttpClient com base URL do appsettings
-        services.AddHttpClient<VaultApiClient>(client =>
-        {
-            client.BaseAddress = new Uri(config["Vault:BaseUrl"]
-                ?? throw new InvalidOperationException("Vault:BaseUrl não configurado."));
-        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-        {
-            // Em desenvolvimento, aceita certificado auto-assinado
-            ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        });
+        // HttpClient sem BaseAddress fixa — VaultApiClient le do CredentialStore
+        services.AddHttpClient<VaultApiClient>()
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                // Aceita certificado auto-assinado em desenvolvimento
+                ServerCertificateCustomValidationCallback =
+                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            });
 
         services.AddTransient<LoginViewModel>();
+        services.AddTransient<SetupViewModel>();
         services.AddTransient<SecretsViewModel>();
         services.AddTransient<MainWindow>();
 
         _services = services.BuildServiceProvider();
 
-        // Restaura sessão existente se houver JWT salvo
         var api = _services.GetRequiredService<VaultApiClient>();
         api.RestoreSession();
 

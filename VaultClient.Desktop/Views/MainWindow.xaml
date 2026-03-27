@@ -17,13 +17,19 @@
     </Window.Resources>
 
     <Grid>
-        <!-- View de Login (centralizada) -->
+        <!-- Setup (primeiro uso ou reconfiguração) -->
+        <Grid x:Name="SetupPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+              Visibility="Collapsed">
+            <views:SetupView x:Name="SetupViewControl"/>
+        </Grid>
+
+        <!-- Login -->
         <Grid x:Name="LoginPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-              Visibility="Visible">
+              Visibility="Collapsed">
             <views:LoginView x:Name="LoginViewControl"/>
         </Grid>
 
-        <!-- View de Segredos (ocupa toda a janela) -->
+        <!-- Segredos (ocupa toda a janela) -->
         <views:SecretsView x:Name="SecretsViewControl" Visibility="Collapsed"/>
     </Grid>
 </Window>

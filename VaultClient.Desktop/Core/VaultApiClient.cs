@@ -2,20 +2,41 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using VaultClient.Desktop.Models;
 
 namespace VaultClient.Desktop.Core;
 
-public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
+public sealed class VaultApiClient
 {
+    private readonly HttpClient _http;
+    private readonly CredentialStore _credentials;
+    private string _baseUrl;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public VaultApiClient(HttpClient http, CredentialStore credentials, IConfiguration config)
+    {
+        _http = http;
+        _credentials = credentials;
+        _baseUrl = (credentials.Get(AppConfig.BaseUrlKey)
+            ?? config["Vault:BaseUrl"]
+            ?? "https://localhost:7001").TrimEnd('/');
+    }
+
+    /// <summary>Atualiza a URL base sem reiniciar o app (usado após Setup).</summary>
+    public void Reconfigure(string baseUrl)
+        => _baseUrl = baseUrl.TrimEnd('/');
+
+    /// <summary>Verifica se o servidor está acessível. Qualquer resposta HTTP é sucesso.</summary>
+    public async Task PingAsync(CancellationToken ct = default)
+        => await _http.GetAsync(_baseUrl, ct);
 
     // ── Auth ─────────────────────────────────────────────────────────────────
 
-    /// <summary>Autentica com login local e persiste o JWT.</summary>
     public async Task<bool> LoginAsync(string username, string password, CancellationToken ct = default)
     {
-        var response = await http.PostAsJsonAsync("/users",
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/users",
             new { username, password }, ct);
 
         if (!response.IsSuccessStatusCode)
@@ -24,33 +45,33 @@ public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
         var token = await response.Content.ReadAsStringAsync(ct);
         token = token.Trim('"');
 
-        credentials.Set("jwt", token);
+        _credentials.Set("jwt", token);
         SetAuthHeader(token);
         return true;
     }
 
     public void RestoreSession()
     {
-        var token = credentials.Get("jwt");
+        var token = _credentials.Get("jwt");
         if (!string.IsNullOrWhiteSpace(token))
             SetAuthHeader(token);
     }
 
     public void Logout()
     {
-        credentials.Remove("jwt");
-        http.DefaultRequestHeaders.Authorization = null;
+        _credentials.Remove("jwt");
+        _http.DefaultRequestHeaders.Authorization = null;
     }
 
-    public bool HasSession => credentials.Get("jwt") is not null;
+    public bool HasSession => _credentials.Get("jwt") is not null;
 
     // ── Secrets ──────────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<SecretItem>> ListSecretsAsync(
         Guid vaultId, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
-        var response = await http.GetAsync(
-            $"/vaults/{vaultId}/secrets?page={page}&pageSize={pageSize}&status=Active&orderBy=name&orderDirection=asc",
+        var response = await _http.GetAsync(
+            $"{_baseUrl}/vaults/{vaultId}/secrets?page={page}&pageSize={pageSize}&status=Active&orderBy=name&orderDirection=asc",
             ct);
 
         response.EnsureSuccessStatusCode();
@@ -75,7 +96,7 @@ public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
     public async Task<(string Nonce, DateTimeOffset IssuedAt)> GetChallengeAsync(
         string clientId, string subject, CancellationToken ct = default)
     {
-        var response = await http.PostAsJsonAsync("/auth/challenge",
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
             new { clientId, subject, audience = "VaultSecretRequest" }, ct);
 
         response.EnsureSuccessStatusCode();
@@ -88,8 +109,7 @@ public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
 
     /// <summary>
     /// Solicita o valor do segredo via prova HMAC-SHA256.
-    /// Retorna o valor como bytes UTF-8 — o chamador é responsável por
-    /// zerar o array após uso via CryptographicOperations.ZeroMemory.
+    /// Retorna o valor como bytes UTF-8. O chamador deve zerar o array após uso.
     /// </summary>
     public async Task<byte[]> RequestSecretValueAsync(
         Guid vaultId, string secretName, string clientId, string clientSecret,
@@ -101,8 +121,8 @@ public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
             vaultId, secretName, clientId, subject,
             reason, ticket, nonce, issuedAt, clientSecret);
 
-        var response = await http.PostAsJsonAsync(
-            $"/vaults/{vaultId}/secrets/{secretName}/request",
+        var response = await _http.PostAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}/secrets/{secretName}/request",
             new
             {
                 contractVersion = "v1",
@@ -118,14 +138,12 @@ public sealed class VaultApiClient(HttpClient http, CredentialStore credentials)
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         var value = doc.RootElement.GetProperty("value").GetString()!;
-
-        var bytes = Encoding.UTF8.GetBytes(value);
-        return bytes;
+        return Encoding.UTF8.GetBytes(value);
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
 
     private void SetAuthHeader(string token)
-        => http.DefaultRequestHeaders.Authorization =
+        => _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 }
