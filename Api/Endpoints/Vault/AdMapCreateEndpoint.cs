@@ -37,6 +37,8 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                 var result = await sender.Send(
                     new CreateAdMapCommand(vaultId, request.GroupId, request.Permission, request.IsActive),
                     cancellationToken);
+                    
+
                 if (result.IsFailure)
                 {
                     return CustomResults.Problem(result);

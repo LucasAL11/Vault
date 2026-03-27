@@ -13,6 +13,7 @@ public sealed partial class SetupViewModel : ObservableObject
     [ObservableProperty] private string _baseUrl    = "https://localhost:7001";
     [ObservableProperty] private string _vaultId    = string.Empty;
     [ObservableProperty] private string _clientId   = string.Empty;
+    [ObservableProperty] private string _domain     = string.Empty;
     [ObservableProperty] private string _errorMessage   = string.Empty;
     [ObservableProperty] private string _successMessage = string.Empty;
     [ObservableProperty] private bool   _isBusy;
@@ -32,6 +33,7 @@ public sealed partial class SetupViewModel : ObservableObject
         _baseUrl  = credentials.Get(AppConfig.BaseUrlKey)  ?? "https://localhost:7001";
         _vaultId  = credentials.Get(AppConfig.VaultIdKey)  ?? string.Empty;
         _clientId = credentials.Get(AppConfig.ClientIdKey) ?? string.Empty;
+        _domain   = credentials.Get(AppConfig.DomainKey)   ?? string.Empty;
     }
 
     /// <summary>Chamado pelo code-behind sempre que o PasswordBox mudar.</summary>
@@ -77,7 +79,8 @@ public sealed partial class SetupViewModel : ObservableObject
             return;
         }
 
-        AppConfig.Save(_credentials, BaseUrl, VaultId, ClientId, _clientSecretValue);
+        AppConfig.Save(_credentials, BaseUrl, VaultId, ClientId, _clientSecretValue,
+            string.IsNullOrWhiteSpace(Domain) ? null : Domain.Trim());
         SetupCompleted?.Invoke(this, EventArgs.Empty);
     }
 

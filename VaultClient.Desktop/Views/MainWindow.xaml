@@ -8,14 +8,6 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip">
 
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Resources/Converters.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
-
     <Grid>
         <!-- Setup (primeiro uso ou reconfiguração) -->
         <Grid x:Name="SetupPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -31,5 +23,8 @@
 
         <!-- Segredos (ocupa toda a janela) -->
         <views:SecretsView x:Name="SecretsViewControl" Visibility="Collapsed"/>
+
+        <!-- Admin (ocupa toda a janela, só para AD Admins) -->
+        <views:AdminView x:Name="AdminViewControl" Visibility="Collapsed"/>
     </Grid>
 </Window>

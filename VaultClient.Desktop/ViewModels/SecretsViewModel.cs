@@ -22,9 +22,11 @@ public sealed partial class SecretsViewModel : ObservableObject
     [ObservableProperty] private bool   _isCountingDown;
     [ObservableProperty] private int    _countdownSeconds;
     [ObservableProperty] private string _searchText = string.Empty;
+    [ObservableProperty] private bool   _isAdmin;
 
     public event EventHandler? LoggedOut;
     public event EventHandler? OpenSettings;
+    public event EventHandler? OpenAdmin;
 
     // Leitura lazy — pickup imediato de mudancas feitas no SetupViewModel.Save()
     private string ClientId     => _credentials.Get(AppConfig.ClientIdKey)     ?? _config["Vault:ClientId"]     ?? "local-dev-client";
@@ -137,6 +139,10 @@ public sealed partial class SecretsViewModel : ObservableObject
     [RelayCommand]
     private void OpenSettingsPanel()
         => OpenSettings?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void OpenAdminPanel()
+        => OpenAdmin?.Invoke(this, EventArgs.Empty);
 
     private static string GetCurrentSubject()
         => $"{Environment.UserDomainName}\\{Environment.UserName}";

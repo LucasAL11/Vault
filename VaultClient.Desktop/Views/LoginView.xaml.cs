@@ -11,18 +11,31 @@ public partial class LoginView : UserControl
     {
         InitializeComponent();
 
-        // Passa o PasswordBox.Password para o comando ao clicar/Enter
-        // O valor nunca é exposto via binding — fica somente no PasswordBox
         LoginButton.Click += OnLoginClick;
         PasswordBox.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Return) OnLoginClick(this, new RoutedEventArgs());
+        };
+        UsernameBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Return && DataContext is LoginViewModel { IsAdLogin: true })
+                OnLoginClick(this, new RoutedEventArgs());
         };
     }
 
     private void OnLoginClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is LoginViewModel vm)
-            vm.LoginCommand.Execute(PasswordBox.Password);
+        {
+            // AD login: passa null (sem senha), Local: passa o PasswordBox.Password
+            var password = vm.IsAdLogin ? null : PasswordBox.Password;
+            vm.LoginCommand.Execute(password);
+        }
+    }
+
+    private void LocalRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is LoginViewModel vm)
+            vm.IsAdLogin = false;
     }
 }

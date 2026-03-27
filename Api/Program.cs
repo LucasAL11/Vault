@@ -33,6 +33,7 @@ public partial class Program
                 static options => options.ClientSecrets.Any(entry => !string.IsNullOrWhiteSpace(entry.Value)),
                 "AuthChallenge:ClientSecrets must include at least one non-empty secret value.")
             .ValidateOnStart();
+        
         builder.Services.Configure<SecretVersionRetentionOptions>(builder.Configuration.GetSection("SecretVersionRetention"));
         builder.Services.Configure<CorsPolicyOptions>(builder.Configuration.GetSection("Cors"));
         builder.Services.Configure<SecurityHeadersOptions>(builder.Configuration.GetSection("SecurityHeaders"));

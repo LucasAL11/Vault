@@ -58,6 +58,21 @@
                 </TextBox.Resources>
             </TextBox>
 
+            <!-- Domínio AD (opcional) -->
+            <TextBlock Text="Domínio AD (opcional)" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
+            <TextBox x:Name="DomainBox"
+                     Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="13" Padding="10,8"
+                     Background="#313244" Foreground="#CDD6F4"
+                     BorderBrush="#45475A" BorderThickness="1"
+                     CaretBrush="#CDD6F4" Margin="0,0,0,4">
+                <TextBox.Resources>
+                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                </TextBox.Resources>
+            </TextBox>
+            <TextBlock Text="Ex: empresa.local — deixe vazio para login apenas local" FontSize="10"
+                       Foreground="#6C7086" Margin="0,0,0,14"/>
+
             <!-- Client Secret (sem toggle de visualizacao) -->
             <TextBlock Text="Client Secret" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
             <PasswordBox x:Name="ClientSecretBox"
