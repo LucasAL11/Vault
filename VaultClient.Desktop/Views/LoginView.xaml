@@ -1,0 +1,89 @@
+<UserControl x:Class="VaultClient.Desktop.Views.LoginView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="380">
+
+    <Border Background="#1E1E2E" CornerRadius="12" Padding="40,36">
+        <StackPanel>
+
+            <!-- Logo / Título -->
+            <TextBlock Text="🔐 Vault Client"
+                       FontSize="22" FontWeight="Bold"
+                       Foreground="#CDD6F4"
+                       HorizontalAlignment="Center" Margin="0,0,0,6"/>
+            <TextBlock Text="Acesso ao cofre de senhas"
+                       FontSize="12" Foreground="#6C7086"
+                       HorizontalAlignment="Center" Margin="0,0,0,30"/>
+
+            <!-- Usuário -->
+            <TextBlock Text="Usuário" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
+            <TextBox x:Name="UsernameBox"
+                     Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="14" Padding="10,8"
+                     Background="#313244" Foreground="#CDD6F4"
+                     BorderBrush="#45475A" BorderThickness="1"
+                     CaretBrush="#CDD6F4" Margin="0,0,0,16">
+                <TextBox.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </TextBox.Resources>
+            </TextBox>
+
+            <!-- Senha (PasswordBox — valor nunca exposto, sem toggle de visualização) -->
+            <TextBlock Text="Senha" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
+            <PasswordBox x:Name="PasswordBox"
+                         FontSize="14" Padding="10,8"
+                         Background="#313244" Foreground="#CDD6F4"
+                         BorderBrush="#45475A" BorderThickness="1"
+                         Margin="0,0,0,8">
+                <PasswordBox.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </PasswordBox.Resources>
+            </PasswordBox>
+
+            <!-- Mensagem de erro -->
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="#F38BA8" FontSize="12"
+                       Visibility="{Binding ErrorMessage, Converter={StaticResource NotEmptyToVisibility}}"
+                       TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+            <!-- Botão de login -->
+            <Button x:Name="LoginButton"
+                    Content="Entrar"
+                    FontSize="14" FontWeight="SemiBold"
+                    Padding="0,10" Margin="0,8,0,0"
+                    Background="#89B4FA" Foreground="#1E1E2E"
+                    BorderThickness="0" Cursor="Hand"
+                    IsDefault="True">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </Button.Resources>
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#89B4FA"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#B4D0FF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#45475A"/>
+                                <Setter Property="Foreground" Value="#6C7086"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <!-- Indicador de carregamento -->
+            <ProgressBar IsIndeterminate="True" Height="2" Margin="0,12,0,0"
+                         Foreground="#89B4FA" Background="Transparent" BorderThickness="0"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+
+        </StackPanel>
+    </Border>
+</UserControl>
