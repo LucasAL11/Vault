@@ -34,10 +34,17 @@ public sealed class VaultApiClient
 
     // ── Auth ─────────────────────────────────────────────────────────────────
 
-    public async Task<bool> LoginAsync(string username, string password, CancellationToken ct = default)
+    /// <summary>Login local com usuário + senha.</summary>
+    public Task<bool> LoginLocalAsync(string username, string password, CancellationToken ct = default)
+        => AuthenticateAsync(new { username, password }, ct);
+
+    /// <summary>Login AD com usuário + domínio (autenticação Windows/Kerberos).</summary>
+    public Task<bool> LoginAdAsync(string username, string domain, CancellationToken ct = default)
+        => AuthenticateAsync(new { username, domain }, ct);
+
+    private async Task<bool> AuthenticateAsync(object payload, CancellationToken ct)
     {
-        var response = await _http.PostAsJsonAsync($"{_baseUrl}/users",
-            new { username, password }, ct);
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/users", payload, ct);
 
         if (!response.IsSuccessStatusCode)
             return false;
@@ -141,7 +148,91 @@ public sealed class VaultApiClient
         return Encoding.UTF8.GetBytes(value);
     }
 
+    // ── Admin: AD Maps ────────────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<AdMapItem>> ListAdMapsAsync(
+        Guid vaultId, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(
+            $"{_baseUrl}/vaults/{vaultId}/ad-maps?includeInactive=true", ct);
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var items = doc.RootElement.GetProperty("items");
+
+        return items.EnumerateArray().Select(i => new AdMapItem(
+            Id: i.GetProperty("id").GetGuid(),
+            GroupId: i.GetProperty("groupId").GetString()!,
+            Permission: i.GetProperty("permission").ToString(),
+            IsActive: i.GetProperty("isActive").GetBoolean()
+        )).ToList();
+    }
+
+    public async Task CreateAdMapAsync(
+        Guid vaultId, string groupId, string permission, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}/ad-maps",
+            new { groupId, permission }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAdMapAsync(Guid vaultId, Guid adMapId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}/ad-maps/{adMapId}", ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // ── Admin: Secrets Management ───────────────────────────────────────────
+
+    public async Task UpsertSecretAsync(
+        Guid vaultId, string name, string value, string? contentType = null,
+        CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}/secrets/{name}",
+            new { value, contentType }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteSecretAsync(Guid vaultId, string name, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}/secrets/{name}", ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // ── Admin: Users ────────────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<UserItem>> ListUsersAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync($"{_baseUrl}/users/list", ct);
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.EnumerateArray().Select(u => new UserItem(
+            Id: u.GetProperty("id").GetGuid(),
+            Username: u.GetProperty("userName").GetString()!,
+            FirstName: u.TryGetProperty("firstName", out var fn) ? fn.GetString() ?? "" : "",
+            LastName: u.TryGetProperty("lastName", out var ln) ? ln.GetString() ?? "" : ""
+        )).ToList();
+    }
+
+    public async Task RegisterUserAsync(
+        string username, string password, string firstName, string lastName,
+        CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"{_baseUrl}/users/register",
+            new { username, password, firstName, lastName }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
     // ── Internal ─────────────────────────────────────────────────────────────
+
+    /// <summary>Retorna o JWT bruto armazenado (para checagem de claims no client).</summary>
+    public string? CurrentJwt => _credentials.Get("jwt");
 
     private void SetAuthHeader(string token)
         => _http.DefaultRequestHeaders.Authorization =

@@ -13,7 +13,30 @@
                        HorizontalAlignment="Center" Margin="0,0,0,6"/>
             <TextBlock Text="Acesso ao cofre de senhas"
                        FontSize="12" Foreground="#6C7086"
-                       HorizontalAlignment="Center" Margin="0,0,0,30"/>
+                       HorizontalAlignment="Center" Margin="0,0,0,24"/>
+
+            <!-- Toggle AD / Local -->
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <RadioButton x:Name="LocalRadio" Grid.Column="0"
+                             Content="Login Local"
+                             IsChecked="{Binding IsLocalLogin, Mode=OneWay}"
+                             GroupName="AuthMode"
+                             Foreground="#CDD6F4" FontSize="12"
+                             HorizontalAlignment="Center"
+                             Checked="LocalRadio_Checked"/>
+
+                <RadioButton x:Name="AdRadio" Grid.Column="1"
+                             Content="Active Directory"
+                             IsChecked="{Binding IsAdLogin, Mode=TwoWay}"
+                             GroupName="AuthMode"
+                             Foreground="#CDD6F4" FontSize="12"
+                             HorizontalAlignment="Center"/>
+            </Grid>
 
             <!-- Usuário -->
             <TextBlock Text="Usuário" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
@@ -30,19 +53,21 @@
                 </TextBox.Resources>
             </TextBox>
 
-            <!-- Senha (PasswordBox — valor nunca exposto, sem toggle de visualização) -->
-            <TextBlock Text="Senha" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
-            <PasswordBox x:Name="PasswordBox"
-                         FontSize="14" Padding="10,8"
-                         Background="#313244" Foreground="#CDD6F4"
-                         BorderBrush="#45475A" BorderThickness="1"
-                         Margin="0,0,0,8">
-                <PasswordBox.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </PasswordBox.Resources>
-            </PasswordBox>
+            <!-- Senha (só aparece no modo Local) -->
+            <StackPanel Visibility="{Binding IsLocalLogin, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Senha" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
+                <PasswordBox x:Name="PasswordBox"
+                             FontSize="14" Padding="10,8"
+                             Background="#313244" Foreground="#CDD6F4"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             Margin="0,0,0,8">
+                    <PasswordBox.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </PasswordBox.Resources>
+                </PasswordBox>
+            </StackPanel>
 
             <!-- Mensagem de erro -->
             <TextBlock Text="{Binding ErrorMessage}"
@@ -83,6 +108,27 @@
             <ProgressBar IsIndeterminate="True" Height="2" Margin="0,12,0,0"
                          Foreground="#89B4FA" Background="Transparent" BorderThickness="0"
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+
+            <!-- Link para Configurações -->
+            <Button x:Name="SettingsButton"
+                    Content="&#x2699; Configurações"
+                    FontSize="12"
+                    Margin="0,16,0,0"
+                    HorizontalAlignment="Center"
+                    Background="Transparent" Foreground="#6C7086"
+                    BorderThickness="0" Cursor="Hand"
+                    Command="{Binding GoToSettingsCommand}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#89B4FA"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
 
         </StackPanel>
     </Border>

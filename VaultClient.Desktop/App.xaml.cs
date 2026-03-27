@@ -26,18 +26,26 @@ public partial class App : Application
         services.AddSingleton<CredentialStore>();
         services.AddSingleton<AutoTypeService>();
 
-        // HttpClient sem BaseAddress fixa — VaultApiClient le do CredentialStore
-        services.AddHttpClient<VaultApiClient>()
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        // Singleton: todos os ViewModels compartilham a mesma instância.
+        // Essencial para que Reconfigure() no SetupViewModel afete o LoginViewModel.
+        services.AddSingleton<VaultApiClient>(sp =>
+        {
+            var handler = new HttpClientHandler
             {
-                // Aceita certificado auto-assinado em desenvolvimento
                 ServerCertificateCustomValidationCallback =
                     HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-            });
+            };
+            var http = new HttpClient(handler);
+            return new VaultApiClient(
+                http,
+                sp.GetRequiredService<CredentialStore>(),
+                sp.GetRequiredService<IConfiguration>());
+        });
 
         services.AddTransient<LoginViewModel>();
         services.AddTransient<SetupViewModel>();
         services.AddTransient<SecretsViewModel>();
+        services.AddTransient<AdminViewModel>();
         services.AddTransient<MainWindow>();
 
         _services = services.BuildServiceProvider();
