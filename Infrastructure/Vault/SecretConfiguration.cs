@@ -14,7 +14,9 @@ public class SecretConfiguration : IEntityTypeConfiguration<Secret>
         builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
         builder.Property(x => x.Status).HasConversion<int>().IsRequired();
         builder.Property(x => x.CurrentVersion).IsRequired();
-        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.Property(x => x.RowVersion)
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
 
         builder.HasIndex(x => new { x.VaultId, x.Name }).IsUnique();
 
