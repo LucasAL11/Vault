@@ -53,21 +53,19 @@
                 </TextBox.Resources>
             </TextBox>
 
-            <!-- Senha (só aparece no modo Local) -->
-            <StackPanel Visibility="{Binding IsLocalLogin, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="Senha" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
-                <PasswordBox x:Name="PasswordBox"
-                             FontSize="14" Padding="10,8"
-                             Background="#313244" Foreground="#CDD6F4"
-                             BorderBrush="#45475A" BorderThickness="1"
-                             Margin="0,0,0,8">
-                    <PasswordBox.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </PasswordBox.Resources>
-                </PasswordBox>
-            </StackPanel>
+            <!-- Senha (sempre visível — ambos os modos exigem senha) -->
+            <TextBlock Text="Senha" Foreground="#BAC2DE" FontSize="12" Margin="0,0,0,4"/>
+            <PasswordBox x:Name="PasswordBox"
+                         FontSize="14" Padding="10,8"
+                         Background="#313244" Foreground="#CDD6F4"
+                         BorderBrush="#45475A" BorderThickness="1"
+                         Margin="0,0,0,8">
+                <PasswordBox.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </PasswordBox.Resources>
+            </PasswordBox>
 
             <!-- Mensagem de erro -->
             <TextBlock Text="{Binding ErrorMessage}"

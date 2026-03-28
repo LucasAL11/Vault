@@ -49,7 +49,7 @@ public  sealed class ApplicationDbContext(
     
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        EnsureSqliteRowVersionValues();
+        EnsureRowVersionValues();
 
         var result = await base.SaveChangesAsync(cancellationToken);
         await PublishDomainEventsAsync();
@@ -57,13 +57,8 @@ public  sealed class ApplicationDbContext(
         return result;
     }
 
-    private void EnsureSqliteRowVersionValues()
+    private void EnsureRowVersionValues()
     {
-        if (!string.Equals(Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
-        {
-            return;
-        }
-
         foreach (var entry in ChangeTracker.Entries().Where(x => x.State is EntityState.Added or EntityState.Modified))
         {
             var rowVersionProperty = entry.Properties.FirstOrDefault(x =>

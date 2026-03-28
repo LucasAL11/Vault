@@ -77,6 +77,13 @@ public partial class MainWindow : Window
 
         // Mostra/esconde botão admin com base nas claims do JWT
         _secretsVm.IsAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
+
+        // Debug: mostra quais grupos vieram no JWT no status bar
+        var groups = JwtHelper.GetGroups(_api.CurrentJwt);
+        if (groups.Count > 0)
+            _secretsVm.StatusMessage = $"Grupos: {string.Join(", ", groups)}";
+        else
+            _secretsVm.StatusMessage = "Nenhum grupo no JWT (login local ou AD sem grupos).";
     }
 
     private void ShowAdmin()

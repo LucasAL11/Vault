@@ -77,6 +77,165 @@
                 </Style>
             </TabControl.Resources>
 
+            <!-- ═══ Aba: Cofres ═══ -->
+            <TabItem Header="🏦 Cofres">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Form novo cofre -->
+                    <Border Grid.Row="0" Background="#181825" CornerRadius="8" Padding="16,12" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="Criar Cofre" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="#CDD6F4" Margin="0,0,0,10"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBox Grid.Row="0" Grid.Column="0" Margin="0,0,4,6"
+                                         Text="{Binding NewVaultName, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" Padding="8,6"
+                                         Background="#313244" Foreground="#CDD6F4"
+                                         BorderBrush="#45475A" BorderThickness="1"
+                                         CaretBrush="#CDD6F4" Tag="Nome">
+                                    <TextBox.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                    </TextBox.Resources>
+                                </TextBox>
+
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,4,6"
+                                         Text="{Binding NewVaultSlug, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" Padding="8,6"
+                                         Background="#313244" Foreground="#CDD6F4"
+                                         BorderBrush="#45475A" BorderThickness="1"
+                                         CaretBrush="#CDD6F4" Tag="Slug (ex: prod-secrets)">
+                                    <TextBox.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                    </TextBox.Resources>
+                                </TextBox>
+
+                                <TextBox Grid.Row="0" Grid.Column="2" Margin="0,0,0,6"
+                                         Text="{Binding NewVaultTenantId, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" Padding="8,6"
+                                         Background="#313244" Foreground="#CDD6F4"
+                                         BorderBrush="#45475A" BorderThickness="1"
+                                         CaretBrush="#CDD6F4" Tag="Tenant ID">
+                                    <TextBox.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                    </TextBox.Resources>
+                                </TextBox>
+
+                                <TextBox Grid.Row="1" Grid.Column="0" Margin="0,0,4,0"
+                                         Text="{Binding NewVaultGroup, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" Padding="8,6"
+                                         Background="#313244" Foreground="#CDD6F4"
+                                         BorderBrush="#45475A" BorderThickness="1"
+                                         CaretBrush="#CDD6F4" Tag="Grupo AD">
+                                    <TextBox.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                    </TextBox.Resources>
+                                </TextBox>
+
+                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,4,0"
+                                          SelectedItem="{Binding NewVaultEnvironment}"
+                                          FontSize="12" Padding="8,4"
+                                          Background="#313244" Foreground="#CDD6F4"
+                                          BorderBrush="#45475A" BorderThickness="1">
+                                    <ComboBoxItem Content="Production"/>
+                                    <ComboBoxItem Content="Staging"/>
+                                    <ComboBoxItem Content="Development"/>
+                                </ComboBox>
+
+                                <Button Grid.Row="1" Grid.Column="2" Content="+ Criar Cofre"
+                                        Command="{Binding CreateVaultCommand}"
+                                        FontSize="12" Padding="14,6"
+                                        Background="#CBA6F7" Foreground="#1E1E2E"
+                                        BorderThickness="0" Cursor="Hand">
+                                    <Button.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                    </Button.Resources>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Lista de cofres -->
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Vaults}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#313244"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:VaultItem}">
+                                <Border Padding="12,10" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
+                                                       Foreground="#CDD6F4"/>
+                                            <TextBlock FontSize="11" Foreground="#6C7086">
+                                                <Run Text="{Binding Slug}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding Environment}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding Group}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" CornerRadius="4" Padding="6,2" Margin="8,0"
+                                                Background="#1A3A1A" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding TenantId}" FontSize="10" Foreground="#A6E3A1"/>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="2" FontSize="10" Foreground="#6C7086"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                                   Text="{Binding Id, StringFormat='{}{0:N}'}"/>
+
+                                        <Button Grid.Column="3" Content="Ativar"
+                                                Command="{Binding DataContext.SelectVaultCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                CommandParameter="{Binding}"
+                                                FontSize="11" Padding="10,4"
+                                                Background="#302040" Foreground="#CBA6F7"
+                                                BorderBrush="#CBA6F7" BorderThickness="1"
+                                                Cursor="Hand">
+                                            <Button.Resources>
+                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                            </Button.Resources>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </TabItem>
+
             <!-- ═══ Aba: Segredos ═══ -->
             <TabItem Header="🔑 Segredos">
                 <Grid Margin="0,12,0,0">

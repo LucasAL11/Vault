@@ -188,5 +188,7 @@ public sealed class AdGroupAuthorizationHandlerTests
         public List<string> IsInGroup => new();
         public bool IsSameDomain(string userDomain) => true;
         public bool IsUserActive(string commandUsername) => true;
+        public bool ValidateCredentials(string username, string password) => true;
+        public IReadOnlySet<UserGroup> GetGroupsForUser(string username) => _groups;
     }
 }

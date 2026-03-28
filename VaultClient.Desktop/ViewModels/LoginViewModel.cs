@@ -1,4 +1,3 @@
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VaultClient.Desktop.Core;
@@ -17,21 +16,15 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
     [ObservableProperty]
     private bool _isBusy;
 
-    /// <summary>true = AD auth, false = local auth (senha).</summary>
+    /// <summary>true = AD auth, false = local auth.</summary>
     [ObservableProperty]
     private bool _isAdLogin;
-
-    /// <summary>Mostra campo de senha quando login local.</summary>
-    public bool IsLocalLogin => !IsAdLogin;
 
     public event EventHandler? LoginSucceeded;
     public event EventHandler? OpenSettings;
 
     partial void OnIsAdLoginChanged(bool value)
-    {
-        ErrorMessage = string.Empty;
-        OnPropertyChanged(nameof(IsLocalLogin));
-    }
+        => ErrorMessage = string.Empty;
 
     [RelayCommand(CanExecute = nameof(CanLogin))]
     private async Task LoginAsync(string? password)
@@ -41,6 +34,12 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
 
         try
         {
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                ErrorMessage = "Informe a senha.";
+                return;
+            }
+
             bool ok;
 
             if (IsAdLogin)
@@ -48,20 +47,14 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
                 var domain = credentials.Get(AppConfig.DomainKey);
                 if (string.IsNullOrWhiteSpace(domain))
                 {
-                    ErrorMessage = "Domínio AD não configurado. Acesse a configuração.";
+                    ErrorMessage = "Domínio AD não configurado. Acesse ⚙ Configurações.";
                     return;
                 }
 
-                ok = await api.LoginAdAsync(Username.Trim(), domain);
+                ok = await api.LoginAdAsync(Username.Trim(), domain, password);
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(password))
-                {
-                    ErrorMessage = "Informe a senha.";
-                    return;
-                }
-
                 ok = await api.LoginLocalAsync(Username.Trim(), password);
             }
 
@@ -69,7 +62,7 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
                 LoginSucceeded?.Invoke(this, EventArgs.Empty);
             else
                 ErrorMessage = IsAdLogin
-                    ? "Usuário não encontrado ou inativo no domínio."
+                    ? "Usuário ou senha inválidos no Active Directory."
                     : "Usuário ou senha inválidos.";
         }
         catch (Exception ex)
@@ -89,5 +82,5 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
     private bool CanLogin(string? password)
         => !IsBusy
            && !string.IsNullOrWhiteSpace(Username)
-           && (IsAdLogin || !string.IsNullOrWhiteSpace(password));
+           && !string.IsNullOrWhiteSpace(password);
 }

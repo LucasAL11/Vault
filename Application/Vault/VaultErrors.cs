@@ -30,4 +30,7 @@ internal static class VaultErrors
 
     public static Error AdMapNotFound(Guid vaultId, Guid adMapId) =>
         Error.NotFound("AdMap.NotFound", $"AD map '{adMapId}' was not found in vault '{vaultId}'.");
+
+    public static Error SlugAlreadyExists(string slug) =>
+        Error.Conflict("Vault.SlugAlreadyExists", $"A vault with slug '{slug}' already exists.");
 }

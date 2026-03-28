@@ -11,7 +11,11 @@ public sealed class ListUsers : IEndpoint
             IApplicationDbContext dbContext,
             CancellationToken ct) =>
         {
-            var users = await dbContext.Users
+            // Materializa primeiro (tabela pequena), depois projeta no client
+            var users = await dbContext.Users.ToListAsync(ct);
+
+            var result = users
+                .OrderBy(u => u.UserName.UserName)
                 .Select(u => new
                 {
                     u.Id,
@@ -19,10 +23,9 @@ public sealed class ListUsers : IEndpoint
                     u.FirstName,
                     u.LastName
                 })
-                .OrderBy(u => u.UserName)
-                .ToListAsync(ct);
+                .ToList();
 
-            return Results.Ok(users);
+            return Results.Ok(result);
         }).RequireAuthorization();
     }
 }
