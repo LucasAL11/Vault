@@ -15,7 +15,9 @@ public class ADMapConfiguration : IEntityTypeConfiguration<ADMap>
         builder.Property(x => x.Permission).HasConversion<int>().IsRequired();
         builder.Property(x => x.IsActive).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
-        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.Property(x => x.RowVersion)
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
 
         builder.HasIndex(x => new { x.VaultId, x.GroupId }).IsUnique();
         builder.HasIndex(x => new { x.VaultId, x.Permission, x.IsActive });

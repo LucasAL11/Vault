@@ -13,7 +13,9 @@ public class VaultMachineConfiguration : IEntityTypeConfiguration<VaultMachine>
 
         builder.Property(x => x.Status).HasConversion<int>().IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();
-        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.Property(x => x.RowVersion)
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
 
         builder.HasIndex(x => new { x.VaultId, x.ComputerId }).IsUnique();
         builder.HasIndex(x => new { x.VaultId, x.Status });
