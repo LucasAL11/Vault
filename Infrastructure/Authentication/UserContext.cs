@@ -132,6 +132,53 @@ public class UserContext : IUserContext
         return user?.Enabled == true;
     }
 
+    public IReadOnlySet<UserGroup> GetGroupsForUser(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username) || !_adOptions.Enabled)
+            return new HashSet<UserGroup>();
+
+        try
+        {
+            using var ad = BuildPrincipalContext();
+            using var user =
+                UserPrincipal.FindByIdentity(ad, IdentityType.SamAccountName, username)
+                ?? UserPrincipal.FindByIdentity(ad, username);
+
+            if (user is null)
+                return new HashSet<UserGroup>();
+
+            return user.GetAuthorizationGroups()
+                .OfType<GroupPrincipal>()
+                .Select(g => g.SamAccountName ?? g.Name)
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .Select(g => new UserGroup(g!))
+                .ToHashSet();
+        }
+        catch
+        {
+            return new HashSet<UserGroup>();
+        }
+    }
+
+    public bool ValidateCredentials(string username, string password)
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return false;
+
+        if (!_adOptions.Enabled)
+            return false;
+
+        try
+        {
+            using var ad = BuildPrincipalContext();
+            return ad.ValidateCredentials(username, password);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private PrincipalContext BuildPrincipalContext()
     {
         if (!string.IsNullOrWhiteSpace(_adOptions.Domain) && !string.IsNullOrWhiteSpace(_adOptions.Container))

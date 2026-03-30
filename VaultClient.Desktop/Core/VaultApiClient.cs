@@ -38,9 +38,9 @@ public sealed class VaultApiClient
     public Task<bool> LoginLocalAsync(string username, string password, CancellationToken ct = default)
         => AuthenticateAsync(new { username, password }, ct);
 
-    /// <summary>Login AD com usuário + domínio (autenticação Windows/Kerberos).</summary>
-    public Task<bool> LoginAdAsync(string username, string domain, CancellationToken ct = default)
-        => AuthenticateAsync(new { username, domain }, ct);
+    /// <summary>Login AD com usuário + domínio + senha (validada contra o AD).</summary>
+    public Task<bool> LoginAdAsync(string username, string domain, string password, CancellationToken ct = default)
+        => AuthenticateAsync(new { username, domain, password }, ct);
 
     private async Task<bool> AuthenticateAsync(object payload, CancellationToken ct)
     {
@@ -227,6 +227,38 @@ public sealed class VaultApiClient
             $"{_baseUrl}/users/register",
             new { username, password, firstName, lastName }, ct);
         response.EnsureSuccessStatusCode();
+    }
+
+    // ── Admin: Vaults ──────────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<VaultItem>> ListVaultsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync($"{_baseUrl}/vaults", ct);
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.EnumerateArray().Select(v => new VaultItem(
+            Id: v.GetProperty("id").GetGuid(),
+            Name: v.GetProperty("name").GetString()!,
+            Slug: v.GetProperty("slug").GetString()!,
+            Description: v.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "",
+            TenantId: v.TryGetProperty("tenantId", out var t) ? t.GetString() ?? "" : "",
+            Group: v.TryGetProperty("group", out var g) ? g.GetString() ?? "" : "",
+            Environment: v.TryGetProperty("environment", out var e) ? e.GetString() ?? "" : ""
+        )).ToList();
+    }
+
+    public async Task<Guid> CreateVaultAsync(
+        string name, string slug, string description,
+        string tenantId, string group, string environment,
+        CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/vaults",
+            new { name, slug, description, tenantId, group, environment }, ct);
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("id").GetGuid();
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────

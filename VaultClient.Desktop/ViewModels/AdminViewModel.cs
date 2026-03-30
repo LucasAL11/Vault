@@ -16,14 +16,23 @@ public sealed partial class AdminViewModel : ObservableObject
     public ObservableCollection<SecretItem> Secrets { get; } = [];
     public ObservableCollection<AdMapItem>  AdMaps  { get; } = [];
     public ObservableCollection<UserItem>   Users   { get; } = [];
+    public ObservableCollection<VaultItem>  Vaults  { get; } = [];
 
     [ObservableProperty] private bool   _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     // ── Aba ativa ──────────────────────────────────────────────────────────
-    [ObservableProperty] private int _selectedTab; // 0=Secrets, 1=AD Maps, 2=Users
+    [ObservableProperty] private int _selectedTab; // 0=Vaults, 1=Secrets, 2=AD Maps, 3=Users
 
     // ── Formulários ────────────────────────────────────────────────────────
+
+    // Vault
+    [ObservableProperty] private string _newVaultName        = string.Empty;
+    [ObservableProperty] private string _newVaultSlug        = string.Empty;
+    [ObservableProperty] private string _newVaultDescription = string.Empty;
+    [ObservableProperty] private string _newVaultTenantId    = string.Empty;
+    [ObservableProperty] private string _newVaultGroup       = string.Empty;
+    [ObservableProperty] private string _newVaultEnvironment = "Production";
 
     // Secret
     [ObservableProperty] private string _newSecretName  = string.Empty;
@@ -64,6 +73,7 @@ public sealed partial class AdminViewModel : ObservableObject
         try
         {
             await Task.WhenAll(
+                LoadVaultsInternalAsync(),
                 LoadSecretsInternalAsync(),
                 LoadAdMapsInternalAsync(),
                 LoadUsersInternalAsync());
@@ -75,6 +85,20 @@ public sealed partial class AdminViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task LoadVaultsInternalAsync()
+    {
+        try
+        {
+            var items = await _api.ListVaultsAsync();
+            Vaults.Clear();
+            foreach (var item in items) Vaults.Add(item);
+        }
+        catch
+        {
+            // ignora silenciosamente se endpoint não existir
         }
     }
 
@@ -103,6 +127,61 @@ public sealed partial class AdminViewModel : ObservableObject
         catch
         {
             // endpoint pode não existir ainda — ignora silenciosamente
+        }
+    }
+
+    // ── Vaults ───────────────────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanCreateVault))]
+    private async Task CreateVaultAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            var id = await _api.CreateVaultAsync(
+                NewVaultName.Trim(),
+                NewVaultSlug.Trim(),
+                NewVaultDescription.Trim(),
+                NewVaultTenantId.Trim(),
+                NewVaultGroup.Trim(),
+                NewVaultEnvironment);
+
+            StatusMessage = $"Cofre '{NewVaultName}' criado (ID: {id}).";
+            NewVaultName = NewVaultSlug = NewVaultDescription =
+                NewVaultTenantId = NewVaultGroup = string.Empty;
+            NewVaultEnvironment = "Production";
+            await LoadVaultsInternalAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Erro: {ex.Message}";
+        }
+        finally { IsBusy = false; }
+    }
+
+    private bool CanCreateVault()
+        => !IsBusy
+           && !string.IsNullOrWhiteSpace(NewVaultName)
+           && !string.IsNullOrWhiteSpace(NewVaultSlug)
+           && !string.IsNullOrWhiteSpace(NewVaultTenantId)
+           && !string.IsNullOrWhiteSpace(NewVaultGroup);
+
+    /// <summary>Seleciona um vault e salva como vault ativo no CredentialStore.</summary>
+    [RelayCommand]
+    private async Task SelectVaultAsync(VaultItem? vault)
+    {
+        if (vault is null) return;
+        _credentials.Set(AppConfig.VaultIdKey, vault.Id.ToString());
+        StatusMessage = $"Cofre ativo: '{vault.Name}' ({vault.Id})";
+
+        // Recarrega secrets e AD maps do novo vault
+        try
+        {
+            await Task.WhenAll(LoadSecretsInternalAsync(), LoadAdMapsInternalAsync());
+        }
+        catch (Exception ex)
+        {
+            StatusMessage += $" (erro ao carregar: {ex.Message})";
         }
     }
 
@@ -227,6 +306,10 @@ public sealed partial class AdminViewModel : ObservableObject
     private void BackToSecrets() => GoBack?.Invoke(this, EventArgs.Empty);
 
     // Notifica CanExecute quando campos mudam
+    partial void OnNewVaultNameChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
+    partial void OnNewVaultSlugChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
+    partial void OnNewVaultTenantIdChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
+    partial void OnNewVaultGroupChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
     partial void OnNewSecretNameChanged(string value) => CreateSecretCommand.NotifyCanExecuteChanged();
     partial void OnNewSecretValueChanged(string value) => CreateSecretCommand.NotifyCanExecuteChanged();
     partial void OnNewAdMapGroupIdChanged(string value) => CreateAdMapCommand.NotifyCanExecuteChanged();

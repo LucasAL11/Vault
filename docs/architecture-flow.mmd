@@ -1,0 +1,257 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a1a2e', 'primaryTextColor': '#e0e0e0', 'lineColor': '#7c83ff'}}}%%
+flowchart TB
+
+%% ===========================
+%% LEGENDA
+%% ===========================
+subgraph Legenda["Legenda"]
+    direction LR
+    L_OK["✅ Implementado"]:::done
+    L_PARTIAL["⚠️ Parcial"]:::partial
+    L_TODO["❌ Pendente"]:::todo
+end
+
+%% ===========================
+%% IDENTIDADE (ACTIVE DIRECTORY)
+%% ===========================
+ADUser["Usuário do Active Directory"]
+AD["Active Directory"]
+ADGroups["Grupos do AD<br/>(1 grupo = 1 Vault)"]
+
+%% ===========================
+%% CLIENTE
+%% ===========================
+subgraph Cliente_CSharp["Cliente C# (WPF Desktop)"]
+    UI["Interface WPF<br/>Login · Admin · Settings"]:::done
+    Capture["Captura de Senha"]:::todo
+    Argon2["Argon2id"]:::todo
+    Keys["Split de Chaves<br/>Dados / Integridade / Comunicação"]:::todo
+    AEAD_C["Criptografia AEAD<br/>AES-GCM"]:::todo
+    HWID["Coleta HWID<br/>CPU · BIOS · Disk · GUID"]:::done
+    FP["Fingerprint + SHA256"]:::done
+    Integrity["Validação de Binário"]:::todo
+    AntiDbg["Anti-Debug / Anti-Dump"]:::todo
+    Comm["Comunicação HTTP + JWT"]:::done
+end
+
+%% ===========================
+%% SERVIDOR
+%% ===========================
+subgraph Server_ASPNET["Servidor ASP.NET Core (Guardião de Segredos)"]
+    API["API Gateway<br/>(Minimal API Endpoints)"]:::done
+
+    subgraph Auth_Block["Autenticação"]
+        ADAuth["Autenticação AD<br/>LDAP via DirectoryServices"]:::done
+        LocalAuth["Autenticação Local<br/>PasswordHash"]:::done
+        Kerberos["Kerberos"]:::partial
+        OIDC["OIDC"]:::todo
+    end
+
+    Token["JWT com Claims<br/>name · role · groups"]:::done
+    Policies["Policy-based AuthZ<br/>AdGroupRequirement<br/>Read · Write · Admin"]:::done
+
+    subgraph AuthZ_Pipeline["Pipeline de Autorização"]
+        ClaimsCheck["1. Token Claims"]:::done
+        CtxCheck["2. UserContext Groups"]:::done
+        LDAPFallback["3. LDAP Fallback<br/>(fail-closed)"]:::done
+        OverageDetect["Overage Detection<br/>hasgroups · _claim_names"]:::done
+    end
+
+    ZKP["Prova de Conhecimento Zero<br/>R1CS + BLS12-381<br/>(infraestrutura pronta,<br/>desabilitado no MVP)"]:::partial
+
+    subgraph Crypto_Server["Criptografia do Servidor"]
+        AesGcm["AES-256-GCM<br/>+ AAD (vault|secret|ver)"]:::done
+        NonceProtect["Nonce Replay Protection<br/>InMemory + PostgreSQL"]:::done
+        ChaCha["ChaCha20-Poly1305"]:::todo
+    end
+
+    subgraph KeyMgmt["Gestão de Chaves"]
+        DevKey["DevKeyProvider<br/>(desenvolvimento)"]:::done
+        ProdKey["ProdKeyProvider<br/>(produção)"]:::done
+        KmsKey["KmsKeyProvider<br/>(KMS externo)"]:::done
+        KeyRotation["Rotação de Chaves<br/>POST /ops/key-provider/rotate"]:::done
+        ReEncrypt["Re-criptografia<br/>POST /ops/key-provider/re-encrypt"]:::done
+    end
+
+    Telemetry["Observabilidade<br/>OpenTelemetry Metrics<br/>Activity Tracing"]:::done
+    KillSwitch["Kill Switch<br/>Circuit Breaker<br/>User Denylist + TTL"]:::done
+
+    subgraph SecretOps["Operações de Segredos"]
+        SecretStore["Armazenamento de Segredos<br/>POST · GET · DELETE"]:::done
+        SecretVersioning["Versionamento<br/>AddVersion · CurrentVersion"]:::done
+        SecretRevoke["Revogação<br/>IsRevoked · Reason · Actor"]:::done
+    end
+end
+
+%% ===========================
+%% DADOS
+%% ===========================
+subgraph Storage["Armazenamento (EF Core + PostgreSQL)"]
+    DB[("ApplicationDbContext<br/>Domain Events<br/>Optimistic Concurrency")]:::done
+
+    subgraph Tables["Entidades"]
+        T_Users[("Users<br/>Login · PasswordHash")]:::done
+        T_Vaults[("Vaults<br/>Name · Slug · Tenant<br/>EncryptionPolicy · KeyRef")]:::done
+        T_Secrets[("Secrets + SecretVersions<br/>CipherText · Nonce · KeyRef<br/>IsRevoked · Expires")]:::done
+        T_Machines[("VaultMachines<br/>ComputerId · Status")]:::done
+        T_ADMap[("ADMaps<br/>GroupId · Permission")]:::done
+        T_Computers[("Computers<br/>HWID · CPU · BIOS · Disk")]:::done
+        T_Nonce[("NonceStoreEntries")]:::done
+        T_Audit[("SecretAuditEntries<br/>Action · Actor · Timestamp")]:::done
+    end
+end
+
+%% ===========================
+%% FLUXO DE IDENTIDADE
+%% ===========================
+ADUser --> UI
+UI --> Comm --> API
+
+API --> ADAuth --> AD
+API --> LocalAuth
+AD --> ADGroups --> ADAuth
+
+ADAuth --> Token
+LocalAuth --> Token
+Token --> Policies
+
+%% ===========================
+%% PIPELINE DE AUTORIZAÇÃO
+%% ===========================
+Policies --> ClaimsCheck --> CtxCheck --> LDAPFallback
+OverageDetect -.->|"detecta overage"| LDAPFallback
+
+%% ===========================
+%% FLUXO CLIENTE (implementado)
+%% ===========================
+HWID --> FP --> Comm
+
+%% ===========================
+%% FLUXO CLIENTE (pendente)
+%% ===========================
+UI -.->|"pendente"| Capture -.-> Argon2 -.-> Keys -.-> AEAD_C -.-> Comm
+Integrity -.->|"pendente"| AntiDbg -.-> UI
+
+%% ===========================
+%% AUTORIZAÇÃO POR GRUPO
+%% ===========================
+Policies --> T_ADMap --> T_Vaults
+Policies --> T_Machines
+
+%% ===========================
+%% FLUXO DE SEGREDO
+%% ===========================
+SecretStore -->|"cifra via AES-GCM"| AesGcm
+AesGcm -->|"busca chave"| KeyMgmt
+AesGcm -->|"verifica replay"| NonceProtect
+SecretStore -->|"persiste"| T_Secrets
+SecretVersioning --> T_Secrets
+SecretRevoke --> T_Audit
+
+API -->|"entrega segura"| Comm
+
+%% ===========================
+%% KEY ROTATION FLOW
+%% ===========================
+KeyRotation -->|"nova chave"| KmsKey
+ReEncrypt -->|"decrypt old → encrypt new"| AesGcm
+ReEncrypt -->|"atualiza versões"| T_Secrets
+
+%% ===========================
+%% KILL SWITCH
+%% ===========================
+KillSwitch -->|"bloqueia requests"| API
+Telemetry -->|"métricas"| KillSwitch
+
+%% ===========================
+%% ADMIN FLOW
+%% ===========================
+subgraph AdminFlow["Administração"]
+    Admin["Administrador<br/>(via AD ou Desktop)"]
+end
+
+Admin -->|"Cria Grupo AD"| ADGroups
+Admin -->|"Vincula Grupo → Vault"| T_ADMap
+Admin -->|"CRUD Vaults"| T_Vaults
+Admin -->|"CRUD Machines"| T_Machines
+
+%% ===========================
+%% PERSISTÊNCIA
+%% ===========================
+API --> DB
+DB --> Tables
+
+%% ===========================
+%% ZK PROOFS (infraestrutura)
+%% ===========================
+ZKP -.->|"desabilitado no MVP"| API
+
+%% ===========================
+%% VINCULAÇÕES LÓGICAS
+%% ===========================
+ADGroups -. "controla" .-> T_Vaults
+T_ADMap -. "espelha" .-> ADGroups
+
+%% ===========================
+%% MODELO DE AMEAÇAS
+%% ===========================
+subgraph Threats["Ameaças e Contramedidas"]
+    subgraph Implemented_Threats["Contramedidas Ativas"]
+        DumpDB["Ataque: Dump DB"]:::threat
+        Replay["Ataque: Replay"]:::threat
+        ServerBreach["Ataque: Vazamento Servidor"]:::threat
+        PrivEsc["Ataque: Escalada AD"]:::threat
+        DoS["Ataque: DoS / Abuso"]:::threat
+
+        EncSecrets["✅ Segredos Cifrados<br/>AES-256-GCM + AAD"]:::done
+        Nonce["✅ Nonce + Single-Use"]:::done
+        HSM["✅ KMS Key Provider"]:::done
+        Claims["✅ Validação Claims + LDAP"]:::done
+        KS_Counter["✅ Kill Switch + Denylist"]:::done
+    end
+
+    subgraph Pending_Threats["Contramedidas Pendentes"]
+        MITM["Ataque: MITM"]:::threat
+        Debug["Ataque: Debugger"]:::threat
+        Spoof["Ataque: HWID Spoof"]:::threat
+        Downgrade["Ataque: Downgrade"]:::threat
+
+        TLS["❌ TLS + Pinning"]:::todo
+        AntiDbg2["❌ Anti-Debug"]:::todo
+        FP2["❌ Fingerprint Hardening"]:::todo
+        SignedUpd["❌ Update Assinado"]:::todo
+    end
+end
+
+DumpDB --> EncSecrets
+Replay --> Nonce
+ServerBreach --> HSM
+PrivEsc --> Claims
+DoS --> KS_Counter
+
+MITM -.-> TLS
+Debug -.-> AntiDbg2
+Spoof -.-> FP2
+Downgrade -.-> SignedUpd
+
+EncSecrets -. "protege" .-> SecretStore
+Nonce -. "protege" .-> API
+HSM -. "protege" .-> SecretStore
+Claims -. "protege" .-> Policies
+KS_Counter -. "protege" .-> API
+
+%% ===========================
+%% GARANTIAS CRIPTOGRÁFICAS
+%% ===========================
+T_Secrets -. "nunca revela dados em claro" .- AesGcm
+SecretStore -. "nunca em texto puro" .- KmsKey
+KillSwitch -. "reação progressiva" .- Telemetry
+Policies -. "decisão baseada em grupo AD" .- ADGroups
+
+%% ===========================
+%% ESTILOS
+%% ===========================
+classDef done fill:#1a4d2e,stroke:#2ecc71,color:#e0e0e0,stroke-width:2px
+classDef partial fill:#4a3f00,stroke:#f1c40f,color:#e0e0e0,stroke-width:2px
+classDef todo fill:#4a1a1a,stroke:#e74c3c,color:#e0e0e0,stroke-width:2px,stroke-dasharray: 5 5
+classDef threat fill:#2c1a3d,stroke:#9b59b6,color:#e0e0e0

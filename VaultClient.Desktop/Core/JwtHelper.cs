@@ -9,7 +9,17 @@ namespace VaultClient.Desktop.Core;
 /// </summary>
 internal static class JwtHelper
 {
-    /// <summary>Verifica se o JWT contém o grupo "Admins" nas claims role ou groups.</summary>
+    private static readonly string[] AdminGroupNames =
+    [
+        "Admins",
+        "Admin",
+        "Administrators",
+        "Domain Admins",
+        "Administradores",
+        "Admins do Domínio"
+    ];
+
+    /// <summary>Verifica se o JWT contém um grupo de admin nas claims role ou groups.</summary>
     internal static bool IsAdmin(string? jwt)
     {
         if (string.IsNullOrWhiteSpace(jwt))
@@ -18,15 +28,52 @@ internal static class JwtHelper
         try
         {
             var claims = ParsePayload(jwt);
-            return HasClaim(claims, "role", "Admins")
-                || HasClaim(claims, "groups", "Admins")
-                || HasClaim(claims,
-                    "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
-                    "Admins");
+            foreach (var group in AdminGroupNames)
+            {
+                if (HasClaim(claims, "role", group)
+                    || HasClaim(claims, "groups", group)
+                    || HasClaim(claims,
+                        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+                        group))
+                    return true;
+            }
+            return false;
         }
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>Retorna todos os grupos do JWT (para debug).</summary>
+    internal static IReadOnlyList<string> GetGroups(string? jwt)
+    {
+        if (string.IsNullOrWhiteSpace(jwt))
+            return [];
+
+        try
+        {
+            var claims = ParsePayload(jwt);
+            var groups = new List<string>();
+
+            foreach (var claimName in new[] { "role", "groups",
+                "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" })
+            {
+                if (!claims.TryGetProperty(claimName, out var prop)) continue;
+
+                if (prop.ValueKind == JsonValueKind.String)
+                    groups.Add($"{claimName}={prop.GetString()}");
+                else if (prop.ValueKind == JsonValueKind.Array)
+                    foreach (var item in prop.EnumerateArray())
+                        if (item.ValueKind == JsonValueKind.String)
+                            groups.Add($"{claimName}={item.GetString()}");
+            }
+
+            return groups;
+        }
+        catch
+        {
+            return [];
         }
     }
 

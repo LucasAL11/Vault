@@ -25,7 +25,9 @@ public class VaultConfiguration : IEntityTypeConfiguration<Domain.vault.Vault>
         builder.Property(x => x.RequireMultiFactorAuthentication).IsRequired();
         builder.Property(x => x.AllowMultiFactorAuthentication).IsRequired();
 
-        builder.Property(x => x.RowVersion).IsRowVersion();
+        builder.Property(x => x.RowVersion)
+            .IsConcurrencyToken()
+            .ValueGeneratedNever();
 
         builder.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
         builder.HasIndex(x => new { x.TenantId, x.Slug }).IsUnique();
