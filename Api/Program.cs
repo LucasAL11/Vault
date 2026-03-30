@@ -7,6 +7,7 @@ using Api.Endpoints.Vault.Secret;
 using Api.Security;
 using Application;
 using Application.Vault.Secrets;
+using Api.Endpoints.Operations;
 using Domain.KillSwitch;
 using Infrastructure;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -27,6 +28,7 @@ public partial class Program
             => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
 
         builder.Services.Configure<KillSwitchOptions>(builder.Configuration.GetSection("KillSwitch"));
+        builder.Services.Configure<IntegrityAttestationOptions>(builder.Configuration.GetSection("IntegrityAttestation"));
         builder.Services.AddOptions<AuthChallengeOptions>()
             .Bind(builder.Configuration.GetSection("AuthChallenge"))
             .Validate(
