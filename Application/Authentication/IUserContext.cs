@@ -9,4 +9,6 @@ public interface IUserContext
     List<string> IsInGroup  { get; }
     bool IsSameDomain(string userDomain);
     bool IsUserActive(string commandUsername);
+    bool ValidateCredentials(string username, string password);
+    IReadOnlySet<UserGroup> GetGroupsForUser(string username);
 }

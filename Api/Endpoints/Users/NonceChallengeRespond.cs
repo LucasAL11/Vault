@@ -12,7 +12,15 @@ public sealed class NonceChallengeRespond : IEndpoint
 {
     private const string DummyClientId = "__challenge-invalid-client__";
     private const string DummySubject = "__challenge-invalid-subject__";
+    private const int MaxClientIdLength = 80;
+    private const int MaxUserNameLength = 128;
+    private const int MaxDomainLength = 128;
+    private const int MaxNonceEncodedLength = 128;
+    private const int MaxSignatureEncodedLength = 128;
+    private const int ExpectedNonceByteLength = 32;
+    private const int ExpectedSignatureByteLength = 32;
     private static readonly byte[] DummyNonceBytes = new byte[32];
+    private static readonly string EphemeralFallbackSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
     private sealed record Request(
         string ClientId,
@@ -45,31 +53,66 @@ public sealed class NonceChallengeRespond : IEndpoint
                 return Results.BadRequest(new { message = "clientId, username, domain, nonce and signature are required." });
             }
 
-            var hasClientSecret = TryGetClientSecret(request.ClientId, options, out var configuredClientSecret);
+            if (!InputValidation.TryNormalizeAsciiToken(request.ClientId, minLength: 1, maxLength: MaxClientIdLength, allowedSymbols: "._:-", out var normalizedClientId))
+            {
+                return Results.BadRequest(new { message = "clientId is invalid." });
+            }
+
+            if (!InputValidation.TryNormalizeAsciiToken(request.Username, minLength: 1, maxLength: MaxUserNameLength, allowedSymbols: "._-@", out var normalizedUsername))
+            {
+                return Results.BadRequest(new { message = "username is invalid." });
+            }
+
+            if (!InputValidation.TryNormalizeAsciiToken(request.Domain, minLength: 1, maxLength: MaxDomainLength, allowedSymbols: "._-", out var normalizedDomain))
+            {
+                return Results.BadRequest(new { message = "domain is invalid." });
+            }
+
+            if (request.IssuedAtUtc == default)
+            {
+                return Results.BadRequest(new { message = "issuedAtUtc is required." });
+            }
+
+            var hasClientSecret = TryGetClientSecret(normalizedClientId, options, out var configuredClientSecret);
             var effectiveClientSecret = hasClientSecret
                 ? configuredClientSecret
                 : ResolveFallbackSecret(options);
-            var nonceParsed = TryFromBase64Url(request.Nonce, out var nonceBytes);
+
+            var nonceParsed = InputValidation.TryDecodeBase64Url(
+                request.Nonce,
+                minByteLength: ExpectedNonceByteLength,
+                maxByteLength: ExpectedNonceByteLength,
+                maxEncodedLength: MaxNonceEncodedLength,
+                out var normalizedNonce,
+                out var nonceBytes);
             var effectiveNonceBytes = nonceParsed ? nonceBytes : DummyNonceBytes;
 
             var signaturePayload = BuildSignedPayload(
-                request.ClientId,
-                request.Username,
-                request.Domain,
-                request.Nonce,
+                normalizedClientId,
+                normalizedUsername,
+                normalizedDomain,
+                normalizedNonce,
                 request.IssuedAtUtc);
 
-            var signatureValid = IsSignatureValid(signaturePayload, request.Signature, effectiveClientSecret);
+            var signatureParsed = InputValidation.TryDecodeBase64Url(
+                request.Signature,
+                minByteLength: ExpectedSignatureByteLength,
+                maxByteLength: ExpectedSignatureByteLength,
+                maxEncodedLength: MaxSignatureEncodedLength,
+                out _,
+                out var providedSignature);
+
+            var signatureValid = IsSignatureValid(signaturePayload, providedSignature, signatureParsed, effectiveClientSecret);
             var withinSkewWindow = IsWithinSkewWindow(
                 request.IssuedAtUtc,
                 options,
                 nonceStoreOptions.Value);
             var nonceAudience = NonceChallengeAudiences.AuthChallengeRespond;
-            var subject = NonceChallengeScope.BuildCredentialSubject(request.Domain, request.Username);
+            var subject = NonceChallengeScope.BuildCredentialSubject(normalizedDomain, normalizedUsername);
 
             var shouldConsumeIssuedNonce = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow;
             var consumeScope = shouldConsumeIssuedNonce
-                ? NonceChallengeScope.Build(httpContext, request.ClientId, subject, nonceAudience)
+                ? NonceChallengeScope.Build(httpContext, normalizedClientId, subject, nonceAudience)
                 : NonceChallengeScope.Build(httpContext, DummyClientId, DummySubject, nonceAudience);
             var consumeNonceBytes = shouldConsumeIssuedNonce ? effectiveNonceBytes : DummyNonceBytes;
             var consumed = await nonceStore.TryConsumeAsync(consumeScope, consumeNonceBytes, cancellationToken);
@@ -80,7 +123,7 @@ public sealed class NonceChallengeRespond : IEndpoint
                 return Results.Unauthorized();
             }
 
-            var loginResult = Domain.Users.Login.Create(request.Username);
+            var loginResult = Domain.Users.Login.Create(normalizedUsername);
             if (loginResult.IsFailure)
             {
                 return Results.BadRequest(new { message = "username is invalid." });
@@ -91,8 +134,8 @@ public sealed class NonceChallengeRespond : IEndpoint
             {
                 accessToken = token,
                 tokenType = "Bearer",
-                username = request.Username,
-                domain = request.Domain
+                username = normalizedUsername,
+                domain = normalizedDomain
             });
         }).AllowAnonymous().RequireRateLimiting("AuthChallengeRespondPolicy");
     }
@@ -120,17 +163,20 @@ public sealed class NonceChallengeRespond : IEndpoint
             }
         }
 
-        return "auth-challenge-fallback-secret";
+        return EphemeralFallbackSecret;
     }
 
-    private static bool IsSignatureValid(string payload, string signatureBase64Url, string clientSecret)
+    private static bool IsSignatureValid(
+        string payload,
+        ReadOnlySpan<byte> providedSignature,
+        bool signatureParsed,
+        string clientSecret)
     {
         var secretBytes = Encoding.UTF8.GetBytes(clientSecret);
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         using var hmac = new HMACSHA256(secretBytes);
         var expectedSignature = hmac.ComputeHash(payloadBytes);
 
-        var signatureParsed = TryFromBase64Url(signatureBase64Url, out var providedSignature);
         var signaturesMatch = FixedTimeEqualsWithExpectedLength(providedSignature, expectedSignature, expectedSignature.Length);
         return signatureParsed & signaturesMatch;
     }
@@ -174,34 +220,6 @@ public sealed class NonceChallengeRespond : IEndpoint
         var latestAccepted = issuedAtUtc.AddSeconds(nonceTtlSeconds + skewSeconds);
 
         return now >= earliestAccepted && now <= latestAccepted;
-    }
-
-    private static bool TryFromBase64Url(string input, out byte[] bytes)
-    {
-        bytes = Array.Empty<byte>();
-
-        var normalized = input.Replace('-', '+').Replace('_', '/');
-        switch (normalized.Length % 4)
-        {
-            case 2:
-                normalized += "==";
-                break;
-            case 3:
-                normalized += "=";
-                break;
-            case 1:
-                return false;
-        }
-
-        try
-        {
-            bytes = Convert.FromBase64String(normalized);
-            return bytes.Length > 0;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
     }
 
     private static void ApplyNoStoreHeaders(HttpResponse response)

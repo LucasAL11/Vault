@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api.IntegrationTests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infrastructure.Benchmarks", "tests\Infrastructure.Benchmarks\Infrastructure.Benchmarks.csproj", "{50307BB1-889E-48B8-A024-8A79A16E459B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VaultClient.Desktop", "VaultClient.Desktop\VaultClient.Desktop.csproj", "{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -126,6 +128,18 @@ Global
 		{50307BB1-889E-48B8-A024-8A79A16E459B}.Release|x64.Build.0 = Release|Any CPU
 		{50307BB1-889E-48B8-A024-8A79A16E459B}.Release|x86.ActiveCfg = Release|Any CPU
 		{50307BB1-889E-48B8-A024-8A79A16E459B}.Release|x86.Build.0 = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|x64.Build.0 = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Debug|x86.Build.0 = Debug|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|x64.ActiveCfg = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|x64.Build.0 = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|x86.ActiveCfg = Release|Any CPU
+		{22ACC78B-01A8-4D58-AD4A-E3F33E91F07D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

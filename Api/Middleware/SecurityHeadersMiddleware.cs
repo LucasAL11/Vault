@@ -14,18 +14,36 @@ public sealed class SecurityHeadersMiddleware : IMiddleware
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        var headers = context.Response.Headers;
-        headers["X-Content-Type-Options"] = "nosniff";
-        headers["X-Frame-Options"] = "DENY";
-        headers["Referrer-Policy"] = _options.ReferrerPolicy;
-        headers["Permissions-Policy"] = _options.PermissionsPolicy;
-        headers["Content-Security-Policy"] = _options.ContentSecurityPolicy;
-        headers["Cross-Origin-Opener-Policy"] = "same-origin";
+        context.Response.OnStarting(() =>
+        {
+            var headers = context.Response.Headers;
+
+            SetHeaderIfMissing(headers, "X-Content-Type-Options", "nosniff");
+            SetHeaderIfMissing(headers, "X-Frame-Options", _options.XFrameOptions);
+            SetHeaderIfMissing(headers, "Referrer-Policy", _options.ReferrerPolicy);
+            SetHeaderIfMissing(headers, "Permissions-Policy", _options.PermissionsPolicy);
+            SetHeaderIfMissing(headers, "Content-Security-Policy", _options.ContentSecurityPolicy);
+            SetHeaderIfMissing(headers, "Cross-Origin-Opener-Policy", _options.CrossOriginOpenerPolicy);
+            SetHeaderIfMissing(headers, "Cross-Origin-Resource-Policy", _options.CrossOriginResourcePolicy);
+            SetHeaderIfMissing(headers, "X-Permitted-Cross-Domain-Policies", _options.XPermittedCrossDomainPolicies);
+
+            return Task.CompletedTask;
+        });
 
         // Allow Chrome extensions and cross-origin API clients to fetch responses.
         // In production, restrict to "same-site" or specific origins.
         headers["Cross-Origin-Resource-Policy"] = "cross-origin";
 
         await next(context);
+    }
+
+    private static void SetHeaderIfMissing(IHeaderDictionary headers, string name, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || headers.ContainsKey(name))
+        {
+            return;
+        }
+
+        headers[name] = value;
     }
 }

@@ -4,7 +4,7 @@ namespace Shared;
 
 public class Result
 {
-    public Result(bool isSuccess, Error error)
+    protected Result(bool isSuccess, Error error)
     {
         if ((isSuccess && error != Error.None)
             || (!isSuccess && error == Error.None))
@@ -19,20 +19,24 @@ public class Result
     public bool IsSuccess { get; }
 
     public bool IsFailure => !IsSuccess;
-    public Error Error { get; set; }
+    public Error Error { get; private set; }
 
+    
+    /// <summary>
+    /// Combina múltiplos resultados. Retorna todos os erros agregados, não apenas o primeiro.
+    /// </summary>
     public static Result Combine(params Result[] results)
     {
-        foreach (var result in results)
-        {
-            if (result.IsFailure)
-                return Failure(result.Error);
-        }
-
-        return Success();
+        var errors = results
+            .Where(r => r.IsFailure)
+            .Select(r => r.Error)
+            .ToArray();
+ 
+        return errors.Length > 0
+            ? Failure(Error.Aggregate(errors))
+            : Success();
     }
     
-
     public static Result Success() => new(true, Error.None);
     
     public static Result<TValue> Success<TValue>(TValue value) =>

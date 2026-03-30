@@ -1,0 +1,24 @@
+using System.Windows;
+using System.Windows.Controls;
+using VaultClient.Desktop.ViewModels;
+
+namespace VaultClient.Desktop.Views;
+
+public partial class AdminView : UserControl
+{
+    public AdminView()
+    {
+        InitializeComponent();
+
+        CreateUserButton.Click += OnCreateUserClick;
+    }
+
+    private void OnCreateUserClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is AdminViewModel vm)
+        {
+            vm.CreateUserCommand.Execute(NewUserPasswordBox.Password);
+            NewUserPasswordBox.Clear();
+        }
+    }
+}

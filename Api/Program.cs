@@ -3,11 +3,15 @@ using System.Threading.RateLimiting;
 using Api.Extensions;
 using Api.Logging;
 using Api.Middleware;
+using Api.Endpoints.Vault.Secret;
 using Api.Security;
 using Application;
+using Application.Vault.Secrets;
+using Api.Endpoints.Operations;
 using Domain.KillSwitch;
 using Infrastructure;
 using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using System.Diagnostics;
@@ -24,17 +28,26 @@ public partial class Program
             => loggerConfiguration.ReadFrom.Configuration(context.Configuration));
 
         builder.Services.Configure<KillSwitchOptions>(builder.Configuration.GetSection("KillSwitch"));
-        builder.Services.Configure<AuthChallengeOptions>(builder.Configuration.GetSection("AuthChallenge"));
+        builder.Services.Configure<IntegrityAttestationOptions>(builder.Configuration.GetSection("IntegrityAttestation"));
+        builder.Services.AddOptions<AuthChallengeOptions>()
+            .Bind(builder.Configuration.GetSection("AuthChallenge"))
+            .Validate(
+                static options => options.ClientSecrets.Any(entry => !string.IsNullOrWhiteSpace(entry.Value)),
+                "AuthChallenge:ClientSecrets must include at least one non-empty secret value.")
+            .ValidateOnStart();
+        
+        builder.Services.Configure<SecretVersionRetentionOptions>(builder.Configuration.GetSection("SecretVersionRetention"));
         builder.Services.Configure<CorsPolicyOptions>(builder.Configuration.GetSection("Cors"));
         builder.Services.Configure<SecurityHeadersOptions>(builder.Configuration.GetSection("SecurityHeaders"));
         builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
         builder.Services.AddSingleton<KillSwitchState>();
         builder.Services.AddScoped<KillSwitchMiddleware>();
         builder.Services.AddTransient<SecurityHeadersMiddleware>();
+        builder.Services.AddScoped<ISecretAccessAuthorizer, SecretAccessAuthorizer>();
         builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, StructuredAuthorizationResultHandler>();
 
         builder.Services.AddControllers();
-        var corsOptions = builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+        var corsOptions = (builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions()).GetNormalized();
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("ApiCors", policy =>
@@ -199,5 +212,63 @@ public partial class Program
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             AutoReplenishment = true
         };
+    }
+
+    private static void ConfigureCorsPolicy(CorsPolicyBuilder policy, CorsPolicyOptions options)
+    {
+        if (options.AllowedOrigins.Length == 0)
+        {
+            return;
+        }
+
+        var allowAnyOrigin = options.AllowedOrigins.Length == 1 &&
+                             string.Equals(options.AllowedOrigins[0], "*", StringComparison.Ordinal);
+
+        if (allowAnyOrigin && options.AllowCredentials)
+        {
+            throw new InvalidOperationException("Cors configuration is invalid: AllowCredentials cannot be true when AllowedOrigins contains '*'.");
+        }
+
+        if (allowAnyOrigin)
+        {
+            policy.AllowAnyOrigin();
+        }
+        else
+        {
+            policy.WithOrigins(options.AllowedOrigins);
+        }
+
+        if (options.AllowedMethods.Length == 1 && string.Equals(options.AllowedMethods[0], "*", StringComparison.Ordinal))
+        {
+            policy.AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithMethods(options.AllowedMethods);
+        }
+
+        if (options.AllowedHeaders.Length == 1 && string.Equals(options.AllowedHeaders[0], "*", StringComparison.Ordinal))
+        {
+            policy.AllowAnyHeader();
+        }
+        else
+        {
+            policy.WithHeaders(options.AllowedHeaders);
+        }
+
+        if (options.ExposedHeaders.Length > 0)
+        {
+            policy.WithExposedHeaders(options.ExposedHeaders);
+        }
+
+        if (options.AllowCredentials)
+        {
+            policy.AllowCredentials();
+        }
+
+        if (options.PreflightMaxAgeSeconds > 0)
+        {
+            policy.SetPreflightMaxAge(TimeSpan.FromSeconds(options.PreflightMaxAgeSeconds));
+        }
     }
 }

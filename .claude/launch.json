@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Vault API (http)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "Api/Api.csproj", "--launch-profile", "http"],
+      "port": 5065
+    },
+    {
+      "name": "Vault API (https)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "Api/Api.csproj", "--launch-profile", "https"],
+      "port": 7205
+    }
+  ]
+}
