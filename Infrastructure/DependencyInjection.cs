@@ -43,7 +43,7 @@ public static class DependencyInjection
 
         services.AddKeyProvider(configuration);
         services.AddNonceStore(configuration);
-        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+        services.AddSingleton<ISecretProtector, ChaCha20SecretProtector>();
 
         return services;
     }

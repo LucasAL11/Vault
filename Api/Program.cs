@@ -43,6 +43,11 @@ public partial class Program
                 {
                     policy.WithOrigins(corsOptions.AllowedOrigins);
                 }
+                else if (builder.Environment.IsDevelopment())
+                {
+                    // In development, allow any origin (Chrome extensions, localhost, etc.)
+                    policy.AllowAnyOrigin();
+                }
 
                 policy.WithMethods(corsOptions.AllowedMethods);
                 policy.WithHeaders(corsOptions.AllowedHeaders);

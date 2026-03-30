@@ -1,0 +1,118 @@
+/* ============================================================
+   Vault Password Manager - Content Script Styles
+   Injected into every page for the autofill UI
+   ============================================================ */
+
+/* --- Badge on password fields --- */
+
+.vault-autofill-badge {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  background: transparent;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.vault-autofill-badge:hover {
+  background: rgba(79, 109, 245, 0.15);
+}
+
+/* --- Inline dropdown menu --- */
+
+.vault-inline-menu {
+  background: #1a1d27;
+  border: 1px solid #2d3039;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #e1e4e8;
+  overflow: hidden;
+  max-height: 320px;
+}
+
+.vault-inline-header {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  border-bottom: 1px solid #2d3039;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vault-inline-body {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.vault-inline-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vault-inline-item:hover {
+  background: #252830;
+}
+
+.vault-inline-match {
+  color: #4f6df5;
+  font-weight: 500;
+}
+
+.vault-inline-back {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 1px solid #2d3039;
+}
+
+.vault-inline-back:hover {
+  color: #e1e4e8;
+  background: #252830;
+}
+
+.vault-inline-loading {
+  padding: 20px 14px;
+  text-align: center;
+  color: #4f6df5;
+  font-size: 12px;
+}
+
+.vault-inline-empty {
+  padding: 20px 14px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.vault-inline-error {
+  padding: 12px 14px;
+  color: #f87171;
+  font-size: 12px;
+}
+
+/* Scrollbar */
+.vault-inline-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.vault-inline-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.vault-inline-body::-webkit-scrollbar-thumb {
+  background: #2d3039;
+  border-radius: 3px;
+}

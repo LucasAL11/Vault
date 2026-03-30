@@ -4,6 +4,7 @@ using Application.Abstractions.Security;
 using Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Infrastructure.Tests;
@@ -30,6 +31,32 @@ public class SecretProtectorTests
         Assert.NotEqual(plaintext, Encoding.UTF8.GetString(protectedSecret.CipherText));
 
         var unprotected = await protector.UnprotectAsync(protectedSecret);
+        Assert.Equal(plaintext, unprotected);
+    }
+
+    [Fact]
+    public async Task ProtectAndUnprotect_WithAadContext_ShouldRoundTrip()
+    {
+        using var serviceProvider = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["KeyProvider:Mode"] = "Dev",
+            ["KeyProvider:Dev:KeyId"] = "dev-test-key-v1",
+            ["KeyProvider:Dev:Base64Key"] = ToBase64("01234567890123456789012345678901")
+        });
+
+        var protector = serviceProvider.GetRequiredService<ISecretProtector>();
+        var context = new SecretProtectionContext(
+            VaultId: Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            SecretId: Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            Version: 1);
+
+        const string plaintext = "ChaCha20-Poly1305-Secret!";
+        var protectedSecret = await protector.ProtectAsync(plaintext, context);
+
+        Assert.NotEmpty(protectedSecret.CipherText);
+        Assert.Equal(12, protectedSecret.Nonce.Length);
+
+        var unprotected = await protector.UnprotectAsync(protectedSecret, context);
         Assert.Equal(plaintext, unprotected);
     }
 
@@ -115,6 +142,24 @@ public class SecretProtectorTests
     }
 
     [Fact]
+    public async Task Unprotect_WithInvalidKeySize_ShouldThrow()
+    {
+        using var serviceProvider = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["KeyProvider:Mode"] = "Dev",
+            ["KeyProvider:Dev:KeyId"] = "dev-test-key-v1",
+            ["KeyProvider:Dev:Base64Key"] = Convert.ToBase64String(new byte[16]) // 16 bytes, not 32
+        });
+
+        var protector = serviceProvider.GetRequiredService<ISecretProtector>();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await protector.ProtectAsync("test"));
+
+        Assert.Contains("256-bit", exception.Message);
+    }
+
+    [Fact]
     public async Task ProtectBeforeAndAfterRotation_WithProdKeyRing_ShouldDecryptBothVersions()
     {
         var originalKeyId = Environment.GetEnvironmentVariable("APP_KEY_ID");
@@ -182,6 +227,7 @@ public class SecretProtectorTests
             .Build();
 
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddInfrastructure(configuration);
         return services.BuildServiceProvider();
     }

@@ -22,6 +22,10 @@ public sealed class SecurityHeadersMiddleware : IMiddleware
         headers["Content-Security-Policy"] = _options.ContentSecurityPolicy;
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
 
+        // Allow Chrome extensions and cross-origin API clients to fetch responses.
+        // In production, restrict to "same-site" or specific origins.
+        headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+
         await next(context);
     }
 }

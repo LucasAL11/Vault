@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Vault Password Manager",
+  "version": "1.0.0",
+  "description": "Gerenciador corporativo de senhas integrado com Active Directory",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content/autofill.js"],
+      "css": ["content/autofill.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "autofill": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L"
+      },
+      "description": "Preencher senha automaticamente"
+    }
+  }
+}

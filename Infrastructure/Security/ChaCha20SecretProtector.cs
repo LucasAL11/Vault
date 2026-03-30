@@ -4,7 +4,13 @@ using Application.Abstractions.Security;
 
 namespace Infrastructure.Security;
 
-internal sealed class AesGcmSecretProtector(IKeyProvider keyProvider, INonceStore nonceStore) : ISecretProtector
+/// <summary>
+/// Protects secrets using ChaCha20-Poly1305 AEAD.
+/// Key must be exactly 32 bytes (256-bit).
+/// Nonce is 12 bytes, tag is 16 bytes — same geometry as AES-GCM,
+/// making the two implementations interchangeable at the storage layer.
+/// </summary>
+internal sealed class ChaCha20SecretProtector(IKeyProvider keyProvider, INonceStore nonceStore) : ISecretProtector
 {
     private const int NonceLength = 12;
     private const int TagLength = 16;
@@ -21,15 +27,18 @@ internal sealed class AesGcmSecretProtector(IKeyProvider keyProvider, INonceStor
         }
 
         var key = await keyProvider.GetCurrentKeyAsync(cancellationToken);
+        ValidateKeyLength(key.KeyBytes);
+
         var nonce = await GenerateUniqueNonceAsync(key.KeyId, context, cancellationToken);
         var plainBytes = Encoding.UTF8.GetBytes(plaintext);
         var cipher = new byte[plainBytes.Length];
         var tag = new byte[TagLength];
         var aad = BuildAad(context);
 
-        using var aes = new AesGcm(key.KeyBytes, TagLength);
-        aes.Encrypt(nonce, plainBytes, cipher, tag, aad);
+        using var chacha = new ChaCha20Poly1305(key.KeyBytes);
+        chacha.Encrypt(nonce, plainBytes, cipher, tag, aad);
 
+        // Store ciphertext + tag together (same layout as AES-GCM protector)
         var combined = new byte[cipher.Length + tag.Length];
         Buffer.BlockCopy(cipher, 0, combined, 0, cipher.Length);
         Buffer.BlockCopy(tag, 0, combined, cipher.Length, tag.Length);
@@ -53,6 +62,8 @@ internal sealed class AesGcmSecretProtector(IKeyProvider keyProvider, INonceStor
             throw new InvalidOperationException($"Key '{protectedSecret.KeyId}' was not found.");
         }
 
+        ValidateKeyLength(key.KeyBytes);
+
         var cipherLength = protectedSecret.CipherText.Length - TagLength;
         var cipher = new byte[cipherLength];
         var tag = new byte[TagLength];
@@ -63,10 +74,19 @@ internal sealed class AesGcmSecretProtector(IKeyProvider keyProvider, INonceStor
         var plaintext = new byte[cipher.Length];
         var aad = BuildAad(context);
 
-        using var aes = new AesGcm(key.KeyBytes, TagLength);
-        aes.Decrypt(protectedSecret.Nonce, cipher, tag, plaintext, aad);
+        using var chacha = new ChaCha20Poly1305(key.KeyBytes);
+        chacha.Decrypt(protectedSecret.Nonce, cipher, tag, plaintext, aad);
 
         return Encoding.UTF8.GetString(plaintext);
+    }
+
+    private static void ValidateKeyLength(byte[] keyBytes)
+    {
+        if (keyBytes.Length != 32)
+        {
+            throw new InvalidOperationException(
+                $"ChaCha20-Poly1305 requires a 256-bit (32-byte) key. Got {keyBytes.Length} bytes.");
+        }
     }
 
     private static byte[]? BuildAad(SecretProtectionContext? context)
