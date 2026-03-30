@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+  <title>Vault</title>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="view-login" class="view">
+    <div class="header">
+      <div class="logo">&#128272;</div>
+      <h1>Vault</h1>
+      <p class="subtitle">Gerenciador Corporativo de Senhas</p>
+    </div>
+    <form id="form-login">
+      <div class="field">
+        <label for="login-domain">Dominio AD</label>
+        <input id="login-domain" type="text" placeholder="EMPRESA">
+      </div>
+      <div class="field">
+        <label for="login-user">Usuario</label>
+        <input id="login-user" type="text" placeholder="joao.silva" required>
+      </div>
+      <div class="field">
+        <label for="login-pass">Senha</label>
+        <input id="login-pass" type="password" required>
+      </div>
+      <div id="login-error" class="error hidden"></div>
+      <button type="submit" id="btn-login" class="btn-primary">Entrar</button>
+    </form>
+    <button id="btn-settings" class="btn-link">Configuracoes</button>
+  </div>
+
+  <!-- VAULT LIST -->
+  <div id="view-vaults" class="view hidden">
+    <div class="toolbar">
+      <h2>Cofres</h2>
+      <div class="toolbar-right">
+        <span id="logged-user" class="user-badge"></span>
+        <button id="btn-logout" class="btn-icon" title="Sair">&#x2716;</button>
+      </div>
+    </div>
+    <div id="vault-list" class="list"></div>
+    <div id="vault-empty" class="empty-state hidden">
+      Nenhum cofre disponivel para seu usuario.
+    </div>
+    <div id="vault-loading" class="loading hidden">Carregando cofres...</div>
+  </div>
+
+  <!-- SECRET LIST -->
+  <div id="view-secrets" class="view hidden">
+    <div class="toolbar">
+      <button id="btn-back-vaults" class="btn-icon" title="Voltar">&#x2190;</button>
+      <h2 id="vault-name">Segredos</h2>
+    </div>
+    <input id="secret-search" type="text" class="search-input" placeholder="Buscar segredo...">
+    <div id="secret-list" class="list"></div>
+    <div id="secret-empty" class="empty-state hidden">
+      Nenhum segredo neste cofre.
+    </div>
+    <div id="secret-loading" class="loading hidden">Carregando segredos...</div>
+  </div>
+
+  <!-- AUTOFILL CONFIRM -->
+  <div id="view-autofill" class="view hidden">
+    <div class="toolbar">
+      <button id="btn-back-secrets" class="btn-icon" title="Voltar">&#x2190;</button>
+      <h2>Preencher Senha</h2>
+    </div>
+    <div class="autofill-card">
+      <p class="autofill-name" id="autofill-secret-name"></p>
+      <div class="field">
+        <label for="autofill-reason">Motivo do acesso</label>
+        <input id="autofill-reason" type="text" placeholder="Ex: Manutencao de rotina" required>
+      </div>
+      <div class="field">
+        <label for="autofill-ticket">Ticket (opcional)</label>
+        <input id="autofill-ticket" type="text" placeholder="Ex: INC-1234">
+      </div>
+      <div id="autofill-error" class="error hidden"></div>
+      <div class="btn-group">
+        <button id="btn-autofill" class="btn-primary">Preencher no Site</button>
+        <button id="btn-copy" class="btn-secondary">Copiar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

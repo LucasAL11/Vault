@@ -52,7 +52,28 @@ public partial class Program
         {
             options.AddPolicy("ApiCors", policy =>
             {
-                ConfigureCorsPolicy(policy, corsOptions);
+                if (corsOptions.AllowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(corsOptions.AllowedOrigins);
+                }
+                else if (builder.Environment.IsDevelopment())
+                {
+                    // In development, allow any origin (Chrome extensions, localhost, etc.)
+                    policy.AllowAnyOrigin();
+                }
+
+                policy.WithMethods(corsOptions.AllowedMethods);
+                policy.WithHeaders(corsOptions.AllowedHeaders);
+
+                if (corsOptions.ExposedHeaders.Length > 0)
+                {
+                    policy.WithExposedHeaders(corsOptions.ExposedHeaders);
+                }
+
+                if (corsOptions.AllowCredentials && corsOptions.AllowedOrigins.Length > 0)
+                {
+                    policy.AllowCredentials();
+                }
             });
         });
 

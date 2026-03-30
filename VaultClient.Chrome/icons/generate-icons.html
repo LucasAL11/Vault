@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate Vault Icons</title></head>
+<body>
+<p>Abra este arquivo no Chrome e clique nos botoes para baixar os icones PNG.</p>
+<canvas id="c" style="display:none"></canvas>
+<button onclick="gen(16)">icon16.png</button>
+<button onclick="gen(48)">icon48.png</button>
+<button onclick="gen(128)">icon128.png</button>
+<script>
+function gen(size) {
+  const c = document.getElementById('c');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+
+  // Background
+  const g = ctx.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, '#4f6df5');
+  g.addColorStop(1, '#3d5bd9');
+  ctx.fillStyle = g;
+
+  const r = size * 0.18;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(size - r, 0);
+  ctx.quadraticCurveTo(size, 0, size, r);
+  ctx.lineTo(size, size - r);
+  ctx.quadraticCurveTo(size, size, size - r, size);
+  ctx.lineTo(r, size);
+  ctx.quadraticCurveTo(0, size, 0, size - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.fill();
+
+  // Lock icon
+  ctx.strokeStyle = '#fff';
+  ctx.fillStyle = '#fff';
+  ctx.lineWidth = size * 0.06;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const cx = size / 2;
+  const cy = size * 0.55;
+  const bw = size * 0.4;
+  const bh = size * 0.3;
+  const br = size * 0.05;
+
+  // Lock body
+  ctx.beginPath();
+  ctx.moveTo(cx - bw/2 + br, cy - bh/2);
+  ctx.lineTo(cx + bw/2 - br, cy - bh/2);
+  ctx.quadraticCurveTo(cx + bw/2, cy - bh/2, cx + bw/2, cy - bh/2 + br);
+  ctx.lineTo(cx + bw/2, cy + bh/2 - br);
+  ctx.quadraticCurveTo(cx + bw/2, cy + bh/2, cx + bw/2 - br, cy + bh/2);
+  ctx.lineTo(cx - bw/2 + br, cy + bh/2);
+  ctx.quadraticCurveTo(cx - bw/2, cy + bh/2, cx - bw/2, cy + bh/2 - br);
+  ctx.lineTo(cx - bw/2, cy - bh/2 + br);
+  ctx.quadraticCurveTo(cx - bw/2, cy - bh/2, cx - bw/2 + br, cy - bh/2);
+  ctx.fill();
+
+  // Lock shackle
+  const sw = size * 0.24;
+  const sh = size * 0.2;
+  ctx.beginPath();
+  ctx.arc(cx, cy - bh/2, sw/2, Math.PI, 0, false);
+  ctx.stroke();
+
+  // Keyhole
+  ctx.fillStyle = '#4f6df5';
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(cx - size * 0.02, cy, size * 0.04, size * 0.08);
+
+  // Download
+  const a = document.createElement('a');
+  a.download = 'icon' + size + '.png';
+  a.href = c.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Vault - Configuracoes</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+    .container {
+      width: 100%;
+      max-width: 480px;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #9ca3af;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #2d3039;
+      border-radius: 6px;
+      background: #1a1d27;
+      color: #e1e4e8;
+      font-size: 13px;
+      outline: none;
+    }
+    .field input:focus { border-color: #4f6df5; }
+    .field .hint {
+      font-size: 11px;
+      color: #4b5563;
+      margin-top: 4px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #4f6df5;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #3d5bd9; }
+    .toast {
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+    .toast.success {
+      display: block;
+      background: #1a3c34;
+      border: 1px solid #2ecc71;
+      color: #2ecc71;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>&#128272; Vault - Configuracoes</h1>
+    <p class="subtitle">Configure a conexao com o servidor Vault da sua organizacao</p>
+
+    <div class="field">
+      <label>URL do Servidor</label>
+      <input id="serverUrl" type="url" placeholder="http://localhost:5065">
+      <div class="hint">Endereco do servidor ASP.NET Core com a API de segredos</div>
+    </div>
+
+    <div class="field">
+      <label>Client ID</label>
+      <input id="clientId" type="text" placeholder="chrome-extension">
+      <div class="hint">Identificador desta extensao registrado no servidor</div>
+    </div>
+
+    <div class="field">
+      <label>Client Secret</label>
+      <input id="clientSecret" type="password" placeholder="Chave secreta do cliente">
+      <div class="hint">Usado para gerar a prova HMAC ao solicitar segredos</div>
+    </div>
+
+    <div class="field">
+      <label>Dominio AD (padrao)</label>
+      <input id="defaultDomain" type="text" placeholder="EMPRESA">
+      <div class="hint">Dominio padrao para login via Active Directory</div>
+    </div>
+
+    <button class="btn" id="btn-save">Salvar Configuracoes</button>
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    // Load
+    chrome.storage.local.get('config', ({ config }) => {
+      if (!config) return;
+      $('#serverUrl').value = config.serverUrl || '';
+      $('#clientId').value = config.clientId || '';
+      $('#clientSecret').value = config.clientSecret || '';
+      $('#defaultDomain').value = config.defaultDomain || '';
+    });
+
+    // Save
+    $('#btn-save').addEventListener('click', () => {
+      const config = {
+        serverUrl: $('#serverUrl').value.trim().replace(/\/+$/, ''),
+        clientId: $('#clientId').value.trim() || 'chrome-extension',
+        clientSecret: $('#clientSecret').value,
+        defaultDomain: $('#defaultDomain').value.trim(),
+      };
+
+      chrome.storage.local.set({ config }, () => {
+        const toast = $('#toast');
+        toast.className = 'toast success';
+        toast.textContent = 'Configuracoes salvas com sucesso!';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+      });
+    });
+  </script>
+</body>
+</html>
