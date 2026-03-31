@@ -50,6 +50,10 @@ public partial class App : Application
 
         _services = services.BuildServiceProvider();
 
+        // Load configurable admin groups
+        var adminGroups = config.GetSection("Authorization:AdminGroups").Get<string[]>();
+        JwtHelper.ConfigureAdminGroups(adminGroups);
+
         var api = _services.GetRequiredService<VaultApiClient>();
         api.RestoreSession();
 

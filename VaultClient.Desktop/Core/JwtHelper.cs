@@ -4,22 +4,33 @@ using System.Text.Json;
 namespace VaultClient.Desktop.Core;
 
 /// <summary>
-/// Extrai claims do JWT localmente (sem validar assinatura — validação é no servidor).
-/// Usado apenas para mostrar/esconder UI com base nos grupos do usuário.
+/// Extrai claims do JWT localmente (sem validar assinatura — validacao e no servidor).
+/// Usado apenas para mostrar/esconder UI com base nos grupos do usuario.
 /// </summary>
 internal static class JwtHelper
 {
-    private static readonly string[] AdminGroupNames =
+    /// <summary>Default admin groups — overridden by appsettings or server config.</summary>
+    private static string[] _adminGroupNames =
     [
         "Admins",
         "Admin",
         "Administrators",
         "Domain Admins",
         "Administradores",
-        "Admins do Domínio"
+        "Administradores de Chaves"
     ];
 
-    /// <summary>Verifica se o JWT contém um grupo de admin nas claims role ou groups.</summary>
+    /// <summary>
+    /// Configures the admin group names from external config (appsettings or server).
+    /// Call this at startup or when config changes.
+    /// </summary>
+    internal static void ConfigureAdminGroups(string[]? groups)
+    {
+        if (groups is { Length: > 0 })
+            _adminGroupNames = groups;
+    }
+
+    /// <summary>Verifica se o JWT contem um grupo de admin nas claims role ou groups.</summary>
     internal static bool IsAdmin(string? jwt)
     {
         if (string.IsNullOrWhiteSpace(jwt))
@@ -28,7 +39,7 @@ internal static class JwtHelper
         try
         {
             var claims = ParsePayload(jwt);
-            foreach (var group in AdminGroupNames)
+            foreach (var group in _adminGroupNames)
             {
                 if (HasClaim(claims, "role", group)
                     || HasClaim(claims, "groups", group)
@@ -105,7 +116,7 @@ internal static class JwtHelper
     {
         var parts = jwt.Split('.');
         if (parts.Length < 2)
-            throw new FormatException("JWT inválido.");
+            throw new FormatException("JWT invalido.");
 
         var payload = parts[1];
         // Fix base64url padding

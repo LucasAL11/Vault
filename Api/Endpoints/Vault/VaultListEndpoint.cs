@@ -27,6 +27,6 @@ public class VaultListEndpoint : IEndpoint
                 .ToListAsync();
 
             return Results.Ok(vaults);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

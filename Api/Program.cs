@@ -46,6 +46,8 @@ public partial class Program
         builder.Services.AddScoped<ISecretAccessAuthorizer, SecretAccessAuthorizer>();
         builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, StructuredAuthorizationResultHandler>();
 
+        builder.Services.Configure<AuthorizationPolicyOptions>(builder.Configuration.GetSection("Authorization"));
+
         builder.Services.AddControllers();
         var corsOptions = (builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions()).GetNormalized();
         builder.Services.AddCors(options =>

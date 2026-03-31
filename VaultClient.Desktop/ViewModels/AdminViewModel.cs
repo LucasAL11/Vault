@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Configuration;
@@ -20,40 +21,63 @@ public sealed partial class AdminViewModel : ObservableObject
 
     [ObservableProperty] private bool   _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
+    [ObservableProperty] private string _statusType    = "info"; // "info", "success", "error"
 
-    // ── Aba ativa ──────────────────────────────────────────────────────────
-    [ObservableProperty] private int _selectedTab; // 0=Vaults, 1=Secrets, 2=AD Maps, 3=Users
+    // ── Layout state ──────────────────────────────────────────────────────
+    [ObservableProperty] private int _selectedTab; // 0=Secrets, 1=AD Maps, 2=Users
+
+    /// <summary>The currently selected vault in the sidebar.</summary>
+    [ObservableProperty] private VaultItem? _selectedVault;
+
+    /// <summary>Controls whether the create-vault form is shown instead of tabs.</summary>
+    [ObservableProperty] private bool _showCreateVaultForm;
+
+    /// <summary>Controls whether the create-vault form is in expanded/editing mode.</summary>
+    [ObservableProperty] private bool _isEditingVault;
 
     // ── Formulários ────────────────────────────────────────────────────────
 
-    // Vault
+    // Vault creation
     [ObservableProperty] private string _newVaultName        = string.Empty;
     [ObservableProperty] private string _newVaultSlug        = string.Empty;
     [ObservableProperty] private string _newVaultDescription = string.Empty;
     [ObservableProperty] private string _newVaultTenantId    = string.Empty;
     [ObservableProperty] private string _newVaultGroup       = string.Empty;
     [ObservableProperty] private string _newVaultEnvironment = "Production";
+    private bool _slugManuallyEdited;
 
-    // Secret
-    [ObservableProperty] private string _newSecretName  = string.Empty;
-    [ObservableProperty] private string _newSecretValue = string.Empty;
+    // Secret creation
+    [ObservableProperty] private string _newSecretName        = string.Empty;
+    [ObservableProperty] private string _newSecretValue       = string.Empty;
     [ObservableProperty] private string _newSecretContentType = string.Empty;
 
-    // AD Map
-    [ObservableProperty] private string _newAdMapGroupId    = string.Empty;
+    // AD Map creation
+    [ObservableProperty] private string _newAdMapGroupId   = string.Empty;
     [ObservableProperty] private string _newAdMapPermission = "Read";
 
-    // User
+    // User creation
     [ObservableProperty] private string _newUserUsername  = string.Empty;
     [ObservableProperty] private string _newUserFirstName = string.Empty;
     [ObservableProperty] private string _newUserLastName  = string.Empty;
 
+    // ── Computed helpers ──────────────────────────────────────────────────
+    public bool HasSelectedVault => SelectedVault is not null;
+    public string SelectedVaultDisplay => SelectedVault is not null
+        ? $"{SelectedVault.Name}  ({SelectedVault.Environment})"
+        : string.Empty;
+
     public event EventHandler? GoBack;
 
-    private Guid VaultId =>
-        Guid.Parse(_credentials.Get(AppConfig.VaultIdKey)
-                   ?? _config["Vault:VaultId"]
-                   ?? Guid.Empty.ToString());
+    private Guid VaultId
+    {
+        get
+        {
+            if (SelectedVault is not null) return SelectedVault.Id;
+            return Guid.TryParse(_credentials.Get(AppConfig.VaultIdKey) ?? _config["Vault:VaultId"], out var id)
+                ? id
+                : Guid.Empty;
+        }
+    }
 
     public AdminViewModel(VaultApiClient api, CredentialStore credentials, IConfiguration config)
     {
@@ -61,6 +85,62 @@ public sealed partial class AdminViewModel : ObservableObject
         _credentials = credentials;
         _config      = config;
     }
+
+    // ── Property change handlers ──────────────────────────────────────────
+
+    partial void OnSelectedVaultChanged(VaultItem? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedVault));
+        OnPropertyChanged(nameof(SelectedVaultDisplay));
+
+        if (value is not null)
+        {
+            ShowCreateVaultForm = false;
+            _credentials.Set(AppConfig.VaultIdKey, value.Id.ToString());
+            _ = LoadVaultContentAsync();
+        }
+    }
+
+    partial void OnShowCreateVaultFormChanged(bool value)
+    {
+        if (value)
+        {
+            // Clear form when opening
+            NewVaultName = NewVaultSlug = NewVaultDescription =
+                NewVaultTenantId = NewVaultGroup = string.Empty;
+            NewVaultEnvironment = "Production";
+            _slugManuallyEdited = false;
+        }
+    }
+
+    // Auto-generate slug from name (unless user manually edited it)
+    partial void OnNewVaultNameChanged(string value)
+    {
+        CreateVaultCommand.NotifyCanExecuteChanged();
+        if (!_slugManuallyEdited && !string.IsNullOrWhiteSpace(value))
+        {
+            NewVaultSlug = GenerateSlug(value);
+        }
+    }
+
+    partial void OnNewVaultSlugChanged(string value)
+    {
+        CreateVaultCommand.NotifyCanExecuteChanged();
+        // Mark as manually edited if slug differs from auto-generated
+        if (!string.IsNullOrWhiteSpace(NewVaultName))
+        {
+            var autoSlug = GenerateSlug(NewVaultName);
+            if (value != autoSlug)
+                _slugManuallyEdited = true;
+        }
+    }
+
+    partial void OnNewVaultTenantIdChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
+    partial void OnNewVaultGroupChanged(string value)    => CreateVaultCommand.NotifyCanExecuteChanged();
+    partial void OnNewSecretNameChanged(string value)    => CreateSecretCommand.NotifyCanExecuteChanged();
+    partial void OnNewSecretValueChanged(string value)   => CreateSecretCommand.NotifyCanExecuteChanged();
+    partial void OnNewAdMapGroupIdChanged(string value)  => CreateAdMapCommand.NotifyCanExecuteChanged();
+    partial void OnNewUserUsernameChanged(string value)  => CreateUserCommand.NotifyCanExecuteChanged();
 
     // ── Carregamento ───────────────────────────────────────────────────────
 
@@ -74,13 +154,42 @@ public sealed partial class AdminViewModel : ObservableObject
         {
             await Task.WhenAll(
                 LoadVaultsInternalAsync(),
-                LoadSecretsInternalAsync(),
-                LoadAdMapsInternalAsync(),
                 LoadUsersInternalAsync());
+
+            // Auto-select first vault or stored vault
+            if (Vaults.Count > 0 && SelectedVault is null)
+            {
+                var storedId = _credentials.Get(AppConfig.VaultIdKey);
+                var match = Guid.TryParse(storedId, out var id)
+                    ? Vaults.FirstOrDefault(v => v.Id == id)
+                    : null;
+                SelectedVault = match ?? Vaults[0];
+            }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro ao carregar dados: {ex.Message}";
+            SetStatus($"Erro ao carregar dados: {ex.Message}", "error");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Loads secrets + AD maps for the currently selected vault.</summary>
+    private async Task LoadVaultContentAsync()
+    {
+        if (SelectedVault is null) return;
+        IsBusy = true;
+        try
+        {
+            await Task.WhenAll(
+                LoadSecretsInternalAsync(),
+                LoadAdMapsInternalAsync());
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Erro ao carregar conteudo do cofre: {ex.Message}", "error");
         }
         finally
         {
@@ -96,10 +205,7 @@ public sealed partial class AdminViewModel : ObservableObject
             Vaults.Clear();
             foreach (var item in items) Vaults.Add(item);
         }
-        catch
-        {
-            // ignora silenciosamente se endpoint não existir
-        }
+        catch { /* endpoint may not exist yet */ }
     }
 
     private async Task LoadSecretsInternalAsync()
@@ -124,10 +230,21 @@ public sealed partial class AdminViewModel : ObservableObject
             Users.Clear();
             foreach (var item in items) Users.Add(item);
         }
-        catch
-        {
-            // endpoint pode não existir ainda — ignora silenciosamente
-        }
+        catch { /* endpoint may not exist yet */ }
+    }
+
+    // ── Sidebar actions ──────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void OpenCreateVaultForm()
+    {
+        ShowCreateVaultForm = true;
+    }
+
+    [RelayCommand]
+    private void CancelCreateVault()
+    {
+        ShowCreateVaultForm = false;
     }
 
     // ── Vaults ───────────────────────────────────────────────────────────
@@ -146,15 +263,19 @@ public sealed partial class AdminViewModel : ObservableObject
                 NewVaultGroup.Trim(),
                 NewVaultEnvironment);
 
-            StatusMessage = $"Cofre '{NewVaultName}' criado (ID: {id}).";
-            NewVaultName = NewVaultSlug = NewVaultDescription =
-                NewVaultTenantId = NewVaultGroup = string.Empty;
-            NewVaultEnvironment = "Production";
+            SetStatus($"Cofre '{NewVaultName}' criado com sucesso!", "success");
+
+            ShowCreateVaultForm = false;
             await LoadVaultsInternalAsync();
+
+            // Auto-select the newly created vault
+            var newVault = Vaults.FirstOrDefault(v => v.Id == id);
+            if (newVault is not null)
+                SelectedVault = newVault;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro ao criar cofre: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -166,23 +287,11 @@ public sealed partial class AdminViewModel : ObservableObject
            && !string.IsNullOrWhiteSpace(NewVaultTenantId)
            && !string.IsNullOrWhiteSpace(NewVaultGroup);
 
-    /// <summary>Seleciona um vault e salva como vault ativo no CredentialStore.</summary>
     [RelayCommand]
-    private async Task SelectVaultAsync(VaultItem? vault)
+    private void SelectVault(VaultItem? vault)
     {
         if (vault is null) return;
-        _credentials.Set(AppConfig.VaultIdKey, vault.Id.ToString());
-        StatusMessage = $"Cofre ativo: '{vault.Name}' ({vault.Id})";
-
-        // Recarrega secrets e AD maps do novo vault
-        try
-        {
-            await Task.WhenAll(LoadSecretsInternalAsync(), LoadAdMapsInternalAsync());
-        }
-        catch (Exception ex)
-        {
-            StatusMessage += $" (erro ao carregar: {ex.Message})";
-        }
+        SelectedVault = vault;
     }
 
     // ── Secrets ────────────────────────────────────────────────────────────
@@ -196,13 +305,13 @@ public sealed partial class AdminViewModel : ObservableObject
             await _api.UpsertSecretAsync(VaultId, NewSecretName.Trim(), NewSecretValue,
                 string.IsNullOrWhiteSpace(NewSecretContentType) ? null : NewSecretContentType.Trim());
 
-            StatusMessage = $"Segredo '{NewSecretName}' criado/atualizado.";
+            SetStatus($"Segredo '{NewSecretName}' salvo.", "success");
             NewSecretName = NewSecretValue = NewSecretContentType = string.Empty;
             await LoadSecretsInternalAsync();
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -220,12 +329,12 @@ public sealed partial class AdminViewModel : ObservableObject
         try
         {
             await _api.DeleteSecretAsync(VaultId, secret.Name);
-            StatusMessage = $"Segredo '{secret.Name}' desativado.";
+            SetStatus($"Segredo '{secret.Name}' desativado.", "success");
             await LoadSecretsInternalAsync();
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -239,13 +348,13 @@ public sealed partial class AdminViewModel : ObservableObject
         try
         {
             await _api.CreateAdMapAsync(VaultId, NewAdMapGroupId.Trim(), NewAdMapPermission);
-            StatusMessage = $"AD Map '{NewAdMapGroupId}' criado.";
+            SetStatus($"Grupo '{NewAdMapGroupId}' vinculado ao cofre.", "success");
             NewAdMapGroupId = string.Empty;
             await LoadAdMapsInternalAsync();
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -261,12 +370,12 @@ public sealed partial class AdminViewModel : ObservableObject
         try
         {
             await _api.DeleteAdMapAsync(VaultId, adMap.Id);
-            StatusMessage = $"AD Map '{adMap.GroupId}' removido.";
+            SetStatus($"Grupo '{adMap.GroupId}' removido do cofre.", "success");
             await LoadAdMapsInternalAsync();
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -284,13 +393,13 @@ public sealed partial class AdminViewModel : ObservableObject
                 NewUserUsername.Trim(), password,
                 NewUserFirstName.Trim(), NewUserLastName.Trim());
 
-            StatusMessage = $"Usuário '{NewUserUsername}' criado.";
+            SetStatus($"Usuario '{NewUserUsername}' criado.", "success");
             NewUserUsername = NewUserFirstName = NewUserLastName = string.Empty;
             await LoadUsersInternalAsync();
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erro: {ex.Message}";
+            SetStatus($"Erro: {ex.Message}", "error");
         }
         finally { IsBusy = false; }
     }
@@ -300,18 +409,25 @@ public sealed partial class AdminViewModel : ObservableObject
            && !string.IsNullOrWhiteSpace(NewUserUsername)
            && !string.IsNullOrWhiteSpace(password);
 
-    // ── Navegação ──────────────────────────────────────────────────────────
+    // ── Navegacao ──────────────────────────────────────────────────────────
 
     [RelayCommand]
     private void BackToSecrets() => GoBack?.Invoke(this, EventArgs.Empty);
 
-    // Notifica CanExecute quando campos mudam
-    partial void OnNewVaultNameChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
-    partial void OnNewVaultSlugChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
-    partial void OnNewVaultTenantIdChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
-    partial void OnNewVaultGroupChanged(string value) => CreateVaultCommand.NotifyCanExecuteChanged();
-    partial void OnNewSecretNameChanged(string value) => CreateSecretCommand.NotifyCanExecuteChanged();
-    partial void OnNewSecretValueChanged(string value) => CreateSecretCommand.NotifyCanExecuteChanged();
-    partial void OnNewAdMapGroupIdChanged(string value) => CreateAdMapCommand.NotifyCanExecuteChanged();
-    partial void OnNewUserUsernameChanged(string value) => CreateUserCommand.NotifyCanExecuteChanged();
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private void SetStatus(string message, string type)
+    {
+        StatusMessage = message;
+        StatusType = type;
+    }
+
+    private static string GenerateSlug(string name)
+    {
+        var slug = name.ToLowerInvariant().Trim();
+        slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "");
+        slug = Regex.Replace(slug, @"\s+", "-");
+        slug = Regex.Replace(slug, @"-+", "-");
+        return slug.Trim('-');
+    }
 }

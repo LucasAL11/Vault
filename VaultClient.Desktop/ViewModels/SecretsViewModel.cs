@@ -23,6 +23,7 @@ public sealed partial class SecretsViewModel : ObservableObject
     [ObservableProperty] private int    _countdownSeconds;
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private bool   _isAdmin;
+    [ObservableProperty] private string _vaultName = string.Empty;
 
     public event EventHandler? LoggedOut;
     public event EventHandler? OpenSettings;

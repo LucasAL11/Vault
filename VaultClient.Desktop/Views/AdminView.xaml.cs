@@ -21,4 +21,12 @@ public partial class AdminView : UserControl
             NewUserPasswordBox.Clear();
         }
     }
+
+    private void VaultEnv_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton rb && rb.Tag is string env && DataContext is AdminViewModel vm)
+        {
+            vm.NewVaultEnvironment = env;
+        }
+    }
 }

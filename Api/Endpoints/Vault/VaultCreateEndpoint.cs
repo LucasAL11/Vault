@@ -42,6 +42,6 @@ public class VaultCreateEndpoint : IEndpoint
             return result.Match(
                 dto => Results.Created($"/vaults/{dto.Id}", dto),
                 CustomResults.Problem);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

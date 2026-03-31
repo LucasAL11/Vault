@@ -41,7 +41,7 @@ public partial class MainWindow : Window
         _setupVm.SetupCompleted     += OnSetupCompleted;
         _adminVm.GoBack             += OnAdminGoBack;
 
-        // Decide a tela inicial
+        // Decide initial screen
         if (!AppConfig.IsConfigured(credentials))
             ShowSetup();
         else if (api.HasSession)
@@ -50,7 +50,7 @@ public partial class MainWindow : Window
             ShowLogin();
     }
 
-    // ── Navegação ─────────────────────────────────────────────────────────────
+    // -- Navigation -------------------------------------------------------
 
     private void ShowSetup()
     {
@@ -75,15 +75,12 @@ public partial class MainWindow : Window
         LoginPanel.Visibility           = Visibility.Collapsed;
         AdminViewControl.Visibility     = Visibility.Collapsed;
 
-        // Mostra/esconde botão admin com base nas claims do JWT
+        // Show/hide admin button based on JWT claims
         _secretsVm.IsAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
 
-        // Debug: mostra quais grupos vieram no JWT no status bar
-        var groups = JwtHelper.GetGroups(_api.CurrentJwt);
-        if (groups.Count > 0)
-            _secretsVm.StatusMessage = $"Grupos: {string.Join(", ", groups)}";
-        else
-            _secretsVm.StatusMessage = "Nenhum grupo no JWT (login local ou AD sem grupos).";
+        // Show vault name from the selected vault in admin, if available
+        if (_adminVm.SelectedVault is not null)
+            _secretsVm.VaultName = _adminVm.SelectedVault.Name;
     }
 
     private void ShowAdmin()
@@ -96,7 +93,7 @@ public partial class MainWindow : Window
         _adminVm.LoadCommand.Execute(null);
     }
 
-    // ── Handlers ─────────────────────────────────────────────────────────────
+    // -- Handlers ---------------------------------------------------------
 
     private void OnLoginSucceeded(object? sender, EventArgs e)
         => ShowSecrets();

@@ -7,5 +7,9 @@
     <res:NotEmptyToVisibilityConverter x:Key="NotEmptyToVisibility"/>
     <res:ZeroToVisibilityConverter x:Key="ZeroToVisibility"/>
     <res:ExpiryWarningVisibilityConverter x:Key="ExpiryWarningVisibility"/>
+    <res:NullToVisibilityConverter x:Key="NullToVisibility"/>
+    <res:StatusTypeToBrushConverter x:Key="StatusTypeToBrush"/>
+    <res:StatusTypeToBgBrushConverter x:Key="StatusTypeToBgBrush"/>
+    <res:SelectedItemBrushConverter x:Key="SelectedItemBrush"/>
 
 </ResourceDictionary>
