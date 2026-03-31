@@ -44,6 +44,6 @@ public sealed class MachineDeleteEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

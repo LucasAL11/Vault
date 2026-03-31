@@ -41,6 +41,6 @@ public sealed class MachineListEndpoint : IEndpoint
                 Count = result.Value.Count,
                 Items = result.Value
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

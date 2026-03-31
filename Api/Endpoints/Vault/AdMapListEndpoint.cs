@@ -44,6 +44,6 @@ public sealed class AdMapListEndpoint : IEndpoint
                 Count = result.Value.Count,
                 Items = result.Value
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

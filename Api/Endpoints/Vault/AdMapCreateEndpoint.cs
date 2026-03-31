@@ -53,7 +53,7 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                     userContext.Identity.ToString());
 
                 return Results.Created($"/vaults/{vaultId}/ad-maps/{result.Value.Id}", result.Value);
-            }).RequireAuthorization()
+            }).RequireAuthorization("AdminPolicy")
             .WithTags("active-directory");
     }
 }

@@ -52,6 +52,6 @@ public sealed class AdMapUpdateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }
