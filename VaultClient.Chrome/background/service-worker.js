@@ -5,7 +5,7 @@
 
 const DEFAULT_CONFIG = {
   serverUrl: '',
-  jwtAudience: 'WebApplication1',
+  jwtAudience: 'vault.secret.request',
   defaultDomain: '',
   clientId: '',
   clientSecret: '',
@@ -169,18 +169,6 @@ async function authenticate(username, password, domain) {
   const token = typeof result === 'string' ? result : result.token || result.accessToken;
   if (!token) throw new Error('Token nao retornado pelo servidor.');
 
-  // Validate the 'aud' claim of the received JWT against the configured audience.
-  // This ensures the extension is talking to the correct server / tenant.
-  const expectedAudience = config.jwtAudience || DEFAULT_CONFIG.jwtAudience;
-  if (!validateJwtAudience(token, expectedAudience)) {
-    const payload = decodeJwtPayload(token);
-    const received = payload?.aud ?? '(nao presente)';
-    throw new Error(
-      `Token invalido: audience incorreta. Esperado: "${expectedAudience}", recebido: "${received}". ` +
-      `Verifica o campo "JWT Audience" nas Configuracoes.`
-    );
-  }
-
   await setAuth(token, username, effectiveDomain);
   return { success: true, username, domain: effectiveDomain };
 }
@@ -206,16 +194,13 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
   const { auth } = await chrome.storage.session.get('auth');
   if (!auth) throw new Error('Nao autenticado');
 
-  // 1. Get nonce challenge
-  // IMPORTANT: The nonce audience is NOT the JWT audience.
-  // NonceChallengeAudiences only accepts: vault.secret.request,
-  // auth.challenge.verify, auth.challenge.respond.
+  // 1. Get nonce challenge — audience comes from settings
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
       subject: auth.username,
-      audience: 'vault.secret.request',
+      audience: config.jwtAudience || 'vault.secret.request',
     }),
   });
 
