@@ -1,18 +1,20 @@
 // ============================================================
-// Vault Password Manager - Background Service Worker
-// Handles auth, API calls, and message routing
+// Vault Password Manager — Background Service Worker
+//
+// Toda a configuracao vem de chrome.storage.local['config'].
+// Sem defaults. O utilizador configura tudo na tela de settings.
 // ============================================================
 
-// --- Storage helpers ---
+// --- Storage ---
 
 async function getConfig() {
   const { config } = await chrome.storage.local.get('config');
   return config || {};
 }
 
-async function getToken() {
+async function getAuth() {
   const { auth } = await chrome.storage.session.get('auth');
-  return auth?.token || null;
+  return auth || null;
 }
 
 async function setAuth(token, username, domain) {
@@ -25,83 +27,60 @@ async function clearAuth() {
   await chrome.storage.session.remove('auth');
 }
 
-// --- JWT helpers (no crypto — decode only, server already validated) ---
+// ============================================================
+// DateTimeOffset :O format
+//
+// C# DateTimeOffset.ToString("O") SEMPRE produz:
+//   yyyy-MM-ddTHH:mm:ss.fffffff+HH:mm
+//
+// System.Text.Json serializa DateTime(Kind=Utc) como:
+//   2026-04-01T15:30:45.123Z       (decimais truncados, "Z")
+//
+// Esta funcao converte para o formato :O exacto:
+//   2026-04-01T15:30:45.1230000+00:00
+// ============================================================
 
-/**
- * Decodes the payload of a JWT without verifying the signature.
- * Verification is performed by the server on every API call.
- */
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    // Base64url → Base64 → JSON
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '='));
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Validates the 'aud' claim of a JWT against the expected audience.
- * Returns true if the claim matches (or if no expected audience is configured).
- */
-function validateJwtAudience(token, expectedAudience) {
-  if (!expectedAudience) return true; // not configured — skip check
-  const payload = decodeJwtPayload(token);
-  if (!payload) return false;
-  const aud = payload.aud;
-  if (Array.isArray(aud)) return aud.includes(expectedAudience);
-  return aud === expectedAudience;
-}
-
-// --- DateTimeOffset :O format (mirrors C# round-trip specifier) ---
-
-/**
- * Converts an ISO 8601 string (as returned by System.Text.Json) to the
- * exact format produced by C#'s DateTimeOffset.ToString("O"):
- *   yyyy-MM-ddTHH:mm:ss.fffffff+HH:mm
- *
- * Key differences from JSON serialisation:
- *   1. Always exactly 7 fractional-second digits (padded with zeros).
- *   2. UTC offset is "+00:00", never "Z".
- */
 function formatDateTimeOffsetO(isoString) {
   const m = isoString.match(
     /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/
   );
-  if (!m) return isoString; // fallback — return as-is
+  if (!m) return isoString;
   const datetime = m[1];
   const frac = (m[2] || '').padEnd(7, '0');
   const offset = m[3] === 'Z' ? '+00:00' : m[3];
   return `${datetime}.${frac}${offset}`;
 }
 
-// --- Crypto: HMAC-SHA256 proof (mirrors SecretProofHelpers.BuildProofPayload) ---
+// ============================================================
+// HMAC-SHA256 Proof
+//
+// Espelho exacto de SecretProofHelpers.BuildProofPayload (C#):
+//
+//   $"{vaultId:D}|{secretName.Trim()}|{clientId.Trim()}|
+//     {subject.Trim().ToUpperInvariant()}|{reason.Trim()}|
+//     {NormalizeTicketId(ticket)}|{nonce.Trim()}|{issuedAtUtc:O}"
+//
+// E de ProofBuilder.Build (Desktop):
+//   HMACSHA256(payload, clientSecret) → base64url
+// ============================================================
 
-/**
- * Builds the proof payload and signs it with HMAC-SHA256.
- *
- * C# reference (SecretProofHelpers.cs):
- *   $"{vaultId:D}|{secretName.Trim()}|{clientId.Trim()}|
- *     {subject.Trim().ToUpperInvariant()}|{reason.Trim()}|
- *     {NormalizeTicketId(ticket)}|{nonce.Trim()}|{issuedAtUtc:O}"
- */
-async function buildProof(vaultId, secretName, clientId, subject, reason, ticket, nonce, issuedAt, clientSecret) {
+async function buildProof(vaultId, secretName, clientId, subject, reason, ticket, nonce, issuedAtUtc, clientSecret) {
+  // NormalizeTicketId: string.IsNullOrWhiteSpace(ticket) ? "-" : ticket.Trim()
   const normalizedTicket = (!ticket || !ticket.trim()) ? '-' : ticket.trim();
+
+  // BuildProofPayload — campos separados por "|"
   const payload = [
-    vaultId.toLowerCase(),           // Guid :D format (lowercase, dashes)
-    secretName.trim(),
-    clientId.trim(),
-    subject.trim().toUpperCase(),    // ToUpperInvariant()
-    reason.trim(),
-    normalizedTicket,                // NormalizeTicketId
-    nonce.trim(),
-    formatDateTimeOffsetO(issuedAt), // DateTimeOffset :O format
+    vaultId.toLowerCase(),            // {vaultId:D}   → guid lowercase com hifens
+    secretName.trim(),                // .Trim()
+    clientId.trim(),                  // .Trim()
+    subject.trim().toUpperCase(),     // .Trim().ToUpperInvariant()
+    reason.trim(),                    // .Trim()
+    normalizedTicket,                 // NormalizeTicketId()
+    nonce.trim(),                     // .Trim()
+    formatDateTimeOffsetO(issuedAtUtc), // {issuedAtUtc:O}
   ].join('|');
 
+  // HMACSHA256(payload, clientSecret) → base64url (sem padding)
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
@@ -119,16 +98,18 @@ function base64url(bytes) {
   return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-// --- API client ---
+// ============================================================
+// API Client
+// ============================================================
 
 async function apiFetch(path, options = {}) {
   const config = await getConfig();
-  const token = await getToken();
+  const auth = await getAuth();
   const url = `${config.serverUrl}${path}`;
 
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     ...options.headers,
   };
 
@@ -144,7 +125,12 @@ async function apiFetch(path, options = {}) {
   return res.text();
 }
 
-// --- Auth ---
+// ============================================================
+// Auth — POST /users
+//
+// C# Authenticate.Request:
+//   record Request(string Username, string? Domain, string? Password)
+// ============================================================
 
 async function authenticate(username, password, domain) {
   const config = await getConfig();
@@ -165,74 +151,91 @@ async function authenticate(username, password, domain) {
   return { success: true, username, domain: effectiveDomain };
 }
 
-// --- Vaults ---
-
-async function listVaults() {
-  return apiFetch('/vaults');
-}
-
-// --- Secrets ---
-
-async function listSecrets(vaultId, page = 1, pageSize = 50) {
-  return apiFetch(`/vaults/${vaultId}/secrets?page=${page}&pageSize=${pageSize}`);
-}
-
-async function getSecretMetadata(vaultId, name) {
-  return apiFetch(`/vaults/${vaultId}/secrets/${encodeURIComponent(name)}`);
-}
+// ============================================================
+// Request Secret Value
+//
+// Fluxo:
+//   1. POST /auth/challenge  → { nonce, subject, issuedAtUtc }
+//   2. buildProof(...)        → HMAC-SHA256 base64url
+//   3. POST /vaults/{id}/secrets/{name}/request  → { value }
+//
+// C# NonceChallenge.Request:
+//   record Request(string? ClientId, string? Subject, string? Audience)
+//
+// C# SecretRequestPayload:
+//   ContractVersion, Reason, Ticket, TicketId, ClientId,
+//   Nonce, IssuedAt, IssuedAtUtc, Proof
+// ============================================================
 
 async function requestSecretValue(vaultId, secretName, reason, ticket) {
   const config = await getConfig();
-  const { auth } = await chrome.storage.session.get('auth');
-  if (!auth) throw new Error('Nao autenticado');
+  const auth = await getAuth();
+  if (!auth) throw new Error('Nao autenticado.');
 
-  // 1. Get nonce challenge — audience comes from settings
+  // 1. Nonce challenge
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
       subject: auth.username,
-      audience: config.jwtAudience || 'vault.secret.request',
+      audience: config.jwtAudience,
     }),
   });
 
-  // 2. Build HMAC proof
+  // 2. HMAC proof — campos exactos do BuildProofPayload
   const proof = await buildProof(
-    vaultId,
-    secretName,
-    config.clientId,
-    challenge.subject || auth.username,
-    reason,
-    ticket,
-    challenge.nonce,
-    challenge.issuedAtUtc,
-    config.clientSecret
+    vaultId,                              // Guid do vault
+    secretName,                           // nome do segredo
+    config.clientId,                      // AuthChallenge:ClientSecrets key
+    challenge.subject || auth.username,   // subject normalizado pelo servidor
+    reason,                               // motivo do acesso
+    ticket,                               // ticket/incidente
+    challenge.nonce,                      // nonce base64url do challenge
+    challenge.issuedAtUtc,                // timestamp do challenge
+    config.clientSecret                   // AuthChallenge:ClientSecrets value
   );
 
-  // 3. Request secret with proof
-  const result = await apiFetch(`/vaults/${vaultId}/secrets/${encodeURIComponent(secretName)}/request`, {
-    method: 'POST',
-    body: JSON.stringify({
-      contractVersion: 'v1',
-      reason,
-      ticket: ticket || '-',
-      clientId: config.clientId,
-      nonce: challenge.nonce,
-      issuedAtUtc: challenge.issuedAtUtc,
-      proof,
-    }),
-  });
+  // 3. Request body — espelho de SecretRequestPayload
+  const result = await apiFetch(
+    `/vaults/${vaultId}/secrets/${encodeURIComponent(secretName)}/request`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        contractVersion: 'v1',
+        reason: reason,
+        ticket: ticket || '-',
+        clientId: config.clientId,
+        nonce: challenge.nonce,
+        issuedAtUtc: challenge.issuedAtUtc,
+        proof: proof,
+      }),
+    }
+  );
 
   return result;
 }
 
-// --- Message handler (popup & content script communication) ---
+// ============================================================
+// Vaults & Secrets
+// ============================================================
+
+async function listVaults() {
+  return apiFetch('/vaults');
+}
+
+async function listSecrets(vaultId, page = 1, pageSize = 50) {
+  return apiFetch(`/vaults/${vaultId}/secrets?page=${page}&pageSize=${pageSize}`);
+}
+
+// ============================================================
+// Message Router (popup / content script → service worker)
+// ============================================================
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   handleMessage(msg)
     .then(sendResponse)
     .catch((err) => sendResponse({ error: err.message }));
-  return true; // async response
+  return true;
 });
 
 async function handleMessage(msg) {
@@ -245,8 +248,12 @@ async function handleMessage(msg) {
       return { success: true };
 
     case 'getAuthState': {
-      const { auth } = await chrome.storage.session.get('auth');
-      return { authenticated: !!auth, username: auth?.username, domain: auth?.domain };
+      const auth = await getAuth();
+      return {
+        authenticated: !!auth,
+        username: auth?.username,
+        domain: auth?.domain,
+      };
     }
 
     case 'listVaults':
@@ -256,7 +263,9 @@ async function handleMessage(msg) {
       return listSecrets(msg.vaultId, msg.page, msg.pageSize);
 
     case 'requestSecret':
-      return requestSecretValue(msg.vaultId, msg.secretName, msg.reason, msg.ticket);
+      return requestSecretValue(
+        msg.vaultId, msg.secretName, msg.reason, msg.ticket
+      );
 
     case 'getConfig':
       return getConfig();
@@ -266,7 +275,11 @@ async function handleMessage(msg) {
       return { success: true };
 
     case 'autofillSecret': {
-      const secret = await requestSecretValue(msg.vaultId, msg.secretName, 'Autofill via Chrome Extension', msg.ticket || '-');
+      const secret = await requestSecretValue(
+        msg.vaultId, msg.secretName,
+        'Autofill via Chrome Extension',
+        msg.ticket || '-'
+      );
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
         await chrome.tabs.sendMessage(tab.id, {
@@ -279,11 +292,13 @@ async function handleMessage(msg) {
     }
 
     default:
-      throw new Error(`Unknown action: ${msg.action}`);
+      throw new Error(`Accao desconhecida: ${msg.action}`);
   }
 }
 
-// --- Keyboard shortcut ---
+// ============================================================
+// Keyboard shortcut
+// ============================================================
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'autofill') {
