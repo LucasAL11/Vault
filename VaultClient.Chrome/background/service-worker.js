@@ -15,7 +15,13 @@ const DEFAULT_CONFIG = {
 
 async function getConfig() {
   const { config } = await chrome.storage.local.get('config');
-  return { ...DEFAULT_CONFIG, ...config };
+  if (!config) return { ...DEFAULT_CONFIG };
+  // Empty strings in storage must NOT override non-empty defaults.
+  const merged = { ...DEFAULT_CONFIG };
+  for (const [key, val] of Object.entries(config)) {
+    if (val !== '' && val != null) merged[key] = val;
+  }
+  return merged;
 }
 
 async function getToken() {
