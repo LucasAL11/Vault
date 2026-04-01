@@ -7,7 +7,7 @@ const DEFAULT_CONFIG = {
   serverUrl: '',
   jwtAudience: 'vault.secret.request',
   defaultDomain: '',
-  clientId: '',
+  clientId: 'chrome-extension',
   clientSecret: '',
 };
 
