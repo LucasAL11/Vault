@@ -65,19 +65,49 @@ function validateJwtAudience(token, expectedAudience) {
   return aud === expectedAudience;
 }
 
-// --- Crypto: HMAC-SHA256 proof (mirrors ProofBuilder.cs) ---
+// --- DateTimeOffset :O format (mirrors C# round-trip specifier) ---
 
+/**
+ * Converts an ISO 8601 string (as returned by System.Text.Json) to the
+ * exact format produced by C#'s DateTimeOffset.ToString("O"):
+ *   yyyy-MM-ddTHH:mm:ss.fffffff+HH:mm
+ *
+ * Key differences from JSON serialisation:
+ *   1. Always exactly 7 fractional-second digits (padded with zeros).
+ *   2. UTC offset is "+00:00", never "Z".
+ */
+function formatDateTimeOffsetO(isoString) {
+  const m = isoString.match(
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/
+  );
+  if (!m) return isoString; // fallback — return as-is
+  const datetime = m[1];
+  const frac = (m[2] || '').padEnd(7, '0');
+  const offset = m[3] === 'Z' ? '+00:00' : m[3];
+  return `${datetime}.${frac}${offset}`;
+}
+
+// --- Crypto: HMAC-SHA256 proof (mirrors SecretProofHelpers.BuildProofPayload) ---
+
+/**
+ * Builds the proof payload and signs it with HMAC-SHA256.
+ *
+ * C# reference (SecretProofHelpers.cs):
+ *   $"{vaultId:D}|{secretName.Trim()}|{clientId.Trim()}|
+ *     {subject.Trim().ToUpperInvariant()}|{reason.Trim()}|
+ *     {NormalizeTicketId(ticket)}|{nonce.Trim()}|{issuedAtUtc:O}"
+ */
 async function buildProof(vaultId, secretName, clientId, subject, reason, ticket, nonce, issuedAt, clientSecret) {
   const normalizedTicket = (!ticket || !ticket.trim()) ? '-' : ticket.trim();
   const payload = [
-    vaultId.toLowerCase(),
+    vaultId.toLowerCase(),           // Guid :D format (lowercase, dashes)
     secretName.trim(),
     clientId.trim(),
-    subject.trim().toUpperCase(),
+    subject.trim().toUpperCase(),    // ToUpperInvariant()
     reason.trim(),
-    normalizedTicket,
+    normalizedTicket,                // NormalizeTicketId
     nonce.trim(),
-    issuedAt,
+    formatDateTimeOffsetO(issuedAt), // DateTimeOffset :O format
   ].join('|');
 
   const enc = new TextEncoder();
@@ -177,12 +207,15 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
   if (!auth) throw new Error('Nao autenticado');
 
   // 1. Get nonce challenge
+  // IMPORTANT: The nonce audience is NOT the JWT audience.
+  // NonceChallengeAudiences only accepts: vault.secret.request,
+  // auth.challenge.verify, auth.challenge.respond.
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
       subject: auth.username,
-      audience: config.jwtAudience || 'vault.secret.request',
+      audience: 'vault.secret.request',
     }),
   });
 

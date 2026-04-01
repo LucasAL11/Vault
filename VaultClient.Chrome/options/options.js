@@ -70,7 +70,8 @@ $('#btn-test').addEventListener('click', async () => {
   $('#toast').style.display = 'none';
 
   try {
-    const audience = config.jwtAudience || 'vault.secret.request';
+    // Nonce challenge audience is always 'vault.secret.request' — NOT the JWT audience.
+    const audience = 'vault.secret.request';
     const clientId = config.clientId || 'test-connection';
 
     const res = await fetch(`${config.serverUrl}/auth/challenge`, {
