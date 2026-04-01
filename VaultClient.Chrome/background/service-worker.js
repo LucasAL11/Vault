@@ -3,25 +3,11 @@
 // Handles auth, API calls, and message routing
 // ============================================================
 
-const DEFAULT_CONFIG = {
-  serverUrl: '',
-  jwtAudience: 'vault.secret.request',
-  defaultDomain: '',
-  clientId: 'chrome-extension',
-  clientSecret: '',
-};
-
 // --- Storage helpers ---
 
 async function getConfig() {
   const { config } = await chrome.storage.local.get('config');
-  if (!config) return { ...DEFAULT_CONFIG };
-  // Empty strings in storage must NOT override non-empty defaults.
-  const merged = { ...DEFAULT_CONFIG };
-  for (const [key, val] of Object.entries(config)) {
-    if (val !== '' && val != null) merged[key] = val;
-  }
-  return merged;
+  return config || {};
 }
 
 async function getToken() {
