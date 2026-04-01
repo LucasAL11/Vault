@@ -13,23 +13,22 @@
       justify-content: center;
       padding: 40px 20px;
     }
-    .container {
-      width: 100%;
-      max-width: 480px;
+    .container { width: 100%; max-width: 480px; }
+    h1 { font-size: 20px; margin-bottom: 4px; color: #fff; }
+    .subtitle { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4b5563;
+      margin: 24px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1f2330;
     }
-    h1 {
-      font-size: 20px;
-      margin-bottom: 4px;
-      color: #fff;
-    }
-    .subtitle {
-      font-size: 12px;
-      color: #6b7280;
-      margin-bottom: 24px;
-    }
-    .field {
-      margin-bottom: 16px;
-    }
+
+    .field { margin-bottom: 16px; }
     .field label {
       display: block;
       font-size: 11px;
@@ -48,100 +47,148 @@
       color: #e1e4e8;
       font-size: 13px;
       outline: none;
+      transition: border-color 0.15s;
     }
     .field input:focus { border-color: #4f6df5; }
-    .field .hint {
+    .field .hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
+
+    /* Advanced section toggle */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 11px;
       color: #4b5563;
-      margin-top: 4px;
+      cursor: pointer;
+      margin: 8px 0 16px;
+      user-select: none;
     }
+    .advanced-toggle:hover { color: #9ca3af; }
+    .advanced-toggle span { transition: transform 0.2s; display: inline-block; }
+    .advanced-toggle.open span { transform: rotate(90deg); }
+    .advanced-content { display: none; }
+    .advanced-content.open { display: block; }
+
+    .info-box {
+      background: #0d1626;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #60a5fa;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .info-box strong { display: block; margin-bottom: 3px; color: #93c5fd; }
+
+    .warning-box {
+      background: #1f1a0a;
+      border: 1px solid #78350f;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #fbbf24;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .warning-box strong { display: block; margin-bottom: 3px; }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; }
     .btn {
-      padding: 10px 20px;
+      flex: 1;
+      padding: 10px 16px;
       border: none;
       border-radius: 6px;
-      background: #4f6df5;
-      color: #fff;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      transition: background 0.15s;
     }
-    .btn:hover { background: #3d5bd9; }
+    .btn-primary { background: #4f6df5; color: #fff; }
+    .btn-primary:hover { background: #3d5bd9; }
+    .btn-secondary { background: #1a1d27; color: #9ca3af; border: 1px solid #2d3039; }
+    .btn-secondary:hover { background: #22263a; color: #e1e4e8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .toast {
       margin-top: 12px;
-      padding: 8px 12px;
+      padding: 10px 12px;
       border-radius: 6px;
       font-size: 12px;
       display: none;
+      line-height: 1.5;
     }
-    .toast.success {
-      display: block;
-      background: #1a3c34;
-      border: 1px solid #2ecc71;
-      color: #2ecc71;
-    }
+    .toast.success { display: block; background: #1a3c34; border: 1px solid #2ecc71; color: #2ecc71; }
+    .toast.error   { display: block; background: #2b0d0d; border: 1px solid #ef4444; color: #f87171; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>&#128272; Vault - Configuracoes</h1>
-    <p class="subtitle">Configure a conexao com o servidor Vault da sua organizacao</p>
+    <p class="subtitle">Configure a conexao com o servidor Vault</p>
+
+    <!-- SERVIDOR -->
+    <div class="section-title">Servidor</div>
 
     <div class="field">
       <label>URL do Servidor</label>
-      <input id="serverUrl" type="url" placeholder="http://localhost:5065">
-      <div class="hint">Endereco do servidor ASP.NET Core com a API de segredos</div>
+      <input id="serverUrl" type="url" placeholder="https://servidor.empresa.com">
+      <div class="hint">Endereco completo da API Vault</div>
     </div>
 
     <div class="field">
-      <label>Client ID</label>
-      <input id="clientId" type="text" placeholder="chrome-extension">
-      <div class="hint">Identificador desta extensao registrado no servidor</div>
+      <label>JWT Audience</label>
+      <input id="jwtAudience" type="text" placeholder="WebApplication1">
+      <div class="hint">
+        Valor do campo <code>aud</code> emitido pelo servidor no token JWT.
+        Usado para validar o token recebido apos o login.
+      </div>
     </div>
+
+    <!-- ACTIVE DIRECTORY -->
+    <div class="section-title">Active Directory</div>
 
     <div class="field">
-      <label>Client Secret</label>
-      <input id="clientSecret" type="password" placeholder="Chave secreta do cliente">
-      <div class="hint">Usado para gerar a prova HMAC ao solicitar segredos</div>
+      <label>Dominio AD</label>
+      <input id="defaultDomain" type="text" placeholder="DOMINIO">
+      <div class="hint">Prefixo do dominio para login AD. Deixe vazio para login local</div>
     </div>
 
-    <div class="field">
-      <label>Dominio AD (padrao)</label>
-      <input id="defaultDomain" type="text" placeholder="EMPRESA">
-      <div class="hint">Dominio padrao para login via Active Directory</div>
+    <!-- AVANCADO (HMAC) -->
+    <div class="advanced-toggle" id="advanced-toggle">
+      <span>&#9658;</span> Configuracoes Avancadas (HMAC)
+    </div>
+    <div class="advanced-content" id="advanced-content">
+      <div class="info-box">
+        <strong>&#8505; O que e o HMAC?</strong>
+        Para revelar o valor de um segredo, o servidor exige uma prova criptografica (HMAC-SHA256).
+        O <strong>Client ID</strong> e o <strong>Client Secret</strong> aqui sao credenciais de cliente
+        registadas no servidor — <em>nao sao</em> a chave de assinatura JWT.
+      </div>
+      <div class="warning-box">
+        <strong>&#9888; Seguranca</strong>
+        Usa credenciais exclusivas para esta extensao. Nunca uses a mesma chave do servidor ou de producao.
+        O valor fica guardado localmente no browser.
+      </div>
+      <div class="field">
+        <label>Client ID</label>
+        <input id="clientId" type="text" placeholder="identificador-do-cliente">
+        <div class="hint">ID registado em AuthChallenge:ClientSecrets no servidor</div>
+      </div>
+      <div class="field">
+        <label>Client Secret</label>
+        <input id="clientSecret" type="password" placeholder="chave-hmac-exclusiva">
+        <div class="hint">Chave partilhada para gerar a prova HMAC ao revelar segredos</div>
+      </div>
     </div>
 
-    <button class="btn" id="btn-save">Salvar Configuracoes</button>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btn-test">Testar Ligacao</button>
+      <button class="btn btn-primary" id="btn-save">Guardar</button>
+    </div>
     <div id="toast" class="toast"></div>
   </div>
 
-  <script>
-    const $ = (sel) => document.querySelector(sel);
-
-    // Load
-    chrome.storage.local.get('config', ({ config }) => {
-      if (!config) return;
-      $('#serverUrl').value = config.serverUrl || '';
-      $('#clientId').value = config.clientId || '';
-      $('#clientSecret').value = config.clientSecret || '';
-      $('#defaultDomain').value = config.defaultDomain || '';
-    });
-
-    // Save
-    $('#btn-save').addEventListener('click', () => {
-      const config = {
-        serverUrl: $('#serverUrl').value.trim().replace(/\/+$/, ''),
-        clientId: $('#clientId').value.trim() || 'chrome-extension',
-        clientSecret: $('#clientSecret').value,
-        defaultDomain: $('#defaultDomain').value.trim(),
-      };
-
-      chrome.storage.local.set({ config }, () => {
-        const toast = $('#toast');
-        toast.className = 'toast success';
-        toast.textContent = 'Configuracoes salvas com sucesso!';
-        setTimeout(() => { toast.style.display = 'none'; }, 3000);
-      });
-    });
-  </script>
+  <script src="options.js"></script>
 </body>
 </html>

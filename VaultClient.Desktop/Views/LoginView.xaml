@@ -21,30 +21,6 @@
                        FontSize="12" Foreground="#6C7086"
                        HorizontalAlignment="Center" Margin="0,0,0,28"/>
 
-            <!-- Toggle AD / Local -->
-            <Grid Margin="0,0,0,22">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="#1E1E2E" CornerRadius="6,0,0,6" Padding="0,8">
-                    <RadioButton x:Name="LocalRadio"
-                                 Content=" Login Local"
-                                 IsChecked="{Binding IsLocalLogin, Mode=OneWay}"
-                                 GroupName="AuthMode"
-                                 Foreground="#CDD6F4" FontSize="12"
-                                 HorizontalAlignment="Center"
-                                 Checked="LocalRadio_Checked"/>
-                </Border>
-                <Border Grid.Column="1" Background="#1E1E2E" CornerRadius="0,6,6,0" Padding="0,8">
-                    <RadioButton x:Name="AdRadio"
-                                 Content=" Active Directory"
-                                 IsChecked="{Binding IsAdLogin, Mode=TwoWay}"
-                                 GroupName="AuthMode"
-                                 Foreground="#CDD6F4" FontSize="12"
-                                 HorizontalAlignment="Center"/>
-                </Border>
-            </Grid>
 
             <!-- Username -->
             <TextBlock Text="Usuario" Foreground="#BAC2DE" FontSize="12"

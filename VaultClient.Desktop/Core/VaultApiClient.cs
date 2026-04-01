@@ -12,6 +12,7 @@ public sealed class VaultApiClient
     private readonly HttpClient _http;
     private readonly CredentialStore _credentials;
     private string _baseUrl;
+    private readonly string _challengeAudience;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -22,6 +23,7 @@ public sealed class VaultApiClient
         _baseUrl = (credentials.Get(AppConfig.BaseUrlKey)
             ?? config["Vault:BaseUrl"]
             ?? "https://localhost:7001").TrimEnd('/');
+        _challengeAudience = config["Vault:ChallengeAudience"] ?? "vault.secret.request";
     }
 
     /// <summary>Atualiza a URL base sem reiniciar o app (usado após Setup).</summary>
@@ -104,7 +106,7 @@ public sealed class VaultApiClient
         string clientId, string subject, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
-            new { clientId, subject, audience = "VaultSecretRequest" }, ct);
+            new { clientId, subject, audience = _challengeAudience }, ct);
 
         response.EnsureSuccessStatusCode();
 

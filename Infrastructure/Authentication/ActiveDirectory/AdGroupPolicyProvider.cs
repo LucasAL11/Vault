@@ -58,7 +58,16 @@ public sealed class AdGroupPolicyProvider : IAuthorizationPolicyProvider
                 return Task.FromResult<AuthorizationPolicy?>(policyBuilder.Build());
             }
 
-            policyBuilder.AddRequirements(new AdGroupRequirement(groupName));
+            // If the requested group is an admin group, use AdminGroupRequirement
+            // so admins pass via JWT claims without AD lookup
+            if (_adminGroups.Any(g => string.Equals(g, groupName, StringComparison.OrdinalIgnoreCase)))
+            {
+                policyBuilder.AddRequirements(new AdminGroupRequirement(_adminGroups));
+            }
+            else
+            {
+                policyBuilder.AddRequirements(new AdGroupRequirement(groupName));
+            }
             return Task.FromResult<AuthorizationPolicy?>(policyBuilder.Build());
         }
 

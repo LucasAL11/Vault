@@ -88,7 +88,6 @@ async function handleLogin(e) {
       action: 'login',
       username: $('#login-user').value.trim(),
       password: $('#login-pass').value,
-      domain: $('#login-domain').value.trim() || undefined,
     });
 
     $('#logged-user').textContent = result.domain

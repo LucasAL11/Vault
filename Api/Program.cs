@@ -48,6 +48,10 @@ public partial class Program
 
         builder.Services.Configure<AuthorizationPolicyOptions>(builder.Configuration.GetSection("Authorization"));
 
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        });
         builder.Services.AddControllers();
         var corsOptions = (builder.Configuration.GetSection("Cors").Get<CorsPolicyOptions>() ?? new CorsPolicyOptions()).GetNormalized();
         builder.Services.AddCors(options =>

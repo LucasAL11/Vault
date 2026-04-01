@@ -10,7 +10,7 @@ public sealed partial class SetupViewModel : ObservableObject
     private readonly VaultApiClient _api;
     private string _clientSecretValue = string.Empty;
 
-    [ObservableProperty] private string _baseUrl    = "https://localhost:7001";
+    [ObservableProperty] private string _baseUrl    = string.Empty;
     [ObservableProperty] private string _vaultId    = string.Empty;
     [ObservableProperty] private string _clientId   = string.Empty;
     [ObservableProperty] private string _domain     = string.Empty;
@@ -30,7 +30,7 @@ public sealed partial class SetupViewModel : ObservableObject
         _api = api;
 
         // Pre-fill campos se já configurado (modo edição)
-        _baseUrl  = credentials.Get(AppConfig.BaseUrlKey)  ?? "https://localhost:7001";
+        _baseUrl  = credentials.Get(AppConfig.BaseUrlKey)  ?? string.Empty;
         _vaultId  = credentials.Get(AppConfig.VaultIdKey)  ?? string.Empty;
         _clientId = credentials.Get(AppConfig.ClientIdKey) ?? string.Empty;
         _domain   = credentials.Get(AppConfig.DomainKey)   ?? string.Empty;
@@ -75,7 +75,7 @@ public sealed partial class SetupViewModel : ObservableObject
     {
         if (!Guid.TryParse(VaultId, out _))
         {
-            ErrorMessage = "Vault ID deve ser um GUID valido (ex: 11111111-1111-1111-1111-111111111111).";
+            ErrorMessage = "Vault ID deve ser um GUID valido.";
             return;
         }
 

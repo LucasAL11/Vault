@@ -16,15 +16,8 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
     [ObservableProperty]
     private bool _isBusy;
 
-    /// <summary>true = AD auth, false = local auth.</summary>
-    [ObservableProperty]
-    private bool _isAdLogin;
-
     public event EventHandler? LoginSucceeded;
     public event EventHandler? OpenSettings;
-
-    partial void OnIsAdLoginChanged(bool value)
-        => ErrorMessage = string.Empty;
 
     [RelayCommand(CanExecute = nameof(CanLogin))]
     private async Task LoginAsync(string? password)
@@ -40,28 +33,17 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
                 return;
             }
 
-            bool ok;
+            var domain = credentials.Get(AppConfig.DomainKey);
+            var useAd  = !string.IsNullOrWhiteSpace(domain);
 
-            if (IsAdLogin)
-            {
-                var domain = credentials.Get(AppConfig.DomainKey);
-                if (string.IsNullOrWhiteSpace(domain))
-                {
-                    ErrorMessage = "Domínio AD não configurado. Acesse ⚙ Configurações.";
-                    return;
-                }
-
-                ok = await api.LoginAdAsync(Username.Trim(), domain, password);
-            }
-            else
-            {
-                ok = await api.LoginLocalAsync(Username.Trim(), password);
-            }
+            var ok = useAd
+                ? await api.LoginAdAsync(Username.Trim(), domain!, password)
+                : await api.LoginLocalAsync(Username.Trim(), password);
 
             if (ok)
                 LoginSucceeded?.Invoke(this, EventArgs.Empty);
             else
-                ErrorMessage = IsAdLogin
+                ErrorMessage = useAd
                     ? "Usuário ou senha inválidos no Active Directory."
                     : "Usuário ou senha inválidos.";
         }

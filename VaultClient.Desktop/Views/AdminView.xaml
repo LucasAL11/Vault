@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:VaultClient.Desktop.Models"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              Background="#1E1E2E">
 
     <Grid>
@@ -731,9 +732,9 @@
                                                           FontSize="12" Padding="10,6"
                                                           Background="#313244" Foreground="#CDD6F4"
                                                           BorderBrush="#45475A" BorderThickness="1">
-                                                    <ComboBoxItem Content="Read"/>
-                                                    <ComboBoxItem Content="Write"/>
-                                                    <ComboBoxItem Content="Admin"/>
+                                                    <sys:String>Read</sys:String>
+                                                    <sys:String>Write</sys:String>
+                                                    <sys:String>Admin</sys:String>
                                                 </ComboBox>
                                             </StackPanel>
 

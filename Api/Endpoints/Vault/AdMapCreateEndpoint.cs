@@ -9,7 +9,7 @@ namespace Api.Endpoints.Vault;
 
 public sealed class AdMapCreateEndpoint : IEndpoint
 {
-    private sealed record CreateAdMapRequest(string GroupId, VaultPermission Permission, bool IsActive = true);
+    private sealed record CreateAdMapRequest(string GroupId, string Permission, bool IsActive = true);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
@@ -34,10 +34,12 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                     return CustomResults.Problem(authResult);
                 }
 
+                if (!Enum.TryParse<VaultPermission>(request.Permission, true, out var permission))
+                    return Results.BadRequest(new { error = $"Invalid permission value: '{request.Permission}'. Valid values: Read, Write, Admin." });
+
                 var result = await sender.Send(
-                    new CreateAdMapCommand(vaultId, request.GroupId, request.Permission, request.IsActive),
+                    new CreateAdMapCommand(vaultId, request.GroupId, permission, request.IsActive),
                     cancellationToken);
-                    
 
                 if (result.IsFailure)
                 {

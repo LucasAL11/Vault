@@ -1,6 +1,7 @@
 ﻿using Application.Abstractions.Messaging.Handlers;
 using Application.Vault.Secrets;
 using Domain.vault;
+using Infrastructure.Authentication.ActiveDirectory;
 using Microsoft.AspNetCore.Authorization;
 using Shared;
 
@@ -82,6 +83,20 @@ internal sealed class SecretAccessAuthorizer(
                 context.VaultStatus,
                 actor);
             return SecretAccessDecision.Forbidden;
+        }
+
+        // Admins bypass ADMap checks
+        var adminAuth = await authorizationService.AuthorizeAsync(user, AdGroupPolicyProvider.AdminPolicyName);
+        if (adminAuth.Succeeded)
+        {
+            await AppendAuditBestEffortAsync(
+                action: "SECRET_ACCESS_GRANTED",
+                actor: actor,
+                vaultId: vaultId,
+                secretName: secretName,
+                details: $"operation={operation};requiredPermission={requiredPermission};grant=admin-policy",
+                cancellationToken: cancellationToken);
+            return SecretAccessDecision.Granted;
         }
 
         if (string.IsNullOrWhiteSpace(context.VaultGroup))

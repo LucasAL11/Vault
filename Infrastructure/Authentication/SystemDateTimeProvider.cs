@@ -4,5 +4,5 @@ namespace Infrastructure.Authentication;
 
 public sealed class SystemDateTimeProvider : IDateTimeProvider
 {
-    public DateTime UtcNow => DateTime.Now;
+    public DateTime UtcNow => DateTime.UtcNow;
 }

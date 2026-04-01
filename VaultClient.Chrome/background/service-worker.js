@@ -4,9 +4,11 @@
 // ============================================================
 
 const DEFAULT_CONFIG = {
-  serverUrl: 'http://localhost:5065',
-  clientId: 'local-dev-client',
-  clientSecret: 'change-me-dev-shared-secret',
+  serverUrl: '',
+  jwtAudience: 'WebApplication1',
+  defaultDomain: '',
+  clientId: '',
+  clientSecret: '',
 };
 
 // --- Storage helpers ---
@@ -29,6 +31,38 @@ async function setAuth(token, username, domain) {
 
 async function clearAuth() {
   await chrome.storage.session.remove('auth');
+}
+
+// --- JWT helpers (no crypto — decode only, server already validated) ---
+
+/**
+ * Decodes the payload of a JWT without verifying the signature.
+ * Verification is performed by the server on every API call.
+ */
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    // Base64url → Base64 → JSON
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '='));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validates the 'aud' claim of a JWT against the expected audience.
+ * Returns true if the claim matches (or if no expected audience is configured).
+ */
+function validateJwtAudience(token, expectedAudience) {
+  if (!expectedAudience) return true; // not configured — skip check
+  const payload = decodeJwtPayload(token);
+  if (!payload) return false;
+  const aud = payload.aud;
+  if (Array.isArray(aud)) return aud.includes(expectedAudience);
+  return aud === expectedAudience;
 }
 
 // --- Crypto: HMAC-SHA256 proof (mirrors ProofBuilder.cs) ---
@@ -91,8 +125,11 @@ async function apiFetch(path, options = {}) {
 // --- Auth ---
 
 async function authenticate(username, password, domain) {
+  const config = await getConfig();
+  const effectiveDomain = domain || config.defaultDomain || undefined;
+
   const body = { username, password };
-  if (domain) body.domain = domain;
+  if (effectiveDomain) body.domain = effectiveDomain;
 
   const result = await apiFetch('/users', {
     method: 'POST',
@@ -100,26 +137,22 @@ async function authenticate(username, password, domain) {
   });
 
   const token = typeof result === 'string' ? result : result.token || result.accessToken;
-  if (!token) throw new Error('Token not returned');
+  if (!token) throw new Error('Token nao retornado pelo servidor.');
 
-  await setAuth(token, username, domain);
-  return { success: true, username, domain };
-}
+  // Validate the 'aud' claim of the received JWT against the configured audience.
+  // This ensures the extension is talking to the correct server / tenant.
+  const expectedAudience = config.jwtAudience || DEFAULT_CONFIG.jwtAudience;
+  if (!validateJwtAudience(token, expectedAudience)) {
+    const payload = decodeJwtPayload(token);
+    const received = payload?.aud ?? '(nao presente)';
+    throw new Error(
+      `Token invalido: audience incorreta. Esperado: "${expectedAudience}", recebido: "${received}". ` +
+      `Verifica o campo "JWT Audience" nas Configuracoes.`
+    );
+  }
 
-async function challengeRespond(username, domain) {
-  const config = await getConfig();
-
-  // 1. Get challenge
-  const challenge = await apiFetch('/auth/challenge', {
-    method: 'POST',
-    body: JSON.stringify({
-      clientId: config.clientId,
-      subject: username,
-      audience: 'VaultSecretRequest',
-    }),
-  });
-
-  return challenge;
+  await setAuth(token, username, effectiveDomain);
+  return { success: true, username, domain: effectiveDomain };
 }
 
 // --- Vaults ---
@@ -141,7 +174,7 @@ async function getSecretMetadata(vaultId, name) {
 async function requestSecretValue(vaultId, secretName, reason, ticket) {
   const config = await getConfig();
   const { auth } = await chrome.storage.session.get('auth');
-  if (!auth) throw new Error('Not authenticated');
+  if (!auth) throw new Error('Nao autenticado');
 
   // 1. Get nonce challenge
   const challenge = await apiFetch('/auth/challenge', {
@@ -149,7 +182,7 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
     body: JSON.stringify({
       clientId: config.clientId,
       subject: auth.username,
-      audience: 'VaultSecretRequest',
+      audience: config.jwtAudience || 'vault.secret.request',
     }),
   });
 
@@ -223,7 +256,6 @@ async function handleMessage(msg) {
       return { success: true };
 
     case 'autofillSecret': {
-      // Get secret value and send to content script
       const secret = await requestSecretValue(msg.vaultId, msg.secretName, 'Autofill via Chrome Extension', msg.ticket || '-');
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {

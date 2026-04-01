@@ -36,7 +36,8 @@ public sealed class CreateVaultCommandHandler(IApplicationDbContext dbContext)
             command.Name,
             command.Slug,
             command.Group,
-            command.Environment);
+            command.Environment,
+            command.Actor);
 
         vault.UpdateDescription(command.Description ?? string.Empty, command.Actor);
         vault.Status = Status.Active;

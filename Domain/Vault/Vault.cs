@@ -49,13 +49,15 @@ public class Vault : Entity
         string name,
         string slug,
         string group,
-        Environment environment = Environment.Production)
+        Environment environment = Environment.Production,
+        string? owner = null)
     {
         TenantId = tenantId;
         Name = name;
         Slug = slug;
         Group = group;
         Environment = environment;
+        Owner = owner ?? string.Empty;
     }
 
     public void UpdateDescription(string description, string updatedBy)

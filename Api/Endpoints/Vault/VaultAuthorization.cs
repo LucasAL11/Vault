@@ -1,5 +1,6 @@
 using Application.Abstractions.Messaging.Handlers;
 using Application.Vault;
+using Infrastructure.Authentication.ActiveDirectory;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Endpoints.Vault;
@@ -19,6 +20,14 @@ internal static class VaultAuthorization
             return vaultGroup;
         }
 
+        // Admins can access any vault
+        var adminAuth = await authorizationService.AuthorizeAsync(user, AdGroupPolicyProvider.AdminPolicyName);
+        if (adminAuth.Succeeded)
+        {
+            return Shared.Result.Success(vaultGroup.Value);
+        }
+
+        // Non-admins: check vault-specific group
         var policy = $"AdGroup:{vaultGroup.Value}";
         var authorization = await authorizationService.AuthorizeAsync(user, policy);
         return authorization.Succeeded
