@@ -24,9 +24,4 @@ public partial class LoginView : UserControl
             vm.LoginCommand.Execute(PasswordBox.Password);
     }
 
-    private void LocalRadio_Checked(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is LoginViewModel vm)
-            vm.IsAdLogin = false;
-    }
 }
