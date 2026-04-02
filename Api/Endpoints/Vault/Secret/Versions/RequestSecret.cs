@@ -204,21 +204,6 @@ public sealed class RequestSecret : IEndpoint
             var proofValid = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow && nonceConsumed;
             if (!proofValid)
             {
-                // DEBUG: log every flag, payload, and nonce scope
-                logger.LogWarning(
-                    "Secret request PROOF DEBUG: " +
-                    "hasClientSecret={HasClientSecret}, nonceParsed={NonceParsed}, " +
-                    "signatureValid={SignatureValid}, withinSkewWindow={WithinSkewWindow}, " +
-                    "nonceConsumed={NonceConsumed}, " +
-                    "consumeScope={ConsumeScope}, " +
-                    "remoteIp={RemoteIp}, payload={Payload}",
-                    hasClientSecret, nonceParsed,
-                    signatureValid, withinSkewWindow,
-                    nonceConsumed,
-                    consumeScope,
-                    httpContext.Connection.RemoteIpAddress?.ToString() ?? "null",
-                    proofPayload);
-
                 var deniedAuditResult = await sender.Send(
                     new AppendSecretAuditCommand(
                         VaultId: vaultId,

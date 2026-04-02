@@ -24,7 +24,6 @@ public sealed class NonceChallenge : IEndpoint
             IDateTimeProvider dateTimeProvider,
             IOptions<NonceStoreOptions> nonceOptions,
             HttpContext httpContext,
-            ILogger<NonceChallenge> logger,
             CancellationToken cancellationToken) =>
         {
             ApplyNoStoreHeaders(httpContext.Response);
@@ -71,13 +70,6 @@ public sealed class NonceChallenge : IEndpoint
                 clientId,
                 subject,
                 audience);
-
-            // DEBUG: log scope and IP for nonce mismatch investigation
-            logger.LogWarning(
-                "Challenge NONCE DEBUG: scope={Scope}, remoteIp={RemoteIp}, subject={Subject}, audience={Audience}, clientId={ClientId}",
-                scope,
-                httpContext.Connection.RemoteIpAddress?.ToString() ?? "null",
-                subject, audience, clientId);
 
             for (var attempt = 0; attempt < MaxAttempts; attempt++)
             {
