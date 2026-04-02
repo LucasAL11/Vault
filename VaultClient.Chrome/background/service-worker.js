@@ -172,12 +172,13 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
   const auth = await getAuth();
   if (!auth) throw new Error('Nao autenticado.');
 
-  // 1. Nonce challenge
+  // 1. Nonce challenge — NÃO enviar subject; deixar o servidor
+  //    resolver do JWT para garantir que o subject é o mesmo
+  //    no challenge e no /request (ex: "PLT\USERNAME").
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
-      subject: auth.username,
       audience: config.jwtAudience,
     }),
   });
@@ -187,7 +188,7 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
     vaultId,                              // Guid do vault
     secretName,                           // nome do segredo
     config.clientId,                      // AuthChallenge:ClientSecrets key
-    challenge.subject || auth.username,   // subject normalizado pelo servidor
+    challenge.subject,                    // subject resolvido pelo servidor (do JWT)
     reason,                               // motivo do acesso
     ticket,                               // ticket/incidente
     challenge.nonce,                      // nonce base64url do challenge
