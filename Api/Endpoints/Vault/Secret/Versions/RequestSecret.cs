@@ -204,6 +204,22 @@ public sealed class RequestSecret : IEndpoint
             var proofValid = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow && nonceConsumed;
             if (!proofValid)
             {
+                // DEBUG: log every flag and the exact payload so we can compare with the extension
+                logger.LogWarning(
+                    "Secret request PROOF DEBUG: " +
+                    "hasClientSecret={HasClientSecret}, nonceParsed={NonceParsed}, " +
+                    "signatureValid={SignatureValid}, withinSkewWindow={WithinSkewWindow}, " +
+                    "nonceConsumed={NonceConsumed}, " +
+                    "subject={Subject}, payload={Payload}, " +
+                    "clientId={ClientId}, reason={Reason}, ticket={Ticket}, " +
+                    "nonce={Nonce}, issuedAtUtc={IssuedAtUtc}",
+                    hasClientSecret, nonceParsed,
+                    signatureValid, withinSkewWindow,
+                    nonceConsumed,
+                    subject, proofPayload,
+                    normalizedClientId, normalizedReason, normalizedTicket,
+                    normalizedNonce, normalizedIssuedAt.ToString("O"));
+
                 var deniedAuditResult = await sender.Send(
                     new AppendSecretAuditCommand(
                         VaultId: vaultId,

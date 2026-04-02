@@ -80,6 +80,20 @@ async function buildProof(vaultId, secretName, clientId, subject, reason, ticket
     formatDateTimeOffsetO(issuedAtUtc), // {issuedAtUtc:O}
   ].join('|');
 
+  // DEBUG: comparar com o log do servidor
+  console.log('[PROOF DEBUG] payload:', payload);
+  console.log('[PROOF DEBUG] fields:', {
+    vaultId: vaultId.toLowerCase(),
+    secretName: secretName.trim(),
+    clientId: clientId.trim(),
+    subject: subject.trim().toUpperCase(),
+    reason: reason.trim(),
+    ticket: normalizedTicket,
+    nonce: nonce.trim(),
+    issuedAtUtc: formatDateTimeOffsetO(issuedAtUtc),
+    issuedAtUtcRaw: issuedAtUtc,
+  });
+
   // HMACSHA256(payload, clientSecret) → base64url (sem padding)
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
