@@ -7,6 +7,7 @@ public static class NonceChallengeAudiences
     public const string AuthChallengeVerify = "auth.challenge.verify";
     public const string AuthChallengeRespond = "auth.challenge.respond";
     public const string VaultSecretRequest = "vault.secret.request";
+    public const string WebApp1 = "webapplication1";
 
     public static bool TryNormalize(string? audience, out string normalizedAudience)
     {
@@ -22,6 +23,7 @@ public static class NonceChallengeAudiences
             case AuthChallengeVerify:
             case AuthChallengeRespond:
             case VaultSecretRequest:
+            case WebApp1:    
                 normalizedAudience = normalized;
                 return true;
             default:
