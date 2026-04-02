@@ -186,14 +186,17 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
   const auth = await getAuth();
   if (!auth) throw new Error('Nao autenticado.');
 
-  // 1. Nonce challenge — NÃO enviar subject; deixar o servidor
-  //    resolver do JWT para garantir que o subject é o mesmo
-  //    no challenge e no /request (ex: "PLT\USERNAME").
+  // 1. Nonce challenge
+  //    - NÃO enviar subject (servidor resolve do JWT)
+  //    - Audience DEVE ser "vault.secret.request" porque o endpoint
+  //      /request hardcodeia NonceChallengeAudiences.VaultSecretRequest
+  //      para consumir o nonce. Se o challenge usar outro audience,
+  //      os scopes nao coincidem e nonceConsumed=false.
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
-      audience: config.jwtAudience,
+      audience: 'vault.secret.request',
     }),
   });
 

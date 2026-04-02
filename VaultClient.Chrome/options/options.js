@@ -14,7 +14,6 @@ $('#advanced-toggle').addEventListener('click', () => {
 chrome.storage.local.get('config', ({ config }) => {
   if (!config) return;
   $('#serverUrl').value     = config.serverUrl     || '';
-  $('#jwtAudience').value   = config.jwtAudience   || '';
   $('#defaultDomain').value = config.defaultDomain || '';
   $('#clientId').value      = config.clientId      || '';
   $('#clientSecret').value  = config.clientSecret  || '';
@@ -34,7 +33,6 @@ function showToast(message, type = 'success') {
 function readForm() {
   return {
     serverUrl:     $('#serverUrl').value.trim().replace(/\/+$/, ''),
-    jwtAudience:   $('#jwtAudience').value.trim(),
     defaultDomain: $('#defaultDomain').value.trim(),
     clientId:      $('#clientId').value.trim(),
     clientSecret:  $('#clientSecret').value,
@@ -70,19 +68,18 @@ $('#btn-test').addEventListener('click', async () => {
   $('#toast').style.display = 'none';
 
   try {
-    const audience = config.jwtAudience || 'vault.secret.request';
     const clientId = config.clientId || 'test-connection';
 
     const res = await fetch(`${config.serverUrl}/auth/challenge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, audience }),
+      body: JSON.stringify({ clientId, audience: 'vault.secret.request' }),
     });
 
     if (res.status === 400) {
       const body = await res.json().catch(() => ({}));
       const msg = body.message || 'Erro 400';
-      showToast(`Ligacao estabelecida mas pedido rejeitado: "${msg}". Verifica o campo JWT Audience.`, 'error');
+      showToast(`Ligacao estabelecida mas pedido rejeitado: "${msg}".`, 'error');
       return;
     }
 
@@ -97,7 +94,7 @@ $('#btn-test').addEventListener('click', async () => {
     }
 
     if (res.ok) {
-      showToast(`Ligacao bem-sucedida (HTTP ${res.status}). Servidor e audience aceites.`, 'success');
+      showToast(`Ligacao bem-sucedida (HTTP ${res.status}). Servidor OK.`, 'success');
       return;
     }
 
