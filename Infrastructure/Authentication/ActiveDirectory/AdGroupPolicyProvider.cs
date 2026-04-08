@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Authentication.ActiveDirectory;
@@ -6,15 +7,41 @@ namespace Infrastructure.Authentication.ActiveDirectory;
 public sealed class AdGroupPolicyProvider : IAuthorizationPolicyProvider
 {
     private const string PolicyPrefix = "AdGroup:";
-    private readonly DefaultAuthorizationPolicyProvider _fallbackPolicyProvider;
+    public const string AdminPolicyName = "AdminPolicy";
 
-    public AdGroupPolicyProvider(IOptions<AuthorizationOptions> options)
+    private readonly DefaultAuthorizationPolicyProvider _fallbackPolicyProvider;
+    private readonly string[] _adminGroups;
+    private readonly bool _bypassAdGroupCheck;
+
+    public AdGroupPolicyProvider(IOptions<AuthorizationOptions> options, IConfiguration configuration)
     {
         _fallbackPolicyProvider = new DefaultAuthorizationPolicyProvider(options);
+        _adminGroups = configuration.GetSection("Authorization:AdminGroups").Get<string[]>()
+                       ?? ["Admins", "Admin", "Administrators"];
+        _bypassAdGroupCheck = configuration.GetValue<bool>("Authorization:BypassAdGroupCheck");
     }
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        // AdminPolicy: user must belong to ANY of the configured admin groups
+        if (string.Equals(policyName, AdminPolicyName, StringComparison.OrdinalIgnoreCase))
+        {
+            var policyBuilder = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser();
+
+            if (_bypassAdGroupCheck)
+            {
+                // In bypass mode, any authenticated user passes
+                var policy = policyBuilder.Build();
+                return Task.FromResult<AuthorizationPolicy?>(policy);
+            }
+
+            // Add a requirement for each admin group — handler will succeed if user is in ANY of them
+            policyBuilder.AddRequirements(new AdminGroupRequirement(_adminGroups));
+            return Task.FromResult<AuthorizationPolicy?>(policyBuilder.Build());
+        }
+
+        // AdGroup:XXX — single group check
         if (policyName.StartsWith(PolicyPrefix, StringComparison.OrdinalIgnoreCase))
         {
             var groupName = policyName.Substring(PolicyPrefix.Length).Trim();
@@ -23,12 +50,25 @@ public sealed class AdGroupPolicyProvider : IAuthorizationPolicyProvider
                 return Task.FromResult<AuthorizationPolicy?>(null);
             }
 
-            var policy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .AddRequirements(new AdGroupRequirement(groupName))
-                .Build();
+            var policyBuilder = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser();
 
-            return Task.FromResult<AuthorizationPolicy?>(policy);
+            if (_bypassAdGroupCheck)
+            {
+                return Task.FromResult<AuthorizationPolicy?>(policyBuilder.Build());
+            }
+
+            // If the requested group is an admin group, use AdminGroupRequirement
+            // so admins pass via JWT claims without AD lookup
+            if (_adminGroups.Any(g => string.Equals(g, groupName, StringComparison.OrdinalIgnoreCase)))
+            {
+                policyBuilder.AddRequirements(new AdminGroupRequirement(_adminGroups));
+            }
+            else
+            {
+                policyBuilder.AddRequirements(new AdGroupRequirement(groupName));
+            }
+            return Task.FromResult<AuthorizationPolicy?>(policyBuilder.Build());
         }
 
         return _fallbackPolicyProvider.GetPolicyAsync(policyName);

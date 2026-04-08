@@ -77,6 +77,112 @@ public class SecretStoreIntegrationTests : IClassFixture<ApiTestFactory>
     }
 
     [Fact]
+    public async Task PutSecret_ShouldApplyDefaultExpiration_ForProductionCredentialPolicy()
+    {
+        await _factory.EnsureInitializedAsync();
+        using var client = _factory.CreateClient();
+
+        var beforeWrite = DateTimeOffset.UtcNow;
+        var response = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/RETENTION_DB_PASSWORD",
+            new
+            {
+                value = "senha-com-expiracao-padrao",
+                contentType = "text/plain",
+                expiresUtc = (DateTimeOffset?)null
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var secret = await db.Secrets.SingleAsync(x => x.VaultId == ApiTestFactory.VaultId && x.Name == "RETENTION_DB_PASSWORD");
+        var version = await db.SecretVersions
+            .Where(x => x.SecretId == secret.Id)
+            .OrderByDescending(x => x.Version)
+            .FirstAsync();
+
+        var afterWrite = DateTimeOffset.UtcNow;
+        Assert.True(version.Expires.HasValue);
+        Assert.True(version.Expires.Value >= beforeWrite.AddDays(29));
+        Assert.True(version.Expires.Value <= afterWrite.AddDays(31));
+    }
+
+    [Fact]
+    public async Task PutSecret_ShouldRejectExpirationOutsideTokenPolicyWindow()
+    {
+        await _factory.EnsureInitializedAsync();
+        using var client = _factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/RETENTION_API_TOKEN",
+            new
+            {
+                value = "token-com-ttl-invalido",
+                contentType = "text/plain",
+                expiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutSecret_ShouldPruneVersions_ByEnvironmentAndTypePolicy()
+    {
+        await _factory.EnsureInitializedAsync();
+        try
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    UPDATE vault
+                    SET Environment = {(int)Domain.vault.Environment.Development}
+                    WHERE Id = {ApiTestFactory.VaultId};
+                    """);
+            }
+
+            using var client = _factory.CreateClient();
+            for (var version = 1; version <= 12; version++)
+            {
+                var response = await client.PutAsJsonAsync(
+                    $"/vaults/{ApiTestFactory.VaultId}/secrets/RETENTION_APP_CONFIG",
+                    new
+                    {
+                        value = $"valor-{version}",
+                        contentType = "application/json",
+                        expiresUtc = (DateTimeOffset?)null
+                    });
+
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+
+            using var verificationScope = _factory.Services.CreateScope();
+            var verificationDb = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var secretEntity = await verificationDb.Secrets.SingleAsync(x => x.VaultId == ApiTestFactory.VaultId && x.Name == "RETENTION_APP_CONFIG");
+            var versions = await verificationDb.SecretVersions
+                .Where(x => x.SecretId == secretEntity.Id)
+                .OrderBy(x => x.Version)
+                .ToListAsync();
+
+            Assert.Equal(10, versions.Count);
+            Assert.Equal(3, versions.First().Version);
+            Assert.Equal(12, versions.Last().Version);
+            Assert.All(versions, x => Assert.True(x.Expires.HasValue));
+        }
+        finally
+        {
+            using var restoreScope = _factory.Services.CreateScope();
+            var restoreDb = restoreScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await restoreDb.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE vault
+                SET Environment = {(int)Domain.vault.Environment.Production}
+                WHERE Id = {ApiTestFactory.VaultId};
+                """);
+        }
+    }
+
+    [Fact]
     public async Task ReadMetadataEndpoints_ShouldNotExposePlainValue_AndShouldWriteAudit()
     {
         await _factory.EnsureInitializedAsync();
@@ -469,6 +575,147 @@ public class SecretStoreIntegrationTests : IClassFixture<ApiTestFactory>
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequestSecretValue_ShouldReturnBadRequest_WhenReasonTicketOrClientIdAreInvalid()
+    {
+        await _factory.EnsureInitializedAsync();
+        using var client = _factory.CreateClient();
+
+        var putResponse = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_INPUT_GUARD",
+            new
+            {
+                value = "valor-super-secreto-guard",
+                contentType = "text/plain",
+                expiresUtc = (DateTimeOffset?)null
+            });
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var (nonce, issuedAtUtc) = await IssueVaultRequestChallengeAsync(client);
+        var validProof = BuildVaultSecretRequestProof(
+            vaultId: ApiTestFactory.VaultId,
+            secretName: "APP_SECRET_INPUT_GUARD",
+            clientId: VaultRequestClientId,
+            subject: AuthenticatedSubject,
+            reason: "Validacao de input",
+            ticket: "INC-INPUT-GUARD",
+            nonce: nonce,
+            issuedAtUtc: issuedAtUtc,
+            clientSecret: VaultRequestClientSecret);
+
+        var overLimitReason = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_INPUT_GUARD/request",
+            new
+            {
+                contractVersion = VaultRequestContractVersion,
+                reason = new string('x', 257),
+                ticket = "INC-INPUT-GUARD",
+                clientId = VaultRequestClientId,
+                nonce,
+                issuedAt = issuedAtUtc,
+                proof = validProof
+            });
+
+        var invalidTicketCharset = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_INPUT_GUARD/request",
+            new
+            {
+                contractVersion = VaultRequestContractVersion,
+                reason = "Validacao de input",
+                ticket = "INC|INPUT|GUARD",
+                clientId = VaultRequestClientId,
+                nonce,
+                issuedAt = issuedAtUtc,
+                proof = validProof
+            });
+
+        var invalidClientIdCharset = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_INPUT_GUARD/request",
+            new
+            {
+                contractVersion = VaultRequestContractVersion,
+                reason = "Validacao de input",
+                ticket = "INC-INPUT-GUARD",
+                clientId = "client|invalid",
+                nonce,
+                issuedAt = issuedAtUtc,
+                proof = validProof
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, overLimitReason.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTicketCharset.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidClientIdCharset.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequestSecretValue_WithOversizedProof_ShouldReturnUnauthorized_AndKeepNonceValid()
+    {
+        await _factory.EnsureInitializedAsync();
+        using var client = _factory.CreateClient();
+
+        const string expectedSecret = "valor-super-secreto-proof-size";
+
+        var putResponse = await client.PutAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_PROOF_SIZE",
+            new
+            {
+                value = expectedSecret,
+                contentType = "text/plain",
+                expiresUtc = (DateTimeOffset?)null
+            });
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var (nonce, issuedAtUtc) = await IssueVaultRequestChallengeAsync(client);
+        var reason = "Validacao decode proof";
+        var ticket = "INC-PROOF-SIZE";
+
+        var oversizedProofAttempt = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_PROOF_SIZE/request",
+            new
+            {
+                contractVersion = VaultRequestContractVersion,
+                reason,
+                ticket,
+                clientId = VaultRequestClientId,
+                nonce,
+                issuedAt = issuedAtUtc,
+                proof = new string('A', 512)
+            });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, oversizedProofAttempt.StatusCode);
+
+        var validProof = BuildVaultSecretRequestProof(
+            vaultId: ApiTestFactory.VaultId,
+            secretName: "APP_SECRET_PROOF_SIZE",
+            clientId: VaultRequestClientId,
+            subject: AuthenticatedSubject,
+            reason: reason,
+            ticket: ticket,
+            nonce: nonce,
+            issuedAtUtc: issuedAtUtc,
+            clientSecret: VaultRequestClientSecret);
+
+        var validAttempt = await client.PostAsJsonAsync(
+            $"/vaults/{ApiTestFactory.VaultId}/secrets/APP_SECRET_PROOF_SIZE/request",
+            new
+            {
+                contractVersion = VaultRequestContractVersion,
+                reason,
+                ticket,
+                clientId = VaultRequestClientId,
+                nonce,
+                issuedAt = issuedAtUtc,
+                proof = validProof
+            });
+
+        Assert.Equal(HttpStatusCode.OK, validAttempt.StatusCode);
+
+        using var payload = JsonDocument.Parse(await validAttempt.Content.ReadAsStringAsync());
+        Assert.Equal(expectedSecret, payload.RootElement.GetProperty("value").GetString());
     }
 
     [Fact]

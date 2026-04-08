@@ -5,6 +5,7 @@ using Application.Computers;
 using Application.Observability;
 using Domain.Computers;
 using Domain.Computers.Events;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         
         RegisterCommandHandlers(services, assembly);
         RegisterQueryHandlers(services, assembly);
+        RegisterValidators(services, assembly);
 
         services.AddScoped<INotificationHandler<ComputerRegisteredDomainEvent>, ComputerRegisteredDomainEventHandler>();
         
@@ -43,6 +45,21 @@ public static class DependencyInjection
         }
     }
 
+    private static void RegisterValidators(IServiceCollection services, Assembly assembly)
+    {
+        var validators = assembly
+            .GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false })
+            .SelectMany(t => t.GetInterfaces()
+                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IValidator<>))
+                .Select(i => new { Validator = t, Interface = i }));
+
+        foreach (var item in validators)
+        {
+            services.AddScoped(item.Interface, item.Validator);
+        }
+    }
+
     private static void RegisterCommandHandlers(IServiceCollection services, Assembly assembly)
     {
         var commandHandlers = 
@@ -54,7 +71,7 @@ public static class DependencyInjection
                     t.GetInterfaces()
                     .Where(i => i.IsGenericType &&
                                 (i.GetGenericTypeDefinition() == typeof(ICommandHandler<,>)
-                                || i. GetGenericTypeDefinition() == typeof(ICommandHandler<,>)))
+                                || i.GetGenericTypeDefinition() == typeof(ICommandHandler<>)))
                     .Select(i => new { Handler = t, Interface = i }));
           
         

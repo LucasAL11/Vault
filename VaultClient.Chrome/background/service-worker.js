@@ -1,24 +1,20 @@
 // ============================================================
-// Vault Password Manager - Background Service Worker
-// Handles auth, API calls, and message routing
+// Vault Password Manager — Background Service Worker
+//
+// Toda a configuracao vem de chrome.storage.local['config'].
+// Sem defaults. O utilizador configura tudo na tela de settings.
 // ============================================================
 
-const DEFAULT_CONFIG = {
-  serverUrl: 'http://localhost:5065',
-  clientId: 'local-dev-client',
-  clientSecret: 'change-me-dev-shared-secret',
-};
-
-// --- Storage helpers ---
+// --- Storage ---
 
 async function getConfig() {
   const { config } = await chrome.storage.local.get('config');
-  return { ...DEFAULT_CONFIG, ...config };
+  return config || {};
 }
 
-async function getToken() {
+async function getAuth() {
   const { auth } = await chrome.storage.session.get('auth');
-  return auth?.token || null;
+  return auth || null;
 }
 
 async function setAuth(token, username, domain) {
@@ -31,7 +27,29 @@ async function clearAuth() {
   await chrome.storage.session.remove('auth');
 }
 
-// --- Crypto: HMAC-SHA256 proof (mirrors ProofBuilder.cs) ---
+// ============================================================
+// DateTimeOffset :O format
+//
+// C# DateTimeOffset.ToString("O") SEMPRE produz:
+//   yyyy-MM-ddTHH:mm:ss.fffffff+HH:mm
+//
+// System.Text.Json serializa DateTime(Kind=Utc) como:
+//   2026-04-01T15:30:45.123Z       (decimais truncados, "Z")
+//
+// Esta funcao converte para o formato :O exacto:
+//   2026-04-01T15:30:45.1230000+00:00
+// ============================================================
+
+function formatDateTimeOffsetO(isoString) {
+  const m = isoString.match(
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/
+  );
+  if (!m) return isoString;
+  const datetime = m[1];
+  const frac = (m[2] || '').padEnd(7, '0');
+  const offset = m[3] === 'Z' ? '+00:00' : m[3];
+  return `${datetime}.${frac}${offset}`;
+}
 
 // Normalize ISO timestamp to match C#'s DateTimeOffset.ToString("O")
 // which always outputs exactly 7 fractional digits
@@ -47,6 +65,8 @@ function toRoundtripFormat(isoString) {
 
 async function buildProof(vaultId, secretName, clientId, subject, reason, ticket, nonce, issuedAt, clientSecret) {
   const normalizedTicket = (!ticket || !ticket.trim()) ? '-' : ticket.trim();
+
+  // BuildProofPayload — campos separados por "|"
   const payload = [
     vaultId.toLowerCase(),
     secretName.trim(),
@@ -58,6 +78,7 @@ async function buildProof(vaultId, secretName, clientId, subject, reason, ticket
     toRoundtripFormat(issuedAt),
   ].join('|');
 
+  // HMACSHA256(payload, clientSecret) → base64url (sem padding)
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
@@ -75,16 +96,18 @@ function base64url(bytes) {
   return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-// --- API client ---
+// ============================================================
+// API Client
+// ============================================================
 
 async function apiFetch(path, options = {}) {
   const config = await getConfig();
-  const token = await getToken();
+  const auth = await getAuth();
   const url = `${config.serverUrl}${path}`;
 
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}),
     ...options.headers,
   };
 
@@ -100,11 +123,19 @@ async function apiFetch(path, options = {}) {
   return res.text();
 }
 
-// --- Auth ---
+// ============================================================
+// Auth — POST /users
+//
+// C# Authenticate.Request:
+//   record Request(string Username, string? Domain, string? Password)
+// ============================================================
 
 async function authenticate(username, password, domain) {
+  const config = await getConfig();
+  const effectiveDomain = domain || config.defaultDomain || undefined;
+
   const body = { username, password };
-  if (domain) body.domain = domain;
+  if (effectiveDomain) body.domain = effectiveDomain;
 
   const result = await apiFetch('/users', {
     method: 'POST',
@@ -112,17 +143,27 @@ async function authenticate(username, password, domain) {
   });
 
   const token = typeof result === 'string' ? result : result.token || result.accessToken;
-  if (!token) throw new Error('Token not returned');
+  if (!token) throw new Error('Token nao retornado pelo servidor.');
 
-  await setAuth(token, username, domain);
-  return { success: true, username, domain };
+  await setAuth(token, username, effectiveDomain);
+  return { success: true, username, domain: effectiveDomain };
 }
 
 async function challengeRespond(username, domain) {
   const config = await getConfig();
   const fullSubject = domain ? `${domain}\\${username}` : username;
 
-  // 1. Get challenge
+async function requestSecretValue(vaultId, secretName, reason, ticket) {
+  const config = await getConfig();
+  const auth = await getAuth();
+  if (!auth) throw new Error('Nao autenticado.');
+
+  // 1. Nonce challenge
+  //    - NÃO enviar subject (servidor resolve do JWT)
+  //    - Audience DEVE ser "vault.secret.request" porque o endpoint
+  //      /request hardcodeia NonceChallengeAudiences.VaultSecretRequest
+  //      para consumir o nonce. Se o challenge usar outro audience,
+  //      os scopes nao coincidem e nonceConsumed=false.
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
@@ -132,16 +173,46 @@ async function challengeRespond(username, domain) {
     }),
   });
 
-  return challenge;
+  // 2. HMAC proof — campos exactos do BuildProofPayload
+  const proof = await buildProof(
+    vaultId,                              // Guid do vault
+    secretName,                           // nome do segredo
+    config.clientId,                      // AuthChallenge:ClientSecrets key
+    challenge.subject,                    // subject resolvido pelo servidor (do JWT)
+    reason,                               // motivo do acesso
+    ticket,                               // ticket/incidente
+    challenge.nonce,                      // nonce base64url do challenge
+    challenge.issuedAtUtc,                // timestamp do challenge
+    config.clientSecret                   // AuthChallenge:ClientSecrets value
+  );
+
+  // 3. Request body — espelho de SecretRequestPayload
+  const result = await apiFetch(
+    `/vaults/${vaultId}/secrets/${encodeURIComponent(secretName)}/request`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        contractVersion: 'v1',
+        reason: reason,
+        ticket: ticket || '-',
+        clientId: config.clientId,
+        nonce: challenge.nonce,
+        issuedAtUtc: challenge.issuedAtUtc,
+        proof: proof,
+      }),
+    }
+  );
+
+  return result;
 }
 
-// --- Vaults ---
+// ============================================================
+// Vaults & Secrets
+// ============================================================
 
 async function listVaults() {
   return apiFetch('/vaults');
 }
-
-// --- Secrets ---
 
 async function listSecrets(vaultId, page = 1, pageSize = 50) {
   return apiFetch(`/vaults/${vaultId}/secrets?page=${page}&pageSize=${pageSize}`);
@@ -209,7 +280,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   handleMessage(msg)
     .then(sendResponse)
     .catch((err) => sendResponse({ error: err.message }));
-  return true; // async response
+  return true;
 });
 
 async function handleMessage(msg) {
@@ -222,8 +293,12 @@ async function handleMessage(msg) {
       return { success: true };
 
     case 'getAuthState': {
-      const { auth } = await chrome.storage.session.get('auth');
-      return { authenticated: !!auth, username: auth?.username, domain: auth?.domain };
+      const auth = await getAuth();
+      return {
+        authenticated: !!auth,
+        username: auth?.username,
+        domain: auth?.domain,
+      };
     }
 
     case 'listVaults':
@@ -271,11 +346,13 @@ async function handleMessage(msg) {
       return apiFetch(`/autofill-rules/match?url=${encodeURIComponent(msg.url)}`);
 
     default:
-      throw new Error(`Unknown action: ${msg.action}`);
+      throw new Error(`Accao desconhecida: ${msg.action}`);
   }
 }
 
-// --- Keyboard shortcut ---
+// ============================================================
+// Keyboard shortcut
+// ============================================================
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'autofill') {

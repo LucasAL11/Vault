@@ -33,8 +33,9 @@ public class RegisterComputerCommandHandler(IApplicationDbContext context, IDate
         
         context.Computers.Add(computer);
 
-        await context.SaveChangesAsync(cancellationToken);
+        
         computer.RaiseEvents(new ComputerRegisteredDomainEvent(computer.Id, computer.Name));
+        await context.SaveChangesAsync(cancellationToken);
 
         return "Registro comunicado com sucesso";
     }
