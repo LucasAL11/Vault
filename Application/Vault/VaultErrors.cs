@@ -30,4 +30,19 @@ internal static class VaultErrors
 
     public static Error AdMapNotFound(Guid vaultId, Guid adMapId) =>
         Error.NotFound("AdMap.NotFound", $"AD map '{adMapId}' was not found in vault '{vaultId}'.");
+
+    public static Error InvalidUrlPattern() =>
+        Error.BadRequest("AutofillRule.InvalidUrlPattern", "urlPattern is required.");
+
+    public static Error InvalidLogin() =>
+        Error.BadRequest("AutofillRule.InvalidLogin", "login is required.");
+
+    public static Error InvalidSecretName() =>
+        Error.BadRequest("AutofillRule.InvalidSecretName", "secretName is required.");
+
+    public static Error AutofillRuleAlreadyExists(Guid vaultId, string urlPattern) =>
+        Error.Conflict("AutofillRule.AlreadyExists", $"A rule for URL '{urlPattern}' already exists in vault '{vaultId}'.");
+
+    public static Error AutofillRuleNotFound(Guid vaultId, Guid ruleId) =>
+        Error.NotFound("AutofillRule.NotFound", $"Autofill rule '{ruleId}' was not found in vault '{vaultId}'.");
 }

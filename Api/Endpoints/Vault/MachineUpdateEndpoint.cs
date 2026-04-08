@@ -49,6 +49,6 @@ public sealed class MachineUpdateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }

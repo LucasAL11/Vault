@@ -33,6 +33,18 @@ async function clearAuth() {
 
 // --- Crypto: HMAC-SHA256 proof (mirrors ProofBuilder.cs) ---
 
+// Normalize ISO timestamp to match C#'s DateTimeOffset.ToString("O")
+// which always outputs exactly 7 fractional digits
+function toRoundtripFormat(isoString) {
+  // Match: date T time . fractional offset
+  const m = isoString.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?([+-]\d{2}:\d{2}|Z)$/);
+  if (!m) return isoString; // fallback: return as-is
+  const base = m[1];
+  const frac = (m[2] || '').padEnd(7, '0');
+  const offset = m[3] === 'Z' ? '+00:00' : m[3];
+  return `${base}.${frac}${offset}`;
+}
+
 async function buildProof(vaultId, secretName, clientId, subject, reason, ticket, nonce, issuedAt, clientSecret) {
   const normalizedTicket = (!ticket || !ticket.trim()) ? '-' : ticket.trim();
   const payload = [
@@ -43,7 +55,7 @@ async function buildProof(vaultId, secretName, clientId, subject, reason, ticket
     reason.trim(),
     normalizedTicket,
     nonce.trim(),
-    issuedAt,
+    toRoundtripFormat(issuedAt),
   ].join('|');
 
   const enc = new TextEncoder();
@@ -108,14 +120,15 @@ async function authenticate(username, password, domain) {
 
 async function challengeRespond(username, domain) {
   const config = await getConfig();
+  const fullSubject = domain ? `${domain}\\${username}` : username;
 
   // 1. Get challenge
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
-      subject: username,
-      audience: 'VaultSecretRequest',
+      subject: fullSubject,
+      audience: 'vault.secret.request',
     }),
   });
 
@@ -138,18 +151,25 @@ async function getSecretMetadata(vaultId, name) {
   return apiFetch(`/vaults/${vaultId}/secrets/${encodeURIComponent(name)}`);
 }
 
-async function requestSecretValue(vaultId, secretName, reason, ticket) {
+async function requestSecretValue(vaultId, secretName) {
   const config = await getConfig();
   const { auth } = await chrome.storage.session.get('auth');
   if (!auth) throw new Error('Not authenticated');
+
+  const reason = 'Autofill via Sentinel Vault Extension';
+
+  // Build full subject matching JWT identity (DOMAIN\username)
+  const fullSubject = auth.domain
+    ? `${auth.domain}\\${auth.username}`
+    : auth.username;
 
   // 1. Get nonce challenge
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
-      subject: auth.username,
-      audience: 'VaultSecretRequest',
+      subject: fullSubject,
+      audience: 'vault.secret.request',
     }),
   });
 
@@ -158,9 +178,9 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
     vaultId,
     secretName,
     config.clientId,
-    challenge.subject || auth.username,
+    challenge.subject || fullSubject,
     reason,
-    ticket,
+    '-',
     challenge.nonce,
     challenge.issuedAtUtc,
     config.clientSecret
@@ -172,7 +192,7 @@ async function requestSecretValue(vaultId, secretName, reason, ticket) {
     body: JSON.stringify({
       contractVersion: 'v1',
       reason,
-      ticket: ticket || '-',
+      ticket: '-',
       clientId: config.clientId,
       nonce: challenge.nonce,
       issuedAtUtc: challenge.issuedAtUtc,
@@ -213,7 +233,7 @@ async function handleMessage(msg) {
       return listSecrets(msg.vaultId, msg.page, msg.pageSize);
 
     case 'requestSecret':
-      return requestSecretValue(msg.vaultId, msg.secretName, msg.reason, msg.ticket);
+      return requestSecretValue(msg.vaultId, msg.secretName);
 
     case 'getConfig':
       return getConfig();
@@ -224,7 +244,7 @@ async function handleMessage(msg) {
 
     case 'autofillSecret': {
       // Get secret value and send to content script
-      const secret = await requestSecretValue(msg.vaultId, msg.secretName, 'Autofill via Chrome Extension', msg.ticket || '-');
+      const secret = await requestSecretValue(msg.vaultId, msg.secretName);
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
         await chrome.tabs.sendMessage(tab.id, {
@@ -235,6 +255,20 @@ async function handleMessage(msg) {
       }
       return { success: true };
     }
+
+    case 'createAutofillRule':
+      return apiFetch(`/vaults/${msg.vaultId}/autofill-rules`, {
+        method: 'POST',
+        body: JSON.stringify({
+          urlPattern: msg.urlPattern,
+          login: msg.login,
+          secretName: msg.secretName,
+          isActive: true,
+        }),
+      });
+
+    case 'matchAutofillRules':
+      return apiFetch(`/autofill-rules/match?url=${encodeURIComponent(msg.url)}`);
 
     default:
       throw new Error(`Unknown action: ${msg.action}`);

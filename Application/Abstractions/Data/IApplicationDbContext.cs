@@ -10,6 +10,7 @@ public interface IApplicationDbContext
     DbSet<Domain.vault.Vault>  Vaults { get; }
     DbSet<VaultMachine> VaultMachines { get; }
     DbSet<ADMap> ADMaps { get; }
+    DbSet<AutofillRule> AutofillRules { get; }
     DbSet<Secret> Secrets { get; }
     DbSet<SecretVersion> SecretVersions { get; }
     DbSet<SecretAuditEntry> SecretAuditEntries { get; }

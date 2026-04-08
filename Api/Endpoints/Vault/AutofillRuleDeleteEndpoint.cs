@@ -1,23 +1,23 @@
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
-using Application.Vault.Machines;
+using Application.Vault.AutofillRules;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Endpoints.Vault;
 
-public sealed class MachineDeleteEndpoint : IEndpoint
+public sealed class AutofillRuleDeleteEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapDelete("/vaults/{vaultId:guid}/machines/{machineId:guid}", async (
+        builder.MapDelete("/vaults/{vaultId:guid}/autofill-rules/{ruleId:guid}", async (
             Guid vaultId,
-            Guid machineId,
+            Guid ruleId,
             IMessageDispatcher sender,
             IAuthorizationService authorizationService,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<MachineDeleteEndpoint> logger,
+            ILogger<AutofillRuleDeleteEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
             var authResult = await VaultAuthorization.AuthorizeVaultAsync(
@@ -31,19 +31,20 @@ public sealed class MachineDeleteEndpoint : IEndpoint
                 return CustomResults.Problem(authResult);
             }
 
-            var result = await sender.Send(new DeleteMachineCommand(vaultId, machineId), cancellationToken);
+            var result = await sender.Send(new DeleteAutofillRuleCommand(vaultId, ruleId), cancellationToken);
             if (result.IsFailure)
             {
                 return CustomResults.Problem(result);
             }
 
             logger.LogInformation(
-                "Machine removed from vault. VaultId={VaultId}, MachineId={MachineId}, User={User}",
+                "Autofill rule removed. VaultId={VaultId}, RuleId={RuleId}, User={User}",
                 vaultId,
-                machineId,
+                ruleId,
                 userContext.Identity.ToString());
 
             return Results.NoContent();
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization("AdminPolicy")
+            .WithTags("autofill");
     }
 }

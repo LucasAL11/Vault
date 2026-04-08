@@ -1,26 +1,25 @@
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
-using Application.Vault.AdMaps.create;
-using Domain.vault;
+using Application.Vault.AutofillRules.Create;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Endpoints.Vault;
 
-public sealed class AdMapCreateEndpoint : IEndpoint
+public sealed class AutofillRuleCreateEndpoint : IEndpoint
 {
-    private sealed record CreateAdMapRequest(string GroupId, VaultPermission Permission, bool IsActive = true);
+    private sealed record CreateAutofillRuleRequest(string UrlPattern, string Login, string SecretName, bool IsActive = true);
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapPost("/vaults/{vaultId:guid}/ad-maps", async (
+        builder.MapPost("/vaults/{vaultId:guid}/autofill-rules", async (
                 Guid vaultId,
-                CreateAdMapRequest request,
+                CreateAutofillRuleRequest request,
                 IMessageDispatcher sender,
                 IAuthorizationService authorizationService,
                 IUserContext userContext,
                 HttpContext httpContext,
-                ILogger<AdMapCreateEndpoint> logger,
+                ILogger<AutofillRuleCreateEndpoint> logger,
                 CancellationToken cancellationToken) =>
             {
                 var authResult = await VaultAuthorization.AuthorizeVaultAsync(
@@ -35,7 +34,7 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                 }
 
                 var result = await sender.Send(
-                    new CreateAdMapCommand(vaultId, request.GroupId, request.Permission, request.IsActive),
+                    new CreateAutofillRuleCommand(vaultId, request.UrlPattern, request.Login, request.SecretName, request.IsActive),
                     cancellationToken);
                 if (result.IsFailure)
                 {
@@ -43,15 +42,14 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                 }
 
                 logger.LogInformation(
-                    "AD map created. VaultId={VaultId}, AdMapId={AdMapId}, GroupId={GroupId}, Permission={Permission}, User={User}",
+                    "Autofill rule created. VaultId={VaultId}, RuleId={RuleId}, UrlPattern={UrlPattern}, User={User}",
                     vaultId,
                     result.Value.Id,
-                    result.Value.GroupId,
-                    result.Value.Permission,
+                    result.Value.UrlPattern,
                     userContext.Identity.ToString());
 
-                return Results.Created($"/vaults/{vaultId}/ad-maps/{result.Value.Id}", result.Value);
+                return Results.Created($"/vaults/{vaultId}/autofill-rules/{result.Value.Id}", result.Value);
             }).RequireAuthorization("AdminPolicy")
-            .WithTags("active-directory");
+            .WithTags("autofill");
     }
 }

@@ -1,23 +1,26 @@
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
-using Application.Vault.Machines;
+using Application.Vault.AutofillRules;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Endpoints.Vault;
 
-public sealed class MachineDeleteEndpoint : IEndpoint
+public sealed class AutofillRuleUpdateEndpoint : IEndpoint
 {
+    private sealed record UpdateAutofillRuleRequest(string UrlPattern, string Login, string SecretName, bool IsActive);
+
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapDelete("/vaults/{vaultId:guid}/machines/{machineId:guid}", async (
+        builder.MapPut("/vaults/{vaultId:guid}/autofill-rules/{ruleId:guid}", async (
             Guid vaultId,
-            Guid machineId,
+            Guid ruleId,
+            UpdateAutofillRuleRequest request,
             IMessageDispatcher sender,
             IAuthorizationService authorizationService,
             IUserContext userContext,
             HttpContext httpContext,
-            ILogger<MachineDeleteEndpoint> logger,
+            ILogger<AutofillRuleUpdateEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
             var authResult = await VaultAuthorization.AuthorizeVaultAsync(
@@ -31,19 +34,23 @@ public sealed class MachineDeleteEndpoint : IEndpoint
                 return CustomResults.Problem(authResult);
             }
 
-            var result = await sender.Send(new DeleteMachineCommand(vaultId, machineId), cancellationToken);
+            var result = await sender.Send(
+                new UpdateAutofillRuleCommand(vaultId, ruleId, request.UrlPattern, request.Login, request.SecretName, request.IsActive),
+                cancellationToken);
             if (result.IsFailure)
             {
                 return CustomResults.Problem(result);
             }
 
             logger.LogInformation(
-                "Machine removed from vault. VaultId={VaultId}, MachineId={MachineId}, User={User}",
+                "Autofill rule updated. VaultId={VaultId}, RuleId={RuleId}, UrlPattern={UrlPattern}, User={User}",
                 vaultId,
-                machineId,
+                ruleId,
+                result.Value.UrlPattern,
                 userContext.Identity.ToString());
 
-            return Results.NoContent();
-        }).RequireAuthorization("AdminPolicy");
+            return Results.Ok(result.Value);
+        }).RequireAuthorization("AdminPolicy")
+            .WithTags("autofill");
     }
 }

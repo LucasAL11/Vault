@@ -1,23 +1,20 @@
 using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
-using Application.Authentication;
-using Application.Vault.Machines;
+using Application.Vault.AutofillRules;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Endpoints.Vault;
 
-public sealed class MachineDeleteEndpoint : IEndpoint
+public sealed class AutofillRuleListEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapDelete("/vaults/{vaultId:guid}/machines/{machineId:guid}", async (
+        builder.MapGet("/vaults/{vaultId:guid}/autofill-rules", async (
             Guid vaultId,
-            Guid machineId,
+            bool? includeInactive,
             IMessageDispatcher sender,
             IAuthorizationService authorizationService,
-            IUserContext userContext,
             HttpContext httpContext,
-            ILogger<MachineDeleteEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
             var authResult = await VaultAuthorization.AuthorizeVaultAsync(
@@ -31,19 +28,21 @@ public sealed class MachineDeleteEndpoint : IEndpoint
                 return CustomResults.Problem(authResult);
             }
 
-            var result = await sender.Send(new DeleteMachineCommand(vaultId, machineId), cancellationToken);
+            var result = await sender.Send(
+                new ListAutofillRulesQuery(vaultId, includeInactive ?? false),
+                cancellationToken);
             if (result.IsFailure)
             {
                 return CustomResults.Problem(result);
             }
 
-            logger.LogInformation(
-                "Machine removed from vault. VaultId={VaultId}, MachineId={MachineId}, User={User}",
-                vaultId,
-                machineId,
-                userContext.Identity.ToString());
-
-            return Results.NoContent();
-        }).RequireAuthorization("AdminPolicy");
+            return Results.Ok(new
+            {
+                VaultId = vaultId,
+                Count = result.Value.Count,
+                Items = result.Value
+            });
+        }).RequireAuthorization("AdminPolicy")
+            .WithTags("autofill");
     }
 }

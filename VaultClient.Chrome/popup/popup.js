@@ -1,5 +1,5 @@
 // ============================================================
-// Vault Password Manager - Popup UI Logic
+// Sentinel Vault - Popup UI Logic
 // ============================================================
 
 const $ = (sel) => document.querySelector(sel);
@@ -8,7 +8,6 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // --- State ---
 let currentVaultId = null;
 let currentVaultName = null;
-let currentSecretName = null;
 let allSecrets = [];
 
 // --- Views ---
@@ -33,8 +32,14 @@ function send(msg) {
 // --- Init ---
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Show splash
+  showView('splash');
+
   try {
     const state = await send({ action: 'getAuthState' });
+    // Brief splash delay for polish
+    await new Promise((r) => setTimeout(r, 800));
+
     if (state.authenticated) {
       $('#logged-user').textContent = state.domain
         ? `${state.domain}\\${state.username}`
@@ -42,6 +47,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       showView('vaults');
       loadVaults();
     } else {
+      // Pre-fill domain from config
+      try {
+        const config = await send({ action: 'getConfig' });
+        if (config.defaultDomain) {
+          // Store for AD login
+          document.body.dataset.defaultDomain = config.defaultDomain;
+        }
+      } catch (_) { /* ignore */ }
       showView('login');
     }
   } catch {
@@ -56,21 +69,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bindEvents() {
   // Login
   $('#form-login').addEventListener('submit', handleLogin);
-  $('#btn-settings').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
+  $('#btn-ad-login').addEventListener('click', handleLogin);
+  $('#btn-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  $('#btn-toggle-pass').addEventListener('click', togglePasswordVisibility);
 
   // Vault list
   $('#btn-logout').addEventListener('click', handleLogout);
+  $('#nav-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
   // Secret list
   $('#btn-back-vaults').addEventListener('click', () => showView('vaults'));
   $('#secret-search').addEventListener('input', handleSecretSearch);
+  $('#btn-add-credential').addEventListener('click', openAddCredential);
+  $$('.nav-settings-2').forEach((el) => el.addEventListener('click', () => chrome.runtime.openOptionsPage()));
 
-  // Autofill
-  $('#btn-back-secrets').addEventListener('click', () => showView('secrets'));
-  $('#btn-autofill').addEventListener('click', handleAutofill);
-  $('#btn-copy').addEventListener('click', handleCopy);
+  // Add credential
+  $('#btn-back-from-add').addEventListener('click', () => showView('secrets'));
+  $('#btn-cancel-add').addEventListener('click', () => showView('secrets'));
+  $('#form-add-credential').addEventListener('submit', handleAddCredential);
+}
+
+// --- Password Toggle ---
+
+function togglePasswordVisibility() {
+  const input = $('#login-pass');
+  const icon = $('#btn-toggle-pass .material-symbols-outlined');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.textContent = 'visibility_off';
+  } else {
+    input.type = 'password';
+    icon.textContent = 'visibility';
+  }
 }
 
 // --- Login ---
@@ -81,14 +111,23 @@ async function handleLogin(e) {
   const errEl = $('#login-error');
   errEl.classList.add('hidden');
   btn.disabled = true;
-  btn.textContent = 'Autenticando...';
+  btn.textContent = 'Authenticating...';
 
   try {
+    // Always read domain fresh from config
+    let domain;
+    try {
+      const config = await send({ action: 'getConfig' });
+      domain = config.defaultDomain || undefined;
+    } catch (_) {
+      domain = document.body.dataset.defaultDomain || undefined;
+    }
+
     const result = await send({
       action: 'login',
       username: $('#login-user').value.trim(),
       password: $('#login-pass').value,
-      domain: $('#login-domain').value.trim() || undefined,
+      domain,
     });
 
     $('#logged-user').textContent = result.domain
@@ -98,11 +137,11 @@ async function handleLogin(e) {
     showView('vaults');
     loadVaults();
   } catch (err) {
-    errEl.textContent = err.message || 'Falha na autenticacao';
+    errEl.textContent = err.message || 'Authentication failed';
     errEl.classList.remove('hidden');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Entrar';
+    btn.textContent = 'Login';
   }
 }
 
@@ -118,10 +157,12 @@ async function loadVaults() {
   const listEl = $('#vault-list');
   const emptyEl = $('#vault-empty');
   const loadEl = $('#vault-loading');
+  const countEl = $('#vault-count');
 
   listEl.innerHTML = '';
   emptyEl.classList.add('hidden');
   loadEl.classList.remove('hidden');
+  countEl.textContent = '';
 
   try {
     const data = await send({ action: 'listVaults' });
@@ -134,23 +175,35 @@ async function loadVaults() {
       return;
     }
 
-    vaults.forEach((v) => {
+    countEl.textContent = `${vaults.length} Secure Vault${vaults.length !== 1 ? 's' : ''}`;
+
+    vaults.forEach((v, i) => {
       const item = document.createElement('div');
-      item.className = 'list-item';
+      item.className = 'vault-card';
+      if (i === 0) item.classList.add('selected');
+
+      const iconClass = i === 0 ? 'default' : 'neutral';
+      const iconName = i === 0 ? 'lock' : 'corporate_fare';
+
       item.innerHTML = `
-        <div class="list-item-icon">&#128274;</div>
-        <div class="list-item-content">
-          <div class="list-item-title">${esc(v.name)}</div>
-          <div class="list-item-sub">${esc(v.environment || '')} ${v.status ? '&middot; ' + esc(v.status) : ''}</div>
+        <div class="vault-card-icon ${iconClass}">
+          <span class="material-symbols-outlined filled">${iconName}</span>
         </div>
-        <div class="list-item-arrow">&#x203A;</div>
+        <div class="vault-card-info">
+          <div class="vault-card-name">
+            ${esc(v.name)}
+            ${i === 0 ? '<span class="badge-default">Default</span>' : ''}
+          </div>
+          <div class="vault-card-meta">${esc(v.environment || 'Production')} &middot; ${esc(v.status || 'Active')}</div>
+        </div>
+        <span class="material-symbols-outlined vault-card-arrow">chevron_right</span>
       `;
       item.addEventListener('click', () => openVault(v.id, v.name));
       listEl.appendChild(item);
     });
   } catch (err) {
     loadEl.classList.add('hidden');
-    listEl.innerHTML = `<div class="error">${esc(err.message)}</div>`;
+    listEl.innerHTML = `<div class="alert-error">${esc(err.message)}</div>`;
   }
 }
 
@@ -169,20 +222,23 @@ async function loadSecrets() {
   const listEl = $('#secret-list');
   const emptyEl = $('#secret-empty');
   const loadEl = $('#secret-loading');
+  const countEl = $('#secret-count');
 
   listEl.innerHTML = '';
   emptyEl.classList.add('hidden');
   loadEl.classList.remove('hidden');
+  countEl.textContent = '';
 
   try {
     const data = await send({ action: 'listSecrets', vaultId: currentVaultId });
     allSecrets = Array.isArray(data) ? data : data?.items || data?.secrets || [];
 
     loadEl.classList.add('hidden');
+    countEl.textContent = `${allSecrets.length} Credential${allSecrets.length !== 1 ? 's' : ''}`;
     renderSecrets(allSecrets);
   } catch (err) {
     loadEl.classList.add('hidden');
-    listEl.innerHTML = `<div class="error">${esc(err.message)}</div>`;
+    listEl.innerHTML = `<div class="alert-error">${esc(err.message)}</div>`;
   }
 }
 
@@ -201,18 +257,21 @@ function renderSecrets(secrets) {
     const name = s.name || s.Name;
     const ver = s.currentVersion || s.version || '';
     const status = s.status || '';
+    const initial = (name || '?')[0].toUpperCase();
 
     const item = document.createElement('div');
-    item.className = 'list-item';
+    item.className = 'credential-item';
     item.innerHTML = `
-      <div class="list-item-icon">&#128273;</div>
-      <div class="list-item-content">
-        <div class="list-item-title">${esc(name)}</div>
-        <div class="list-item-sub">v${esc(String(ver))} ${status ? '&middot; ' + esc(status) : ''}</div>
+      <div class="credential-icon">
+        <div class="credential-icon-letter">${esc(initial)}</div>
       </div>
-      <div class="list-item-arrow">&#x203A;</div>
+      <div class="credential-info">
+        <div class="credential-name">${esc(name)}</div>
+        <div class="credential-sub">v${esc(String(ver))} ${status ? '&middot; ' + esc(status) : ''}</div>
+      </div>
+      <span class="material-symbols-outlined credential-action">vpn_key</span>
     `;
-    item.addEventListener('click', () => openAutofill(name));
+    item.addEventListener('click', () => doAutofill(name, item));
     listEl.appendChild(item);
   });
 }
@@ -227,88 +286,84 @@ function handleSecretSearch() {
   renderSecrets(filtered);
 }
 
-// --- Autofill ---
+// --- Autofill (direct on click) ---
 
-function openAutofill(secretName) {
-  currentSecretName = secretName;
-  $('#autofill-secret-name').textContent = `${currentVaultName} / ${secretName}`;
-  $('#autofill-reason').value = '';
-  $('#autofill-ticket').value = '';
-  $('#autofill-error').classList.add('hidden');
-  showView('autofill');
-}
+async function doAutofill(secretName, itemEl) {
+  // Prevent double-click
+  if (itemEl.classList.contains('filling')) return;
+  itemEl.classList.add('filling');
 
-async function handleAutofill() {
-  const reason = $('#autofill-reason').value.trim();
-  if (!reason) {
-    showAutofillError('Informe o motivo do acesso');
-    return;
-  }
-
-  const btn = $('#btn-autofill');
-  btn.disabled = true;
-  btn.textContent = 'Preenchendo...';
+  const nameEl = itemEl.querySelector('.credential-name');
+  const originalName = nameEl.textContent;
+  nameEl.textContent = 'Filling...';
 
   try {
     await send({
       action: 'autofillSecret',
       vaultId: currentVaultId,
-      secretName: currentSecretName,
-      reason,
-      ticket: $('#autofill-ticket').value.trim() || '-',
+      secretName,
     });
 
-    btn.textContent = 'Preenchido!';
-    setTimeout(() => window.close(), 800);
+    nameEl.textContent = 'Filled!';
+    itemEl.style.background = 'rgba(99, 138, 255, 0.15)';
+    setTimeout(() => window.close(), 600);
   } catch (err) {
-    showAutofillError(err.message);
-    btn.disabled = false;
-    btn.textContent = 'Preencher no Site';
+    nameEl.textContent = originalName;
+    itemEl.classList.remove('filling');
+    // Show error inline
+    let errEl = $('#secret-list-error');
+    if (!errEl) {
+      errEl = document.createElement('div');
+      errEl.id = 'secret-list-error';
+      errEl.className = 'alert-error';
+      errEl.style.margin = '8px 0 0';
+      $('#secret-list').parentElement.appendChild(errEl);
+    }
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+    setTimeout(() => errEl.classList.add('hidden'), 4000);
   }
 }
 
-async function handleCopy() {
-  const reason = $('#autofill-reason').value.trim();
-  if (!reason) {
-    showAutofillError('Informe o motivo do acesso');
-    return;
-  }
+// --- Add Credential ---
 
-  const btn = $('#btn-copy');
+function openAddCredential() {
+  $('#add-url').value = '';
+  $('#add-login').value = '';
+  $('#add-secret-name').value = '';
+  $('#add-error').classList.add('hidden');
+  showView('add-credential');
+}
+
+async function handleAddCredential(e) {
+  e.preventDefault();
+  const btn = $('#btn-save-credential');
+  const errEl = $('#add-error');
+  errEl.classList.add('hidden');
   btn.disabled = true;
-  btn.textContent = 'Copiando...';
+  btn.textContent = 'Saving...';
 
   try {
-    const result = await send({
-      action: 'requestSecret',
+    await send({
+      action: 'createAutofillRule',
       vaultId: currentVaultId,
-      secretName: currentSecretName,
-      reason,
-      ticket: $('#autofill-ticket').value.trim() || '-',
+      urlPattern: $('#add-url').value.trim(),
+      login: $('#add-login').value.trim(),
+      secretName: $('#add-secret-name').value.trim(),
     });
 
-    const value = result.value || result.Value || '';
-    await navigator.clipboard.writeText(value);
-
-    btn.textContent = 'Copiado!';
-
-    // Auto-clear clipboard after 30s
-    setTimeout(() => navigator.clipboard.writeText(''), 30000);
+    btn.textContent = 'Saved!';
     setTimeout(() => {
-      btn.textContent = 'Copiar';
+      showView('secrets');
+      btn.textContent = 'Save Credential';
       btn.disabled = false;
-    }, 2000);
+    }, 800);
   } catch (err) {
-    showAutofillError(err.message);
+    errEl.textContent = err.message || 'Failed to save credential';
+    errEl.classList.remove('hidden');
     btn.disabled = false;
-    btn.textContent = 'Copiar';
+    btn.textContent = 'Save Credential';
   }
-}
-
-function showAutofillError(msg) {
-  const el = $('#autofill-error');
-  el.textContent = msg;
-  el.classList.remove('hidden');
 }
 
 // --- Util ---

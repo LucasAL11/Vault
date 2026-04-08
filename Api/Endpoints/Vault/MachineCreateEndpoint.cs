@@ -48,6 +48,6 @@ public sealed class MachineCreateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Created($"/vaults/{vaultId}/machines/{machine.Id}", machine);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminPolicy");
     }
 }
