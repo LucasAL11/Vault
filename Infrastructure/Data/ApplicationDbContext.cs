@@ -23,6 +23,7 @@ public  sealed class ApplicationDbContext(
     public DbSet<SecretAuditEntry> SecretAuditEntries { get; set; }
     public DbSet<VaultMachine> VaultMachines { get; set; }
     public DbSet<ADMap> ADMaps { get; set; }
+    public DbSet<AutofillRule> AutofillRules { get; set; }
     public DbSet<NonceStoreEntry> NonceStoreEntries { get; set; }
     public DbSet<User> Users { get; set; }
 

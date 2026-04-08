@@ -162,6 +162,9 @@
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a' }));
     el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
 
+    // Mark as vault-filled (for copy/cut/drag protection)
+    el.dataset.vaultFilled = 'true';
+
     // Blur
     el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
   }
@@ -334,8 +337,6 @@
               action: 'requestSecret',
               vaultId: item.dataset.vaultId,
               secretName: item.dataset.secretName,
-              reason: `Autofill em ${location.hostname}`,
-              ticket: '-',
             });
 
             const value = result.value || result.Value || '';
@@ -407,12 +408,149 @@
     return d.innerHTML;
   }
 
+  // --- Auto-match autofill rules by URL ---
+
+  let autoMatchDone = false;
+
+  async function tryAutoMatch() {
+    if (autoMatchDone) return;
+    autoMatchDone = true;
+
+    try {
+      // Check if user is authenticated first
+      const authState = await sendAsync({ action: 'getAuthState' });
+      if (!authState?.authenticated) return;
+
+      // Query API for autofill rules matching current URL
+      const rules = await sendAsync({ action: 'matchAutofillRules', url: location.href });
+      const matches = Array.isArray(rules) ? rules : rules?.items || [];
+      if (matches.length === 0) return;
+
+      // Use the first matching rule
+      const rule = matches[0];
+
+      // Wait briefly for fields to render (SPA pages)
+      await new Promise((r) => setTimeout(r, 500));
+
+      const pwFields = findPasswordFields();
+      if (pwFields.length === 0) return;
+
+      // Show a subtle notification bar instead of filling immediately
+      showAutoMatchBar(rule, pwFields[0]);
+    } catch (_) {
+      // Silently ignore - user may not be logged in or API unavailable
+    }
+  }
+
+  function showAutoMatchBar(rule, passwordField) {
+    // Don't show if already visible
+    if (document.querySelector('.vault-automatch-bar')) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'vault-automatch-bar';
+    bar.innerHTML = `
+      <div class="vault-automatch-inner">
+        <span class="vault-automatch-icon">&#128272;</span>
+        <span class="vault-automatch-text">Sentinel Vault: <strong>${esc(rule.login)}</strong> disponivel para este site</span>
+        <button class="vault-automatch-btn vault-automatch-fill">Autofill</button>
+        <button class="vault-automatch-btn vault-automatch-dismiss">&times;</button>
+      </div>
+    `;
+
+    document.body.appendChild(bar);
+
+    // Animate in
+    requestAnimationFrame(() => bar.classList.add('vault-automatch-visible'));
+
+    bar.querySelector('.vault-automatch-dismiss').addEventListener('click', () => {
+      bar.classList.remove('vault-automatch-visible');
+      setTimeout(() => bar.remove(), 300);
+    });
+
+    bar.querySelector('.vault-automatch-fill').addEventListener('click', async () => {
+      const btn = bar.querySelector('.vault-automatch-fill');
+      btn.textContent = '...';
+      btn.disabled = true;
+
+      try {
+        const secret = await sendAsync({
+          action: 'requestSecret',
+          vaultId: rule.vaultId,
+          secretName: rule.secretName,
+        });
+
+        const value = secret.value || secret.Value || '';
+
+        // Fill username
+        const usernameField = findUsernameField(passwordField);
+        if (usernameField && rule.login) {
+          fillField(usernameField, rule.login);
+        }
+
+        // Fill password
+        fillField(passwordField, value);
+
+        // Remove bar
+        bar.classList.remove('vault-automatch-visible');
+        setTimeout(() => bar.remove(), 300);
+      } catch (err) {
+        btn.textContent = 'Error';
+        btn.style.background = '#dc2626';
+        setTimeout(() => {
+          btn.textContent = 'Autofill';
+          btn.style.background = '';
+          btn.disabled = false;
+        }, 2000);
+      }
+    });
+
+    // Auto-dismiss after 15 seconds
+    setTimeout(() => {
+      if (bar.parentElement) {
+        bar.classList.remove('vault-automatch-visible');
+        setTimeout(() => bar.remove(), 300);
+      }
+    }, 15000);
+  }
+
+  // --- Password field protection (prevent copy/cut/drag of filled values) ---
+
+  function lockPasswordField(field) {
+    if (field.dataset.vaultLocked) return;
+    field.dataset.vaultLocked = 'true';
+
+    const block = (e) => {
+      if (field.dataset.vaultFilled) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+
+    field.addEventListener('copy', block, true);
+    field.addEventListener('cut', block, true);
+    field.addEventListener('dragstart', block, true);
+  }
+
   // --- Init ---
 
   // Add badges to existing password fields
   addVaultBadges();
 
+  // Lock all password fields
+  findPasswordFields().forEach(lockPasswordField);
+
+  // Try auto-match after a brief delay
+  setTimeout(tryAutoMatch, 800);
+
   // Watch for dynamically added fields (SPAs)
-  const observer = new MutationObserver(() => addVaultBadges());
+  const observer = new MutationObserver(() => {
+    addVaultBadges();
+    findPasswordFields().forEach(lockPasswordField);
+
+    // Retry auto-match if new password fields appear
+    if (!autoMatchDone || findPasswordFields().length > 0) {
+      tryAutoMatch();
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 })();

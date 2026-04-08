@@ -129,3 +129,86 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   background: #2d3039;
   border-radius: 3px;
 }
+
+/* --- Auto-match notification bar --- */
+
+.vault-automatch-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  transform: translateY(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.vault-automatch-bar.vault-automatch-visible {
+  transform: translateY(0);
+}
+
+.vault-automatch-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #0b1326 0%, #131b2e 100%);
+  border-bottom: 1px solid rgba(181, 196, 255, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.vault-automatch-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.vault-automatch-text {
+  flex: 1;
+  font-size: 13px;
+  color: #dae2fd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vault-automatch-text strong {
+  color: #b5c4ff;
+  font-weight: 600;
+}
+
+.vault-automatch-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.vault-automatch-fill {
+  background: linear-gradient(135deg, #b5c4ff 0%, #638aff 100%);
+  color: #00297a;
+}
+
+.vault-automatch-fill:hover {
+  filter: brightness(1.1);
+}
+
+.vault-automatch-fill:active {
+  transform: scale(0.95);
+}
+
+.vault-automatch-dismiss {
+  background: rgba(255, 255, 255, 0.08);
+  color: #8d90a0;
+  font-size: 16px;
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+.vault-automatch-dismiss:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #e1e4e8;
+}

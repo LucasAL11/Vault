@@ -1,111 +1,74 @@
 const $ = (sel) => document.querySelector(sel);
 
-// --- Advanced toggle ---
-
-$('#advanced-toggle').addEventListener('click', () => {
-  const toggle = $('#advanced-toggle');
-  const content = $('#advanced-content');
-  toggle.classList.toggle('open');
-  content.classList.toggle('open');
+// Toggle secret visibility
+$('#btn-toggle-secret').addEventListener('click', () => {
+  const input = $('#clientSecret');
+  const icon = $('#btn-toggle-secret .material-symbols-outlined');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.textContent = 'visibility';
+  } else {
+    input.type = 'password';
+    icon.textContent = 'visibility_off';
+  }
 });
 
-// --- Load saved config ---
-
+// Load config
 chrome.storage.local.get('config', ({ config }) => {
   if (!config) return;
-  $('#serverUrl').value     = config.serverUrl     || '';
+  $('#serverUrl').value = config.serverUrl || '';
+  $('#clientId').value = config.clientId || '';
+  $('#clientSecret').value = config.clientSecret || '';
   $('#defaultDomain').value = config.defaultDomain || '';
-  $('#clientId').value      = config.clientId      || '';
-  $('#clientSecret').value  = config.clientSecret  || '';
 });
 
-// --- Helpers ---
-
-function showToast(message, type = 'success') {
-  const toast = $('#toast');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  if (type === 'success') {
-    setTimeout(() => { toast.style.display = 'none'; }, 4000);
-  }
-}
-
-function readForm() {
-  return {
-    serverUrl:     $('#serverUrl').value.trim().replace(/\/+$/, ''),
-    defaultDomain: $('#defaultDomain').value.trim(),
-    clientId:      $('#clientId').value.trim(),
-    clientSecret:  $('#clientSecret').value,
-  };
-}
-
-// --- Save ---
-
+// Save
 $('#btn-save').addEventListener('click', () => {
-  const config = readForm();
-  if (!config.serverUrl) {
-    showToast('O URL do servidor e obrigatorio.', 'error');
-    return;
-  }
+  const config = {
+    serverUrl: $('#serverUrl').value.trim().replace(/\/+$/, ''),
+    clientId: $('#clientId').value.trim(),
+    clientSecret: $('#clientSecret').value,
+    defaultDomain: $('#defaultDomain').value.trim(),
+  };
+
   chrome.storage.local.set({ config }, () => {
-    showToast('Configuracoes guardadas com sucesso!', 'success');
+    showToast('Configuracoes salvas com sucesso!', 'success');
   });
 });
 
-// --- Test Connection ---
-
+// Test connection
 $('#btn-test').addEventListener('click', async () => {
-  const btn = $('#btn-test');
-  const config = readForm();
-
-  if (!config.serverUrl) {
-    showToast('Introduz o URL do servidor antes de testar.', 'error');
+  const serverUrl = $('#serverUrl').value.trim().replace(/\/+$/, '');
+  if (!serverUrl) {
+    showToast('Insira a URL do servidor', 'error');
     return;
   }
 
+  const btn = $('#btn-test');
+  btn.textContent = 'Testando...';
   btn.disabled = true;
-  btn.textContent = 'A testar...';
-  $('#toast').style.display = 'none';
 
   try {
-    const clientId = config.clientId || 'test-connection';
-
-    const res = await fetch(`${config.serverUrl}/auth/challenge`, {
-      method: 'POST',
+    const res = await fetch(`${serverUrl}/vaults`, {
+      method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, audience: 'vault.secret.request' }),
     });
-
-    if (res.status === 400) {
-      const body = await res.json().catch(() => ({}));
-      const msg = body.message || 'Erro 400';
-      showToast(`Ligacao estabelecida mas pedido rejeitado: "${msg}".`, 'error');
-      return;
+    if (res.ok || res.status === 401) {
+      showToast('Conexao estabelecida com sucesso!', 'success');
+    } else {
+      showToast(`Servidor respondeu com status ${res.status}`, 'error');
     }
-
-    if (res.status === 404) {
-      showToast('Servidor acessivel mas endpoint nao encontrado. Verifica o URL.', 'error');
-      return;
-    }
-
-    if (res.status === 429) {
-      showToast('Servidor acessivel (rate limit ativo). Configuracao OK.', 'success');
-      return;
-    }
-
-    if (res.ok) {
-      showToast(`Ligacao bem-sucedida (HTTP ${res.status}). Servidor OK.`, 'success');
-      return;
-    }
-
-    showToast(`Servidor acessivel mas respondeu ${res.status}. Verifica as configuracoes.`, 'error');
   } catch (err) {
-    const msg = err.message.includes('Failed to fetch')
-      ? 'Nao foi possivel ligar ao servidor. Verifica o URL e se o servidor esta ativo.'
-      : err.message;
-    showToast(msg, 'error');
+    showToast(`Falha na conexao: ${err.message}`, 'error');
   } finally {
-    btn.disabled = false;
     btn.textContent = 'Testar Ligacao';
+    btn.disabled = false;
   }
 });
+
+function showToast(msg, type) {
+  const toast = $('#toast');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  setTimeout(() => { toast.style.display = 'none'; toast.className = 'toast'; }, 4000);
+}
