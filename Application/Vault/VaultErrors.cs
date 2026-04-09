@@ -7,6 +7,9 @@ internal static class VaultErrors
     public static Error VaultNotFound(Guid vaultId) =>
         Error.NotFound("Vault.NotFound", $"Vault '{vaultId}' was not found.");
 
+    public static Error SlugAlreadyExists(string slug) =>
+        Error.Conflict("Vault.SlugAlreadyExists", $"A vault with slug '{slug}' already exists.");
+
     public static Error VaultMissingGroup(Guid vaultId) =>
         Error.Forbidden("Vault.GroupPolicyMissing", $"Vault '{vaultId}' does not have an authorization group configured.");
 
