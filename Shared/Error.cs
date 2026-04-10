@@ -16,6 +16,10 @@ public record Error
         this.Description = Description;
         this.Type = Type;
     }
+    
+    public static Error Aggregate(Error[] errors) =>
+        new(string.Join(" | ", errors.Select(e => e.Code)),
+            string.Join("; ", errors.Select(e => e.Description)), ErrorType.Failure);
 
     public string Code { get; set; }
     public string Description { get; set; }

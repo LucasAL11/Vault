@@ -3,6 +3,19 @@
    Injected into every page for the autofill UI
    ============================================================ */
 
+/* --- Hide native "show password" buttons on vault-filled fields --- */
+
+input[data-vault-filled]::-ms-reveal,
+input[data-vault-filled]::-ms-clear {
+  display: none !important;
+}
+
+input[data-vault-filled]::-webkit-credentials-auto-fill-button,
+input[data-vault-filled]::-webkit-textfield-decoration-container {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
 /* --- Badge on password fields --- */
 
 .vault-autofill-badge {

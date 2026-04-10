@@ -68,6 +68,74 @@
     return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
   }
 
+  // --- Show-password toggle removal ---
+
+  // Selectors that match common "show password" toggle buttons
+  const TOGGLE_SELECTORS = [
+    // Font Awesome icons
+    '.fa-eye', '.fa-eye-slash',
+    // Common class names
+    '.show-password', '.hide-password',
+    '.toggle-password', '.password-toggle',
+    '.btn-show-password', '.btn-toggle-password',
+    '.reveal-password', '.password-reveal',
+    '.eye-icon', '.toggle-visibility',
+    '.input-group-append .btn', '.input-group-text',
+    // Aria / data attributes
+    '[aria-label*="show password" i]',
+    '[aria-label*="mostrar" i]',
+    '[aria-label*="reveal" i]',
+    '[data-toggle="password"]',
+    '[data-action*="password" i]',
+    // SVG eye icons inside buttons
+    'button svg', 'span svg',
+  ];
+
+  /**
+   * After vault autofill, locks down a password field:
+   *  1. Marks with data-vault-filled (activates CSS to hide native reveal)
+   *  2. Finds and hides sibling toggle buttons in the DOM
+   *  3. Watches for type attribute changes (password→text) and reverts them
+   */
+  function lockPasswordField(passwordField) {
+    if (!passwordField || passwordField.type !== 'password') return;
+
+    // 1. Mark field — CSS rules hide native browser reveal buttons
+    passwordField.dataset.vaultFilled = 'true';
+
+    // 2. Find and hide toggle buttons among siblings/parent
+    const container = passwordField.closest('.input-group')
+      || passwordField.closest('.field')
+      || passwordField.closest('.form-group')
+      || passwordField.parentElement;
+
+    if (container) {
+      for (const sel of TOGGLE_SELECTORS) {
+        container.querySelectorAll(sel).forEach((el) => {
+          // Don't hide our own vault badge
+          if (el.classList.contains('vault-autofill-badge')) return;
+          // Don't hide the input itself
+          if (el === passwordField) return;
+          el.style.setProperty('display', 'none', 'important');
+          el.style.setProperty('pointer-events', 'none', 'important');
+        });
+      }
+    }
+
+    // 3. Block type change (password → text) via MutationObserver
+    if (!passwordField._vaultTypeObserver) {
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.attributeName === 'type' && passwordField.type !== 'password') {
+            passwordField.type = 'password';
+          }
+        }
+      });
+      obs.observe(passwordField, { attributes: true, attributeFilter: ['type'] });
+      passwordField._vaultTypeObserver = obs;
+    }
+  }
+
   // --- Fill field with proper event dispatch ---
 
   function fillField(el, value) {
@@ -283,8 +351,9 @@
 
             const value = result.value || result.Value || '';
 
-            // Fill password
+            // Fill password and lock the field
             fillField(passwordField, value);
+            lockPasswordField(passwordField);
 
             // Try to fill username if available
             const usernameField = findUsernameField(passwordField);
@@ -311,6 +380,7 @@
       const pwFields = findPasswordFields();
       if (pwFields.length > 0) {
         fillField(pwFields[0], msg.value);
+        lockPasswordField(pwFields[0]);
 
         if (msg.username) {
           const userField = findUsernameField(pwFields[0]);

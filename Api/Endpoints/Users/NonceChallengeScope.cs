@@ -1,3 +1,4 @@
+using System.Text;
 using System.Security.Claims;
 
 namespace Api.Endpoints.Users;
@@ -53,11 +54,17 @@ internal static class NonceChallengeScope
 
     private static string NormalizeSubject(string subject)
     {
-        return subject.Trim().ToUpperInvariant();
+        return subject
+            .Trim()
+            .Normalize(NormalizationForm.FormKC)
+            .ToUpperInvariant();
     }
 
     private static string NormalizeAudience(string audience)
     {
-        return audience.Trim().ToLowerInvariant();
+        return audience
+            .Trim()
+            .Normalize(NormalizationForm.FormKC)
+            .ToLowerInvariant();
     }
 }

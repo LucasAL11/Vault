@@ -165,6 +165,9 @@ Sempre seguir esta ordem:
 - Compatibilidade legada temporaria: `ticketId` e `issuedAtUtc` ainda sao aceitos como alias de `ticket` e `issuedAt`.
 - Endpoints de leitura de segredo possuem rate limit e retornam `429` em abuso.
 - Pre-requisitos de autenticacao AD/Kerberos/LDAP/OIDC estao em `docs/runbooks/ad-prerequisitos.md`.
+- Runbook de resposta a chave comprometida esta em `docs/runbooks/chave-comprometida.md`.
+- Politica de service accounts (identificacao, escopo minimo e rotacao) esta em `docs/runbooks/service-accounts-policy.md`.
+- Politica de retencao e expiracao de versoes de segredo esta em `docs/runbooks/secret-version-retention-policy.md`.
 
 Exemplo de payload do contrato `v1`:
 

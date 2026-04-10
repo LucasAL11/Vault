@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -24,6 +25,17 @@ public sealed class ApiTestFactory : WebApplicationFactory<Api.Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureAppConfiguration((_, configBuilder) =>
+        {
+            configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RateLimiting:SecretRead:PermitLimit"] = "200",
+                ["RateLimiting:SecretWrite:PermitLimit"] = "200",
+                ["RateLimiting:SecretAuditRead:PermitLimit"] = "200",
+                ["RateLimiting:OpsSensitive:PermitLimit"] = "200"
+            });
+        });
+
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();

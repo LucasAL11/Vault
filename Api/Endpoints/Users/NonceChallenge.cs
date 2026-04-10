@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Api.Security;
 using Application.Abstractions.Security;
 using Infrastructure.Security;
 using Microsoft.Extensions.Options;
@@ -10,6 +11,8 @@ public sealed class NonceChallenge : IEndpoint
 {
     private const int NonceSizeBytes = 32;
     private const int MaxAttempts = 5;
+    private const int MaxClientIdLength = 80;
+    private const int MaxSubjectLength = 180;
 
     private sealed record Request(string? ClientId, string? Subject, string? Audience);
 
@@ -28,13 +31,33 @@ public sealed class NonceChallenge : IEndpoint
             var now = dateTimeProvider.UtcNow;
             var ttlSeconds = Math.Max(1, nonceOptions.Value.TtlSeconds);
             var expiresAtUtc = now.AddSeconds(ttlSeconds);
-            var clientId = request?.ClientId;
-            var requestedSubject = request?.Subject;
-            var audience = request?.Audience;
 
-            if (string.IsNullOrWhiteSpace(audience))
+            string? clientId = null;
+            if (!string.IsNullOrWhiteSpace(request?.ClientId))
             {
-                return Results.BadRequest(new { message = "audience is required." });
+                if (!InputValidation.TryNormalizeAsciiToken(request.ClientId, minLength: 1, maxLength: MaxClientIdLength, allowedSymbols: "._:-", out var normalizedClientId))
+                {
+                    return Results.BadRequest(new { message = "clientId is invalid." });
+                }
+
+                clientId = normalizedClientId;
+            }
+
+            string? requestedSubject = null;
+            if (!string.IsNullOrWhiteSpace(request?.Subject))
+            {
+                if (!InputValidation.TryNormalizeText(request.Subject, minLength: 1, maxLength: MaxSubjectLength, out var normalizedRequestedSubject) ||
+                    normalizedRequestedSubject.Contains('|'))
+                {
+                    return Results.BadRequest(new { message = "subject is invalid." });
+                }
+
+                requestedSubject = normalizedRequestedSubject;
+            }
+
+            if (!NonceChallengeAudiences.TryNormalize(request?.Audience, out var audience))
+            {
+                return Results.BadRequest(new { message = "audience is required and must be supported." });
             }
 
             if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject, out var subject))

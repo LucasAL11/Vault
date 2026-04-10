@@ -72,6 +72,37 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
     }
 
     [Fact]
+    public async Task PostChallenge_WithTrimAndCaseVariants_ShouldNormalizeAndSucceed()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "  local-dev-client  ",
+            audience = "  AUTH.CHALLENGE.VERIFY  "
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(NonceChallengeAudiences.AuthChallengeVerify, payload.RootElement.GetProperty("audience").GetString());
+    }
+
+    [Fact]
+    public async Task PostChallenge_WithInvalidClientIdCharset_ShouldReturnBadRequest()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/auth/challenge", new
+        {
+            clientId = "client|invalid",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task VerifyChallenge_ShouldConsumeNonce_AndRejectReplay()
     {
         using var client = _factory.CreateClient();
@@ -118,6 +149,22 @@ public sealed class NonceChallengeIntegrationTests : IClassFixture<ApiTestFactor
         var response = await client.PostAsJsonAsync("/auth/challenge/verify", new
         {
             nonce = "%%%invalid-base64url%%%",
+            clientId = "desktop-app",
+            audience = NonceChallengeAudiences.AuthChallengeVerify
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task VerifyChallenge_WithOversizedNonce_ShouldReturnBadRequest()
+    {
+        using var client = _factory.CreateClient();
+        var oversizedNonce = new string('A', 512);
+
+        var response = await client.PostAsJsonAsync("/auth/challenge/verify", new
+        {
+            nonce = oversizedNonce,
             clientId = "desktop-app",
             audience = NonceChallengeAudiences.AuthChallengeVerify
         });

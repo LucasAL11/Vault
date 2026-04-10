@@ -41,6 +41,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IAuthorizationPolicyProvider, AdGroupPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, AdGroupAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, AdminGroupAuthorizationHandler>();
 
         services.AddKeyProvider(configuration);
         services.AddNonceStore(configuration);
