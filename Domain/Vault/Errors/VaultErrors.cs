@@ -2,7 +2,7 @@
 
 namespace Domain.vault.Errors;
 
-public class VaultErrors 
+public static class VaultErrors
 {
     public static readonly Error SecretNotFound 
         = Error.NotFound("Secret.NotFound", 

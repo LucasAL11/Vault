@@ -12,7 +12,7 @@ namespace Application.Vault.AutofillRules;
 /// </summary>
 public sealed record MatchAutofillRulesQuery(string Url) : IQuery<IReadOnlyCollection<AutofillRuleDto>>;
 
-public sealed class MatchAutofillRulesQueryHandler(IApplicationDbContext dbContext)
+internal sealed class MatchAutofillRulesQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<MatchAutofillRulesQuery, IReadOnlyCollection<AutofillRuleDto>>
 {
     public async Task<Result<IReadOnlyCollection<AutofillRuleDto>>> Handle(MatchAutofillRulesQuery query, CancellationToken cancellationToken = default)

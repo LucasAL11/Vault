@@ -7,7 +7,7 @@ using Shared;
 
 namespace Application.User.Register;
 
-public class RegisterUserCommandHandler(IApplicationDbContext dbContext)
+internal sealed class RegisterUserCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<RegisterUserCommand, int>
 {
     public async Task<Result<int>> Handle(RegisterUserCommand command, CancellationToken cancellationToken = default)

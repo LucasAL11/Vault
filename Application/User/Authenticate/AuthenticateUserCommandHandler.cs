@@ -9,7 +9,7 @@ using Shared;
 
 namespace Application.User.Authenticate;
 
-public class AuthenticateUserCommandHandler(
+internal sealed class AuthenticateUserCommandHandler(
     IUserContext context,
     ITokenProvider tokenProvider,
     IApplicationDbContext dbContext)

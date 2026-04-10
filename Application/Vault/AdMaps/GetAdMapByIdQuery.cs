@@ -8,7 +8,7 @@ namespace Application.Vault.AdMaps;
 
 public sealed record GetAdMapByIdQuery(Guid VaultId, Guid AdMapId) : IQuery<AdMapDto>;
 
-public sealed class GetAdMapByIdQueryHandler(IApplicationDbContext dbContext)
+internal sealed class GetAdMapByIdQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<GetAdMapByIdQuery, AdMapDto>
 {
     public async Task<Result<AdMapDto>> Handle(GetAdMapByIdQuery query, CancellationToken cancellationToken = default)

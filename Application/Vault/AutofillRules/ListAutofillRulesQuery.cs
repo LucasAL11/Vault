@@ -9,7 +9,7 @@ namespace Application.Vault.AutofillRules;
 public sealed record ListAutofillRulesQuery(Guid VaultId, bool IncludeInactive)
     : IQuery<IReadOnlyCollection<AutofillRuleDto>>;
 
-public sealed class ListAutofillRulesQueryHandler(IApplicationDbContext dbContext)
+internal sealed class ListAutofillRulesQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<ListAutofillRulesQuery, IReadOnlyCollection<AutofillRuleDto>>
 {
     public async Task<Result<IReadOnlyCollection<AutofillRuleDto>>> Handle(ListAutofillRulesQuery query, CancellationToken cancellationToken = default)

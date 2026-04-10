@@ -8,7 +8,7 @@ namespace Application.Vault;
 
 public sealed record GetVaultGroupQuery(Guid VaultId) : IQuery<string>;
 
-public sealed class GetVaultGroupQueryHandler(IApplicationDbContext dbContext)
+internal sealed class GetVaultGroupQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<GetVaultGroupQuery, string>
 {
     public async Task<Result<string>> Handle(GetVaultGroupQuery query, CancellationToken cancellationToken = default)

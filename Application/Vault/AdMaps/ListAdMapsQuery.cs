@@ -10,7 +10,7 @@ namespace Application.Vault.AdMaps;
 public sealed record ListAdMapsQuery(Guid VaultId, bool IncludeInactive, VaultPermission? Permission)
     : IQuery<IReadOnlyCollection<AdMapDto>>;
 
-public sealed class ListAdMapsQueryHandler(IApplicationDbContext dbContext)
+internal sealed class ListAdMapsQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<ListAdMapsQuery, IReadOnlyCollection<AdMapDto>>
 {
     public async Task<Result<IReadOnlyCollection<AdMapDto>>> Handle(ListAdMapsQuery query, CancellationToken cancellationToken = default)

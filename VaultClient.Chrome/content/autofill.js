@@ -141,14 +141,17 @@
   function fillField(el, value) {
     if (!el || !value) return;
 
+    // Mark as filling so our value getter doesn't block
+    el.dataset.vaultFilling = 'true';
+
     // Focus the element
     el.focus();
     el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
 
     // Set value via native setter (bypasses React/Angular overrides)
     const nativeSetter = Object.getOwnPropertyDescriptor(
-      Object.getPrototypeOf(el), 'value'
-    )?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      HTMLInputElement.prototype, 'value'
+    )?.set;
 
     if (nativeSetter) {
       nativeSetter.call(el, value);
@@ -162,8 +165,15 @@
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a' }));
     el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
 
-    // Mark as vault-filled (for copy/cut/drag protection)
+    // Mark as vault-filled and remove filling flag
+    delete el.dataset.vaultFilling;
     el.dataset.vaultFilled = 'true';
+
+    // Ensure type stays as password
+    if (el.type !== 'password') el.type = 'password';
+
+    // Lock the field if not already locked
+    lockPasswordField(el);
 
     // Blur
     el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
@@ -513,22 +523,84 @@
     }, 15000);
   }
 
-  // --- Password field protection (prevent copy/cut/drag of filled values) ---
+  // --- Password field protection ---
 
   function lockPasswordField(field) {
     if (field.dataset.vaultLocked) return;
     field.dataset.vaultLocked = 'true';
 
-    const block = (e) => {
+    // Block copy, cut, drag, select-all
+    const blockEvent = (e) => {
+      if (field.dataset.vaultFilled) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        // Clear clipboard on copy/cut attempts
+        if (e.clipboardData) e.clipboardData.setData('text/plain', '');
+      }
+    };
+
+    field.addEventListener('copy', blockEvent, true);
+    field.addEventListener('cut', blockEvent, true);
+    field.addEventListener('dragstart', blockEvent, true);
+    field.addEventListener('selectstart', blockEvent, true);
+
+    // Block show-password (type change from password → text)
+    const typeDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'type');
+    if (typeDesc && typeDesc.set) {
+      const originalSetter = typeDesc.set;
+      Object.defineProperty(field, 'type', {
+        get() { return typeDesc.get.call(this); },
+        set(val) {
+          // If vault-filled, force type to stay as password
+          if (this.dataset.vaultFilled && val !== 'password') return;
+          originalSetter.call(this, val);
+        },
+        configurable: true,
+      });
+    }
+
+    // Block setAttribute('type', 'text')
+    const origSetAttribute = field.setAttribute.bind(field);
+    field.setAttribute = function(name, value) {
+      if (name === 'type' && this.dataset.vaultFilled && value !== 'password') return;
+      origSetAttribute(name, value);
+    };
+
+    // Watch for attribute changes (external toggles via DOM)
+    const attrObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === 'type' && field.dataset.vaultFilled && field.type !== 'password') {
+          field.type = 'password';
+        }
+      }
+    });
+    attrObserver.observe(field, { attributes: true, attributeFilter: ['type'] });
+
+    // Block reading the value via JS (DevTools console, page scripts)
+    const valueDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    if (valueDesc && valueDesc.get) {
+      const originalGetter = valueDesc.get;
+      const originalValueSetter = valueDesc.set;
+      Object.defineProperty(field, 'value', {
+        get() {
+          // Only return real value if called during our fillField (not from page scripts)
+          if (this.dataset.vaultFilled && !this.dataset.vaultFilling) return '';
+          return originalGetter.call(this);
+        },
+        set(val) {
+          if (originalValueSetter) originalValueSetter.call(this, val);
+        },
+        configurable: true,
+      });
+    }
+
+    // Block context menu (right-click → inspect/copy)
+    field.addEventListener('contextmenu', (e) => {
       if (field.dataset.vaultFilled) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
-    };
-
-    field.addEventListener('copy', block, true);
-    field.addEventListener('cut', block, true);
-    field.addEventListener('dragstart', block, true);
+    }, true);
   }
 
   // --- Init ---

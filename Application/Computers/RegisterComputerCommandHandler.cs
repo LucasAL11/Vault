@@ -6,7 +6,7 @@ using Shared;
 
 namespace Application.Computers;
 
-public class RegisterComputerCommandHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider) 
+internal sealed class RegisterComputerCommandHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider) 
     : ICommandHandler<RegisterComputerCommand, string>
 {
     public async Task<Result<string>> Handle(
