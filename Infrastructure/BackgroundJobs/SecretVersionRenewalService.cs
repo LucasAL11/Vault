@@ -124,15 +124,31 @@ public sealed class SecretVersionRenewalService : BackgroundService
                     currentVersion.ContentType,
                     newExpires);
 
-                renewed++;
+                try
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    renewed++;
 
-                _logger.LogInformation(
-                    "SecretVersionRenewal: renewed VaultId={VaultId}, Secret={SecretName}, v{OldVersion} -> v{NewVersion}, Expires={Expires}",
-                    secret.VaultId,
-                    secret.Name,
-                    currentVersion.Version,
-                    nextVersion,
-                    newExpires?.ToString("O") ?? "never");
+                    _logger.LogInformation(
+                        "SecretVersionRenewal: renewed VaultId={VaultId}, Secret={SecretName}, v{OldVersion} -> v{NewVersion}, Expires={Expires}",
+                        secret.VaultId,
+                        secret.Name,
+                        currentVersion.Version,
+                        nextVersion,
+                        newExpires?.ToString("O") ?? "never");
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    skipped++;
+                    _logger.LogWarning(ex,
+                        "SecretVersionRenewal: concurrency conflict skipped VaultId={VaultId}, Secret={SecretName} — will retry next cycle",
+                        secret.VaultId,
+                        secret.Name);
+
+                    // Detach stale entries so the next iteration starts clean
+                    foreach (var entry in ex.Entries)
+                        entry.State = EntityState.Detached;
+                }
             }
             catch (Exception ex)
             {
@@ -142,11 +158,6 @@ public sealed class SecretVersionRenewalService : BackgroundService
                     secret.VaultId,
                     secret.Name);
             }
-        }
-
-        if (renewed > 0)
-        {
-            await dbContext.SaveChangesAsync(ct);
         }
 
         _logger.LogInformation("SecretVersionRenewal: cycle complete. Renewed={Renewed}, Skipped={Skipped}", renewed, skipped);
