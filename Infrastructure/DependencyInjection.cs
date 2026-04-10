@@ -8,6 +8,7 @@ using Infrastructure.Authentication.ActiveDirectory;
 using Infrastructure.Authentication.Kerberos;
 using Infrastructure.Authentication.Jwt;
 using Infrastructure.Authentication.Oidc;
+using Infrastructure.BackgroundJobs;
 using Infrastructure.Data;
 using Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -44,6 +45,9 @@ public static class DependencyInjection
         services.AddKeyProvider(configuration);
         services.AddNonceStore(configuration);
         services.AddSingleton<ISecretProtector, ChaCha20SecretProtector>();
+
+        services.Configure<SecretRenewalOptions>(configuration.GetSection("SecretRenewal"));
+        services.AddHostedService<SecretVersionRenewalService>();
 
         return services;
     }
