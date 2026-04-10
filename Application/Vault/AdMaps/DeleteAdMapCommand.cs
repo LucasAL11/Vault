@@ -8,7 +8,7 @@ namespace Application.Vault.AdMaps;
 
 public sealed record DeleteAdMapCommand(Guid VaultId, Guid AdMapId) : ICommand<bool>;
 
-public sealed class DeleteAdMapCommandHandler(IApplicationDbContext dbContext)
+internal sealed class DeleteAdMapCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<DeleteAdMapCommand, bool>
 {
     public async Task<Result<bool>> Handle(DeleteAdMapCommand command, CancellationToken cancellationToken = default)

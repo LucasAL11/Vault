@@ -9,7 +9,7 @@ namespace Application.Vault.Machines;
 
 public sealed record CreateMachineCommand(Guid VaultId, int ComputerId) : ICommand<MachineDto>;
 
-public sealed class CreateMachineCommandHandler(IApplicationDbContext dbContext)
+internal sealed class CreateMachineCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<CreateMachineCommand, MachineDto>
 {
     public async Task<Result<MachineDto>> Handle(CreateMachineCommand command, CancellationToken cancellationToken = default)

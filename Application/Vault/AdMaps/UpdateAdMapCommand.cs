@@ -10,7 +10,7 @@ namespace Application.Vault.AdMaps;
 public sealed record UpdateAdMapCommand(Guid VaultId, Guid AdMapId, VaultPermission Permission, bool IsActive)
     : ICommand<AdMapDto>;
 
-public sealed class UpdateAdMapCommandHandler(IApplicationDbContext dbContext)
+internal sealed class UpdateAdMapCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<UpdateAdMapCommand, AdMapDto>
 {
     public async Task<Result<AdMapDto>> Handle(UpdateAdMapCommand command, CancellationToken cancellationToken = default)

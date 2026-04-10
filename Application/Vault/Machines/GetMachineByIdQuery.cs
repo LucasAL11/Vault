@@ -8,7 +8,7 @@ namespace Application.Vault.Machines;
 
 public sealed record GetMachineByIdQuery(Guid VaultId, Guid MachineId) : IQuery<MachineDto>;
 
-public sealed class GetMachineByIdQueryHandler(IApplicationDbContext dbContext)
+internal sealed class GetMachineByIdQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<GetMachineByIdQuery, MachineDto>
 {
     public async Task<Result<MachineDto>> Handle(GetMachineByIdQuery query, CancellationToken cancellationToken = default)

@@ -6,7 +6,7 @@ using Shared;
 
 namespace Api.Endpoints.Users;
 
-public class Authenticate : IEndpoint
+public sealed class Authenticate : IEndpoint
 {
     private record Request(
         string Username,

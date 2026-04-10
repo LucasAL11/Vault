@@ -8,7 +8,7 @@ namespace Application.Vault.AutofillRules;
 
 public sealed record DeleteAutofillRuleCommand(Guid VaultId, Guid RuleId) : ICommand<bool>;
 
-public sealed class DeleteAutofillRuleCommandHandler(IApplicationDbContext dbContext)
+internal sealed class DeleteAutofillRuleCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<DeleteAutofillRuleCommand, bool>
 {
     public async Task<Result<bool>> Handle(DeleteAutofillRuleCommand command, CancellationToken cancellationToken = default)

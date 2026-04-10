@@ -6,7 +6,7 @@ using Shared;
 
 namespace Api.Endpoints.Users;
 
-public class RegisterUser : IEndpoint
+public sealed class RegisterUser : IEndpoint
 {
     private record Request(string Username, string Password, string FirstName, string LastName);
 

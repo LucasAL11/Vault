@@ -8,7 +8,7 @@ namespace Application.Vault.Machines;
 
 public sealed record DeleteMachineCommand(Guid VaultId, Guid MachineId) : ICommand<bool>;
 
-public sealed class DeleteMachineCommandHandler(IApplicationDbContext dbContext)
+internal sealed class DeleteMachineCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<DeleteMachineCommand, bool>
 {
     public async Task<Result<bool>> Handle(DeleteMachineCommand command, CancellationToken cancellationToken = default)

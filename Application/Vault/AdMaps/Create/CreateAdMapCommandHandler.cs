@@ -7,7 +7,7 @@ using Shared;
 
 namespace Application.Vault.AdMaps.create;
 
-public sealed class CreateAdMapCommandHandler(IApplicationDbContext dbContext)
+internal sealed class CreateAdMapCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<CreateAdMapCommand, AdMapDto>
 {
     public async Task<Result<AdMapDto>> Handle(CreateAdMapCommand commandHandler, CancellationToken cancellationToken = default)

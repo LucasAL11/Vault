@@ -4,7 +4,7 @@ using Shared;
 
 namespace Application.Cryptography;
 
-public sealed class ProveCommandHandler : ICommandHandler<ProveCommand, string>
+internal sealed class ProveCommandHandler : ICommandHandler<ProveCommand, string>
 {
     private readonly IZkProofService _zkProofService;
 

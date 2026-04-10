@@ -14,7 +14,7 @@ public sealed record UpdateAutofillRuleCommand(
     string SecretName,
     bool IsActive) : ICommand<AutofillRuleDto>;
 
-public sealed class UpdateAutofillRuleCommandHandler(IApplicationDbContext dbContext)
+internal sealed class UpdateAutofillRuleCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<UpdateAutofillRuleCommand, AutofillRuleDto>
 {
     public async Task<Result<AutofillRuleDto>> Handle(UpdateAutofillRuleCommand command, CancellationToken cancellationToken = default)

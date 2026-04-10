@@ -10,7 +10,7 @@ namespace Application.Vault.Machines;
 public sealed record UpdateMachineCommand(Guid VaultId, Guid MachineId, VaultMachineStatus Status)
     : ICommand<MachineDto>;
 
-public sealed class UpdateMachineCommandHandler(IApplicationDbContext dbContext)
+internal sealed class UpdateMachineCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<UpdateMachineCommand, MachineDto>
 {
     public async Task<Result<MachineDto>> Handle(UpdateMachineCommand command, CancellationToken cancellationToken = default)

@@ -9,7 +9,7 @@ namespace Application.Vault.Machines;
 
 public sealed record ListMachinesQuery(Guid VaultId, VaultMachineStatus? Status) : IQuery<IReadOnlyCollection<MachineDto>>;
 
-public sealed class ListMachinesQueryHandler(IApplicationDbContext dbContext)
+internal sealed class ListMachinesQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<ListMachinesQuery, IReadOnlyCollection<MachineDto>>
 {
     public async Task<Result<IReadOnlyCollection<MachineDto>>> Handle(ListMachinesQuery query, CancellationToken cancellationToken = default)

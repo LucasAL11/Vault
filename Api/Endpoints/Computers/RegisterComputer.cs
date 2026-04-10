@@ -6,7 +6,7 @@ using Shared;
 
 namespace Api.Endpoints.Computers;
 
-public class RegisterComputer : IEndpoint
+public sealed class RegisterComputer : IEndpoint
 {
     public sealed class Request
     {

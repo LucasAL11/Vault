@@ -8,7 +8,7 @@ namespace Application.Vault.AutofillRules;
 
 public sealed record GetAutofillRuleByIdQuery(Guid VaultId, Guid RuleId) : IQuery<AutofillRuleDto>;
 
-public sealed class GetAutofillRuleByIdQueryHandler(IApplicationDbContext dbContext)
+internal sealed class GetAutofillRuleByIdQueryHandler(IApplicationDbContext dbContext)
     : IQueryHandler<GetAutofillRuleByIdQuery, AutofillRuleDto>
 {
     public async Task<Result<AutofillRuleDto>> Handle(GetAutofillRuleByIdQuery query, CancellationToken cancellationToken = default)

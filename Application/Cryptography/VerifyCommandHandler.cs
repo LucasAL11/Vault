@@ -5,7 +5,7 @@ using System.Net.Http;
 
 namespace Application.Cryptography;
 
-public sealed class VerifyCommandHandler : ICommandHandler<VerifyCommand, bool>
+internal sealed class VerifyCommandHandler : ICommandHandler<VerifyCommand, bool>
 {
     private readonly IZkProofService _zkProofService;
 

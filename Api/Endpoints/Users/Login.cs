@@ -2,7 +2,7 @@
 
 namespace Api.Endpoints.Users;
 
-public class Login : IEndpoint
+public sealed class Login : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {

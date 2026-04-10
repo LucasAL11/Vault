@@ -7,7 +7,7 @@ using Shared;
 
 namespace Application.Vault.AutofillRules.Create;
 
-public sealed class CreateAutofillRuleCommandHandler(IApplicationDbContext dbContext)
+internal sealed class CreateAutofillRuleCommandHandler(IApplicationDbContext dbContext)
     : ICommandHandler<CreateAutofillRuleCommand, AutofillRuleDto>
 {
     public async Task<Result<AutofillRuleDto>> Handle(CreateAutofillRuleCommand command, CancellationToken cancellationToken = default)
