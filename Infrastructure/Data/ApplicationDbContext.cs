@@ -71,11 +71,9 @@ public  sealed class ApplicationDbContext(
                 continue;
             }
 
-            var current = rowVersionProperty.CurrentValue as byte[];
-            if (current is null || current.Length == 0)
-            {
-                rowVersionProperty.CurrentValue = RandomNumberGenerator.GetBytes(8);
-            }
+            // Always regenerate on Add; also regenerate on Modify so the WHERE clause
+            // (old value) and SET clause (new value) both participate in the concurrency check.
+            rowVersionProperty.CurrentValue = RandomNumberGenerator.GetBytes(8);
         }
     }
 
