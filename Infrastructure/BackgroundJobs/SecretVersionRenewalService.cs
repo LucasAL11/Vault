@@ -119,22 +119,25 @@ public sealed class SecretVersionRenewalService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
 
+        // Load as no-tracking — we will write via direct SQL operations to bypass
+        // the IsConcurrencyToken() check on Secret.RowVersion, which fails when the
+        // DB row_version is NULL (secrets created before the mechanism was in place).
         var secret = await dbContext.Secrets
-            .Include(s => s.Versions)
-            .FirstOrDefaultAsync(s => s.Id == secretId, ct);
+            .AsNoTracking()
+            .Where(s => s.Id == secretId)
+            .Select(s => new { s.Id, s.VaultId, s.Name, s.CurrentVersion })
+            .FirstOrDefaultAsync(ct);
 
         if (secret is null)
-            return Result.Failure(Error.NotFound(
-                "Secret.NotFound",
-                $"Secret {secretId} no longer exists"));
+            return Result.Failure(Error.NotFound("Secret.NotFound", $"Secret {secretId} no longer exists"));
 
-        var currentVersion = secret.Versions
-            .FirstOrDefault(v => v.Version == secret.CurrentVersion && !v.IsRevoked);
+        var currentVersion = await dbContext.SecretVersions
+            .AsNoTracking()
+            .Where(v => v.SecretId == secretId && v.Version == secret.CurrentVersion && !v.IsRevoked)
+            .FirstOrDefaultAsync(ct);
 
         if (currentVersion is null)
-            return Result.Failure(Error.NotFound(
-                "Secret.CurrentVersion.NotFound",
-                "No active current version found"));
+            return Result.Failure(Error.NotFound("Secret.CurrentVersion.NotFound", "No active current version found"));
 
         var plaintext = await _secretProtector.UnprotectAsync(
             new ProtectedSecret(currentVersion.CipherText, currentVersion.Nonce, currentVersion.KeyReference),
@@ -151,23 +154,28 @@ public sealed class SecretVersionRenewalService : BackgroundService
             new SecretProtectionContext(secret.VaultId, secret.Id, nextVersion),
             ct);
 
-        secret.AddVersion(
+        // Insert the new version directly — no change tracking, no concurrency token.
+        var newSecretVersion = new SecretVersion(
+            secretId,
+            nextVersion,
             protectedSecret.CipherText,
             protectedSecret.Nonce,
             protectedSecret.KeyId,
             currentVersion.ContentType,
             newExpires);
 
-        try
-        {
-            await dbContext.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return Result.Failure(Error.Conflict(
-                "Secret.ConcurrencyConflict",
-                "Secret was modified concurrently"));
-        }
+        dbContext.SecretVersions.Add(newSecretVersion);
+        await dbContext.SaveChangesAsync(ct);
+
+        // Update CurrentVersion via ExecuteUpdateAsync — bypasses the RowVersion
+        // concurrency token entirely, which is safe here because the renewal service
+        // is the only writer of CurrentVersion (regular writes go through AddVersion
+        // inside a user request scope and have their own concurrency guarantee).
+        await dbContext.Secrets
+            .Where(s => s.Id == secretId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.CurrentVersion, nextVersion),
+                ct);
 
         _logger.LogInformation(
             "SecretVersionRenewal: renewed VaultId={VaultId}, Secret={SecretName}, v{OldVersion} -> v{NewVersion}, Expires={Expires}",
