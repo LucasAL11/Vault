@@ -12,7 +12,7 @@ public class Vault : Entity
     /// <summary>Identificador único do cofre.</summary>
     public Guid Id { get; set; }
     /// <summary>Nome de exibição do cofre.</summary>
-    public string Name { get; init; }
+    public string Name { get; private set; }
     /// <summary>Nome técnico curto usado para identificação estável.</summary>
     public string Slug { get; init; }
     /// <summary>Descrição funcional do cofre.</summary>
@@ -63,6 +63,13 @@ public class Vault : Entity
     public void UpdateDescription(string description, string updatedBy)
     {
         Description = description.Trim();
+    }
+
+    public void Update(string name, string description)
+    {
+        if (!string.IsNullOrWhiteSpace(name))
+            Name = name.Trim();
+        Description = description?.Trim() ?? Description;
     }
 
     public void MarkRotate(string updatedBy)

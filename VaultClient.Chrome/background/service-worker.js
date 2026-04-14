@@ -17,6 +17,19 @@ async function getAuth() {
   return auth || null;
 }
 
+/** Returns true if the stored JWT is still within its lifetime (client-side fast check). */
+function isTokenFresh(auth) {
+  if (!auth?.token) return false;
+  try {
+    // JWT payload is the middle base64url segment
+    const payload = JSON.parse(atob(auth.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp) return true; // no expiry claim — assume fresh
+    return Date.now() / 1000 < payload.exp;
+  } catch {
+    return true; // can't decode — optimistically assume valid
+  }
+}
+
 async function setAuth(token, username, domain) {
   await chrome.storage.session.set({
     auth: { token, username, domain, ts: Date.now() },
@@ -39,17 +52,6 @@ async function clearAuth() {
 // Esta funcao converte para o formato :O exacto:
 //   2026-04-01T15:30:45.1230000+00:00
 // ============================================================
-
-function formatDateTimeOffsetO(isoString) {
-  const m = isoString.match(
-    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/
-  );
-  if (!m) return isoString;
-  const datetime = m[1];
-  const frac = (m[2] || '').padEnd(7, '0');
-  const offset = m[3] === 'Z' ? '+00:00' : m[3];
-  return `${datetime}.${frac}${offset}`;
-}
 
 // Normalize ISO timestamp to match C#'s DateTimeOffset.ToString("O")
 // which always outputs exactly 7 fractional digits
@@ -113,6 +115,12 @@ async function apiFetch(path, options = {}) {
 
   const res = await fetch(url, { ...options, headers });
 
+  if (res.status === 401) {
+    // Clear stale session so getAuthState reflects the truth
+    await clearAuth();
+    throw new Error('SESSION_EXPIRED');
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`API ${res.status}: ${text || res.statusText}`);
@@ -149,63 +157,6 @@ async function authenticate(username, password, domain) {
   return { success: true, username, domain: effectiveDomain };
 }
 
-async function challengeRespond(username, domain) {
-  const config = await getConfig();
-  const fullSubject = domain ? `${domain}\\${username}` : username;
-
-async function requestSecretValue(vaultId, secretName, reason, ticket) {
-  const config = await getConfig();
-  const auth = await getAuth();
-  if (!auth) throw new Error('Nao autenticado.');
-
-  // 1. Nonce challenge
-  //    - NÃO enviar subject (servidor resolve do JWT)
-  //    - Audience DEVE ser "vault.secret.request" porque o endpoint
-  //      /request hardcodeia NonceChallengeAudiences.VaultSecretRequest
-  //      para consumir o nonce. Se o challenge usar outro audience,
-  //      os scopes nao coincidem e nonceConsumed=false.
-  const challenge = await apiFetch('/auth/challenge', {
-    method: 'POST',
-    body: JSON.stringify({
-      clientId: config.clientId,
-      subject: fullSubject,
-      audience: 'vault.secret.request',
-    }),
-  });
-
-  // 2. HMAC proof — campos exactos do BuildProofPayload
-  const proof = await buildProof(
-    vaultId,                              // Guid do vault
-    secretName,                           // nome do segredo
-    config.clientId,                      // AuthChallenge:ClientSecrets key
-    challenge.subject,                    // subject resolvido pelo servidor (do JWT)
-    reason,                               // motivo do acesso
-    ticket,                               // ticket/incidente
-    challenge.nonce,                      // nonce base64url do challenge
-    challenge.issuedAtUtc,                // timestamp do challenge
-    config.clientSecret                   // AuthChallenge:ClientSecrets value
-  );
-
-  // 3. Request body — espelho de SecretRequestPayload
-  const result = await apiFetch(
-    `/vaults/${vaultId}/secrets/${encodeURIComponent(secretName)}/request`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        contractVersion: 'v1',
-        reason: reason,
-        ticket: ticket || '-',
-        clientId: config.clientId,
-        nonce: challenge.nonce,
-        issuedAtUtc: challenge.issuedAtUtc,
-        proof: proof,
-      }),
-    }
-  );
-
-  return result;
-}
-
 // ============================================================
 // Vaults & Secrets
 // ============================================================
@@ -225,7 +176,11 @@ async function getSecretMetadata(vaultId, name) {
 async function requestSecretValue(vaultId, secretName) {
   const config = await getConfig();
   const { auth } = await chrome.storage.session.get('auth');
-  if (!auth) throw new Error('Not authenticated');
+  if (!auth?.token) throw new Error('SESSION_EXPIRED');
+  if (!isTokenFresh(auth)) {
+    await clearAuth();
+    throw new Error('SESSION_EXPIRED');
+  }
 
   const reason = 'Autofill via Sentinel Vault Extension';
 
@@ -294,8 +249,10 @@ async function handleMessage(msg) {
 
     case 'getAuthState': {
       const auth = await getAuth();
+      const fresh = isTokenFresh(auth);
+      if (auth && !fresh) await clearAuth();
       return {
-        authenticated: !!auth,
+        authenticated: !!auth && fresh,
         username: auth?.username,
         domain: auth?.domain,
       };
@@ -344,6 +301,57 @@ async function handleMessage(msg) {
 
     case 'matchAutofillRules':
       return apiFetch(`/autofill-rules/match?url=${encodeURIComponent(msg.url)}`);
+
+    case 'saveCredentials': {
+      // msg: { url, login, password, vaultId }
+      const auth = await getAuth();
+      if (!auth?.token || !isTokenFresh(auth)) {
+        await clearAuth();
+        throw new Error('SESSION_EXPIRED');
+      }
+
+      const hostname = new URL(msg.url).hostname;
+      // Secret name: "hostname/login" — sanitized for API
+      const secretName = `${hostname}/${msg.login}`
+        .replace(/[^\w.\-/:@]/g, '_')
+        .slice(0, 120);
+
+      // URL pattern: wildcard for the whole host
+      const urlPattern = `https://${hostname}/*`;
+
+      // 1. Upsert secret (create or update if name already exists)
+      await apiFetch(`/vaults/${msg.vaultId}/secrets`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: secretName,
+          value: msg.password,
+          contentType: 'password',
+        }),
+      });
+
+      // 2. Create autofill rule (ignore conflict — rule may already exist)
+      try {
+        await apiFetch(`/vaults/${msg.vaultId}/autofill-rules`, {
+          method: 'POST',
+          body: JSON.stringify({
+            urlPattern,
+            login: msg.login,
+            secretName,
+            isActive: true,
+          }),
+        });
+      } catch (err) {
+        // Conflict (rule already exists) is acceptable — secret was updated above
+        if (!err.message?.includes('409')) throw err;
+      }
+
+      return { success: true, secretName };
+    }
+
+    case 'openPopup':
+      // chrome.action.openPopup() requires user gesture; best-effort only
+      try { await chrome.action.openPopup(); } catch { /* ignore if not supported */ }
+      return { success: true };
 
     default:
       throw new Error(`Accao desconhecida: ${msg.action}`);

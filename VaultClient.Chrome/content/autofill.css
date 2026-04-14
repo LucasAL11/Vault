@@ -212,3 +212,201 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   background: rgba(255, 255, 255, 0.15);
   color: #e1e4e8;
 }
+
+/* ================================================================
+   Save credentials bar (Chrome/Firefox/Edge pattern)
+   ================================================================ */
+
+.vault-save-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.vault-save-bar.vault-save-visible {
+  transform: translateY(0);
+}
+
+.vault-save-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #0b1f13 0%, #0f2318 100%);
+  border-top: 1px solid rgba(134, 239, 172, 0.2);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
+}
+
+.vault-save-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.vault-save-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.vault-save-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #86efac;
+  white-space: nowrap;
+}
+
+.vault-save-login {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vault-save-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vault-save-select {
+  background: #1a2e22;
+  color: #d1fae5;
+  border: 1px solid rgba(134, 239, 172, 0.25);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 160px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2386efac'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+.vault-save-select:focus {
+  border-color: #86efac;
+}
+
+.vault-save-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.vault-save-confirm {
+  background: linear-gradient(135deg, #86efac 0%, #22c55e 100%);
+  color: #052e16;
+}
+
+.vault-save-confirm:hover {
+  filter: brightness(1.1);
+}
+
+.vault-save-confirm:active {
+  transform: scale(0.95);
+}
+
+.vault-save-never {
+  background: rgba(255, 255, 255, 0.06);
+  color: #6b7280;
+}
+
+.vault-save-never:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #9ca3af;
+}
+
+.vault-save-dismiss {
+  background: transparent;
+  color: #4b5563;
+  font-size: 18px;
+  padding: 2px 8px;
+  line-height: 1;
+}
+
+.vault-save-dismiss:hover {
+  color: #9ca3af;
+}
+
+/* ================================================================
+   Multi-rule expanded bar
+   ================================================================ */
+
+/* --- Multi-rule expanded bar --- */
+
+.vault-automatch-multi {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+
+.vault-automatch-multi-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(181, 196, 255, 0.1);
+}
+
+.vault-automatch-multi-header .vault-automatch-text {
+  flex: 1;
+}
+
+.vault-automatch-rule-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(181, 196, 255, 0.2) transparent;
+}
+
+.vault-automatch-rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(181, 196, 255, 0.06);
+  gap: 12px;
+  transition: background 0.12s;
+}
+
+.vault-automatch-rule-row:last-child {
+  border-bottom: none;
+}
+
+.vault-automatch-rule-row:hover {
+  background: rgba(181, 196, 255, 0.06);
+}
+
+.vault-automatch-rule-login {
+  font-size: 13px;
+  color: #dae2fd;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-automatch-rule-row .vault-automatch-fill {
+  padding: 4px 12px;
+  font-size: 11px;
+}

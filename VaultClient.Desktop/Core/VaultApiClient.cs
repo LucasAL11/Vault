@@ -74,14 +74,31 @@ public sealed class VaultApiClient
 
     public bool HasSession => _credentials.Get("jwt") is not null;
 
+    /// <summary>
+    /// Raised when the server returns 401 — token expired or invalidated.
+    /// Subscribers (e.g. MainWindow) should navigate the user back to the login screen.
+    /// </summary>
+    public event EventHandler? SessionExpired;
+
+    private async Task<HttpResponseMessage> SendAsync(Func<Task<HttpResponseMessage>> request)
+    {
+        var response = await request();
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Logout();
+            SessionExpired?.Invoke(this, EventArgs.Empty);
+        }
+        return response;
+    }
+
     // ── Secrets ──────────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<SecretItem>> ListSecretsAsync(
         Guid vaultId, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
-        var response = await _http.GetAsync(
+        var response = await SendAsync(() => _http.GetAsync(
             $"{_baseUrl}/vaults/{vaultId}/secrets?page={page}&pageSize={pageSize}&status=Active&orderBy=name&orderDirection=asc",
-            ct);
+            ct));
 
         response.EnsureSuccessStatusCode();
 
@@ -105,8 +122,8 @@ public sealed class VaultApiClient
     public async Task<(string Nonce, DateTimeOffset IssuedAt)> GetChallengeAsync(
         string clientId, string subject, CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
-            new { clientId, subject, audience = _challengeAudience }, ct);
+        var response = await SendAsync(() => _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
+            new { clientId, subject, audience = _challengeAudience }, ct));
 
         response.EnsureSuccessStatusCode();
 
@@ -130,7 +147,7 @@ public sealed class VaultApiClient
             vaultId, secretName, clientId, subject,
             reason, ticket, nonce, issuedAt, clientSecret);
 
-        var response = await _http.PostAsJsonAsync(
+        var response = await SendAsync(() => _http.PostAsJsonAsync(
             $"{_baseUrl}/vaults/{vaultId}/secrets/{secretName}/request",
             new
             {
@@ -141,7 +158,7 @@ public sealed class VaultApiClient
                 nonce,
                 issuedAt,
                 proof
-            }, ct);
+            }, ct));
 
         response.EnsureSuccessStatusCode();
 
@@ -155,8 +172,8 @@ public sealed class VaultApiClient
     public async Task<IReadOnlyList<AdMapItem>> ListAdMapsAsync(
         Guid vaultId, CancellationToken ct = default)
     {
-        var response = await _http.GetAsync(
-            $"{_baseUrl}/vaults/{vaultId}/ad-maps?includeInactive=true", ct);
+        var response = await SendAsync(() => _http.GetAsync(
+            $"{_baseUrl}/vaults/{vaultId}/ad-maps?includeInactive=true", ct));
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -173,16 +190,16 @@ public sealed class VaultApiClient
     public async Task CreateAdMapAsync(
         Guid vaultId, string groupId, string permission, CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync(
+        var response = await SendAsync(() => _http.PostAsJsonAsync(
             $"{_baseUrl}/vaults/{vaultId}/ad-maps",
-            new { groupId, permission }, ct);
+            new { groupId, permission }, ct));
         response.EnsureSuccessStatusCode();
     }
 
     public async Task DeleteAdMapAsync(Guid vaultId, Guid adMapId, CancellationToken ct = default)
     {
-        var response = await _http.DeleteAsync(
-            $"{_baseUrl}/vaults/{vaultId}/ad-maps/{adMapId}", ct);
+        var response = await SendAsync(() => _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}/ad-maps/{adMapId}", ct));
         response.EnsureSuccessStatusCode();
     }
 
@@ -192,16 +209,16 @@ public sealed class VaultApiClient
         Guid vaultId, string name, string value, string? contentType = null,
         CancellationToken ct = default)
     {
-        var response = await _http.PutAsJsonAsync(
+        var response = await SendAsync(() => _http.PutAsJsonAsync(
             $"{_baseUrl}/vaults/{vaultId}/secrets/{name}",
-            new { value, contentType }, ct);
+            new { value, contentType }, ct));
         response.EnsureSuccessStatusCode();
     }
 
     public async Task DeleteSecretAsync(Guid vaultId, string name, CancellationToken ct = default)
     {
-        var response = await _http.DeleteAsync(
-            $"{_baseUrl}/vaults/{vaultId}/secrets/{name}", ct);
+        var response = await SendAsync(() => _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}/secrets/{name}", ct));
         response.EnsureSuccessStatusCode();
     }
 
@@ -209,7 +226,7 @@ public sealed class VaultApiClient
 
     public async Task<IReadOnlyList<UserItem>> ListUsersAsync(CancellationToken ct = default)
     {
-        var response = await _http.GetAsync($"{_baseUrl}/users/list", ct);
+        var response = await SendAsync(() => _http.GetAsync($"{_baseUrl}/users/list", ct));
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -225,9 +242,9 @@ public sealed class VaultApiClient
         string username, string password, string firstName, string lastName,
         CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync(
+        var response = await SendAsync(() => _http.PostAsJsonAsync(
             $"{_baseUrl}/users/register",
-            new { username, password, firstName, lastName }, ct);
+            new { username, password, firstName, lastName }, ct));
         response.EnsureSuccessStatusCode();
     }
 
@@ -235,7 +252,7 @@ public sealed class VaultApiClient
 
     public async Task<IReadOnlyList<VaultItem>> ListVaultsAsync(CancellationToken ct = default)
     {
-        var response = await _http.GetAsync($"{_baseUrl}/vaults", ct);
+        var response = await SendAsync(() => _http.GetAsync($"{_baseUrl}/vaults", ct));
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -250,17 +267,80 @@ public sealed class VaultApiClient
         )).ToList();
     }
 
+    public async Task UpdateVaultAsync(
+        Guid vaultId, string name, string description, CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.PutAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}",
+            new { name, description }, ct));
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> DeleteVaultAsync(Guid vaultId, CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}", ct));
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("hardDeleted").GetBoolean();
+    }
+
     public async Task<Guid> CreateVaultAsync(
         string name, string slug, string description,
         string tenantId, string group, string environment,
         CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync($"{_baseUrl}/vaults",
-            new { name, slug, description, tenantId, group, environment }, ct);
+        var response = await SendAsync(() => _http.PostAsJsonAsync($"{_baseUrl}/vaults",
+            new { name, slug, description, tenantId, group, environment }, ct));
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         return doc.RootElement.GetProperty("id").GetGuid();
+    }
+
+    // ── Autofill Rules ────────────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<AutofillRuleItem>> ListAutofillRulesAsync(
+        Guid vaultId, CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.GetAsync(
+            $"{_baseUrl}/vaults/{vaultId}/autofill-rules", ct));
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var items = doc.RootElement.GetProperty("items");
+
+        return items.EnumerateArray().Select(i => new AutofillRuleItem(
+            Id: i.GetProperty("id").GetGuid(),
+            VaultId: i.GetProperty("vaultId").GetGuid(),
+            UrlPattern: i.GetProperty("urlPattern").GetString()!,
+            Login: i.GetProperty("login").GetString()!,
+            SecretName: i.GetProperty("secretName").GetString()!,
+            IsActive: i.GetProperty("isActive").GetBoolean(),
+            CreatedAt: i.GetProperty("createdAt").GetDateTimeOffset()
+        )).ToList();
+    }
+
+    public async Task<Guid> CreateAutofillRuleAsync(
+        Guid vaultId, string urlPattern, string login, string secretName,
+        CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.PostAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}/autofill-rules",
+            new { vaultId, urlPattern, login, secretName, isActive = true }, ct));
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.GetProperty("id").GetGuid();
+    }
+
+    public async Task DeleteAutofillRuleAsync(
+        Guid vaultId, Guid ruleId, CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.DeleteAsync(
+            $"{_baseUrl}/vaults/{vaultId}/autofill-rules/{ruleId}", ct));
+        response.EnsureSuccessStatusCode();
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
