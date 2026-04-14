@@ -426,60 +426,168 @@
 
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>  <!-- Vault context banner -->
+                        <RowDefinition Height="Auto"/>  <!-- Edit vault form -->
                         <RowDefinition Height="*"/>     <!-- Tab content -->
                     </Grid.RowDefinitions>
 
                     <!-- Vault context banner -->
                     <Border Grid.Row="0" Background="#1E1E2E" Padding="24,16,24,8">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                <TextBlock Text="{Binding SelectedVault.Name}" FontSize="18" FontWeight="Bold"
-                                           Foreground="#CDD6F4"/>
-                                <Border CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
-                                        VerticalAlignment="Center">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#1E3A5F"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Production">
-                                                    <Setter Property="Background" Value="#1A3A1A"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Staging">
-                                                    <Setter Property="Background" Value="#3A3A1A"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <TextBlock FontSize="10" FontWeight="SemiBold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#89B4FA"/>
-                                                <Setter Property="Text" Value="{Binding SelectedVault.Environment}"/>
+                        <Grid>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="{Binding SelectedVault.Name}" FontSize="18" FontWeight="Bold"
+                                               Foreground="#CDD6F4"/>
+                                    <Border CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
+                                            VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#1E3A5F"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Production">
-                                                        <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                        <Setter Property="Background" Value="#1A3A1A"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Staging">
-                                                        <Setter Property="Foreground" Value="#F9E2AF"/>
+                                                        <Setter Property="Background" Value="#3A3A1A"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Border>
+                                        </Border.Style>
+                                        <TextBlock FontSize="10" FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#89B4FA"/>
+                                                    <Setter Property="Text" Value="{Binding SelectedVault.Environment}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Production">
+                                                            <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Staging">
+                                                            <Setter Property="Foreground" Value="#F9E2AF"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock FontSize="12" Foreground="#6C7086">
+                                    <Run Text="{Binding SelectedVault.Group}"/>
+                                    <Run Text=" · "/>
+                                    <Run Text="{Binding SelectedVault.Slug}"/>
+                                    <Run Text=" · "/>
+                                    <Run Text="{Binding SelectedVault.Id, StringFormat='{}{0:N}'}"/>
+                                </TextBlock>
                             </StackPanel>
-                            <TextBlock FontSize="12" Foreground="#6C7086">
-                                <Run Text="{Binding SelectedVault.Group}"/>
-                                <Run Text=" · "/>
-                                <Run Text="{Binding SelectedVault.Slug}"/>
-                                <Run Text=" · "/>
-                                <Run Text="{Binding SelectedVault.Id, StringFormat='{}{0:N}'}"/>
-                            </TextBlock>
+
+                            <!-- Edit / Delete buttons -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button Command="{Binding OpenEditVaultFormCommand}"
+                                        Content="Editar" FontSize="11" Padding="12,6" Margin="0,0,8,0"
+                                        Background="Transparent" Foreground="#89B4FA"
+                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
+                                    <Button.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style>
+                                    </Button.Resources>
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#89B4FA"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding DeleteVaultCommand}"
+                                        Content="Excluir" FontSize="11" Padding="12,6"
+                                        Background="Transparent" Foreground="#F38BA8"
+                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
+                                    <Button.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style>
+                                    </Button.Resources>
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#F38BA8"/>
+                                                    <Setter Property="Background" Value="#2B0D0D"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Edit vault form (inline, collapses when not editing) -->
+                    <Border Grid.Row="1" Background="#181825" Padding="24,16"
+                            Visibility="{Binding ShowEditVaultForm, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="Editar Cofre" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="#CDD6F4" Margin="0,0,0,14"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Nome *" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding EditVaultName, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="12" Padding="10,8"
+                                             Background="#313244" Foreground="#CDD6F4"
+                                             BorderBrush="#45475A" BorderThickness="1" CaretBrush="#CDD6F4">
+                                        <TextBox.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                        </TextBox.Resources>
+                                    </TextBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Descricao" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding EditVaultDescription, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="12" Padding="10,8"
+                                             Background="#313244" Foreground="#CDD6F4"
+                                             BorderBrush="#45475A" BorderThickness="1" CaretBrush="#CDD6F4">
+                                        <TextBox.Resources>
+                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                        </TextBox.Resources>
+                                    </TextBox>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Command="{Binding SaveVaultCommand}"
+                                        Content="Salvar" FontSize="12" Padding="20,8" Margin="0,0,8,0"
+                                        Background="#CBA6F7" Foreground="#1E1E2E"
+                                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
+                                    <Button.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                    </Button.Resources>
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Background" Value="#45475A"/>
+                                                    <Setter Property="Foreground" Value="#6C7086"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding CancelEditVaultCommand}"
+                                        Content="Cancelar" FontSize="12" Padding="20,8"
+                                        Background="Transparent" Foreground="#6C7086"
+                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
+                                    <Button.Resources>
+                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                    </Button.Resources>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- Tabs -->
-                    <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTab}"
+                    <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTab}"
                                 Background="#1E1E2E" BorderThickness="0" Padding="0" Margin="20,4,20,0">
 
                         <TabControl.Resources>
@@ -1037,6 +1145,204 @@
                                 </Grid>
                             </Grid>
                         </TabItem>
+                        <!-- ═══ Tab: Autofill Rules ═══ -->
+                        <TabItem Header="Autofill">
+                            <Grid Margin="0,16,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Create rule form -->
+                                <Border Grid.Row="0" Background="#181825" CornerRadius="8"
+                                        Padding="20,16" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="Nova Regra de Autofill" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="#CDD6F4" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Define qual login e segredo preencher automaticamente para um site ou app."
+                                                   FontSize="11" Foreground="#585B70" Margin="0,0,0,12"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Host / App (URL ou padrao)" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding NewRuleUrlPattern, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="12" Padding="10,8"
+                                                         Background="#313244" Foreground="#CDD6F4"
+                                                         BorderBrush="#45475A" BorderThickness="1"
+                                                         CaretBrush="#CDD6F4">
+                                                    <TextBox.Resources>
+                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                                    </TextBox.Resources>
+                                                </TextBox>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Email / Login" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding NewRuleLogin, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="12" Padding="10,8"
+                                                         Background="#313244" Foreground="#CDD6F4"
+                                                         BorderBrush="#45475A" BorderThickness="1"
+                                                         CaretBrush="#CDD6F4">
+                                                    <TextBox.Resources>
+                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                                    </TextBox.Resources>
+                                                </TextBox>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="4">
+                                                <TextBlock Text="Nome do Segredo (senha)" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding NewRuleSecretName, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="12" Padding="10,8"
+                                                         Background="#313244" Foreground="#CDD6F4"
+                                                         BorderBrush="#45475A" BorderThickness="1"
+                                                         CaretBrush="#CDD6F4">
+                                                    <TextBox.Resources>
+                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                                    </TextBox.Resources>
+                                                </TextBox>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="6" Content="Adicionar"
+                                                    Command="{Binding CreateAutofillRuleCommand}"
+                                                    FontSize="12" Padding="16,8"
+                                                    Background="#89B4FA" Foreground="#1E1E2E"
+                                                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
+                                                    VerticalAlignment="Bottom">
+                                                <Button.Resources>
+                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
+                                                </Button.Resources>
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter Property="Background" Value="#45475A"/>
+                                                                <Setter Property="Foreground" Value="#6C7086"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Autofill Rules list -->
+                                <Grid Grid.Row="1">
+                                    <ListBox ItemsSource="{Binding AutofillRules}"
+                                             Background="Transparent" BorderThickness="0"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                <Setter Property="Padding" Value="0"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="BorderThickness" Value="0"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#252537"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type models:AutofillRuleItem}">
+                                                <Border Padding="14,12" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding UrlPattern}" FontSize="13" FontWeight="Medium"
+                                                                       Foreground="#CDD6F4" TextTrimming="CharacterEllipsis"/>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                                <TextBlock Text="{Binding Login}" FontSize="11" Foreground="#89B4FA"/>
+                                                                <TextBlock Text=" → " FontSize="11" Foreground="#45475A"/>
+                                                                <TextBlock Text="{Binding SecretName}" FontSize="11" Foreground="#A6E3A1"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <!-- Active badge -->
+                                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,3" Margin="8,0,10,0"
+                                                                VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="#1A3A1A"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                                            <Setter Property="Background" Value="#2B0D0D"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock FontSize="10" FontWeight="SemiBold">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="Ativo"/>
+                                                                        <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                                                                <Setter Property="Text" Value="Inativo"/>
+                                                                                <Setter Property="Foreground" Value="#F38BA8"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
+
+                                                        <Button Grid.Column="2" Content="Remover"
+                                                                Command="{Binding DataContext.DeleteAutofillRuleCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                CommandParameter="{Binding}"
+                                                                FontSize="11" Padding="12,6"
+                                                                Background="Transparent" Foreground="#F38BA8"
+                                                                BorderBrush="#45475A" BorderThickness="1"
+                                                                Cursor="Hand">
+                                                            <Button.Resources>
+                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                                            </Button.Resources>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Style.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#F38BA8"/>
+                                                                            <Setter Property="Background" Value="#2B0D0D"/>
+                                                                        </Trigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <!-- Empty state -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                Visibility="{Binding AutofillRules.Count, Converter={StaticResource ZeroToVisibility}}">
+                                        <TextBlock Text="Nenhuma regra de autofill"
+                                                   FontSize="14" Foreground="#585B70"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Adicione regras para preencher login e senha automaticamente no Chrome."
+                                                   FontSize="12" Foreground="#45475A"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
+
                     </TabControl>
                 </Grid>
             </Grid>
