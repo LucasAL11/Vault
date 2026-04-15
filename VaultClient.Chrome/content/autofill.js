@@ -613,8 +613,12 @@
     if (Date.now() - (pending.ts || 0) > SAVE_BAR_TTL_MS) return;
 
     try {
+      // Check "never" list before bothering the user
+      const { vault_never_hosts = [] } = await chrome.storage.local.get('vault_never_hosts');
+      if (vault_never_hosts.includes(new URL(pending.url).hostname)) return;
+
       const authState = await sendAsync({ action: 'getAuthState' });
-      if (!authState?.authenticated) return; // silently skip — user not logged in
+      if (!authState?.authenticated) return;
 
       const vaultResp = await sendAsync({ action: 'listVaults' });
       const vaults = Array.isArray(vaultResp) ? vaultResp
@@ -735,8 +739,38 @@
     }, 25000);
   }
 
+  // Synchronously extract credentials from a form.
+  // Returns null if credentials are incomplete or should be skipped.
+  function captureCredentials(form) {
+    const pwField = form.querySelector('input[type="password"]');
+    if (!pwField?.value) return null;
+
+    // Skip if vault itself filled this field (already known)
+    if (pwField.dataset.vaultFilled) return null;
+
+    const usernameField = findUsernameField(pwField);
+    const login = usernameField?.value?.trim();
+    if (!login) return null;
+
+    return { url: location.href, login, password: pwField.value, ts: Date.now() };
+  }
+
+  // Called synchronously from submit/click/keydown handlers.
+  // Does NOT use async/await so the page can navigate freely.
+  function handleFormSubmit(form) {
+    const pending = captureCredentials(form);
+    if (!pending) return;
+
+    // Fire-and-forget — must complete before navigation;
+    // chrome.storage writes are fast enough in practice.
+    chrome.storage.session.set({ [PENDING_KEY]: pending }).catch(() => {});
+
+    // For SPAs that don't navigate: show the bar after 1 s on the same page.
+    setTimeout(() => tryShowSaveBar(pending), 1000);
+  }
+
   // Attach submit listeners to any form containing a password field.
-  // Handles: traditional submit, SPA button clicks, Enter-key submits.
+  // Handles: traditional submit event, any button click, Enter key.
   function attachSaveListeners() {
     document.querySelectorAll('form').forEach((form) => {
       if (form.dataset.vaultSaveAttached) return;
@@ -744,19 +778,17 @@
       if (!pw) return;
       form.dataset.vaultSaveAttached = 'true';
 
-      // Traditional form submit (navigation-based login pages)
-      form.addEventListener('submit', () => onLoginFormSubmit(form));
+      // Traditional form submit (catches keyboard Enter and programmatic submit())
+      form.addEventListener('submit', () => handleFormSubmit(form));
 
-      // Any button inside the form (SPAs often use plain <button> or <div role="button">)
+      // Any clickable element that could trigger submit
+      // (covers <button>, <input type="submit">, <input type="button">)
       form.querySelectorAll('button, input[type="submit"], input[type="button"]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          // Small delay so the click handler can run first and populate fields
-          setTimeout(() => onLoginFormSubmit(form), 150);
-        });
+        btn.addEventListener('click', () => handleFormSubmit(form));
       });
     });
 
-    // Also catch Enter key on username/password fields (forms without explicit submit buttons)
+    // Enter key on any field outside a form, or when no submit button is present
     document.querySelectorAll('input[type="password"], input[type="email"], input[type="text"]')
       .forEach((input) => {
         if (input.dataset.vaultEnterAttached) return;
@@ -764,39 +796,9 @@
         input.addEventListener('keydown', (e) => {
           if (e.key !== 'Enter') return;
           const form = input.closest('form');
-          if (form) setTimeout(() => onLoginFormSubmit(form), 150);
+          if (form) handleFormSubmit(form);
         });
       });
-  }
-
-  async function onLoginFormSubmit(form) {
-    try {
-      const pwField = form.querySelector('input[type="password"]');
-      if (!pwField?.value) return;
-
-      const usernameField = findUsernameField(pwField);
-      const login = usernameField?.value?.trim();
-      if (!login) return;
-
-      const password = pwField.value;
-
-      // Skip if vault already filled this field (credential already known)
-      if (pwField.dataset.vaultFilled) return;
-
-      // Skip if this host is on the "never" list
-      const { vault_never_hosts = [] } = await chrome.storage.local.get('vault_never_hosts');
-      if (vault_never_hosts.includes(location.hostname)) return;
-
-      const pending = { url: location.href, login, password, ts: Date.now() };
-
-      // Store for next-page navigation (traditional login pages)
-      await chrome.storage.session.set({ [PENDING_KEY]: pending });
-
-      // Also try showing on same page after a short delay (SPAs that don't navigate)
-      setTimeout(() => tryShowSaveBar(pending), 1000);
-    } catch (_) {
-      // Never block form submission
-    }
   }
 
   // --- Init ---
