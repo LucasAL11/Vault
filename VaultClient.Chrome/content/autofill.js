@@ -603,31 +603,43 @@
   // ============================================================
 
   const PENDING_KEY = 'vault_pending_save';
+  const SAVE_BAR_TTL_MS = 5 * 60 * 1000; // 5 minutes — discard stale pending
 
-  // Check on page load whether there's a pending save from a previous page
-  async function checkPendingSave() {
+  // Attempt to show the save bar for a given pending credential.
+  // Called both on page load (traditional navigation) and on same page (SPAs).
+  async function tryShowSaveBar(pending) {
+    if (!pending) return;
+    if (document.querySelector('.vault-save-bar')) return;
+    if (Date.now() - (pending.ts || 0) > SAVE_BAR_TTL_MS) return;
+
     try {
       const authState = await sendAsync({ action: 'getAuthState' });
-      if (!authState?.authenticated) return;
+      if (!authState?.authenticated) return; // silently skip — user not logged in
 
-      const data = await chrome.storage.session.get(PENDING_KEY);
-      const pending = data[PENDING_KEY];
-      if (!pending) return;
-
-      // Clear immediately so it doesn't show twice if page reloads
-      await chrome.storage.session.remove(PENDING_KEY);
-
-      // Fetch vaults so the user can pick where to save
       const vaultResp = await sendAsync({ action: 'listVaults' });
       const vaults = Array.isArray(vaultResp) ? vaultResp
         : vaultResp?.items || vaultResp?.vaults || [];
 
-      if (vaults.length === 0) return; // nowhere to save — skip
+      if (vaults.length === 0) return;
 
       showSaveBar(pending, vaults);
     } catch (_) {
-      // Silently ignore
+      // Ignore errors (API unavailable, etc.)
     }
+  }
+
+  // On page load: check for pending save stored by a previous page (traditional navigation)
+  async function checkPendingSave() {
+    try {
+      const data = await chrome.storage.session.get(PENDING_KEY);
+      const pending = data[PENDING_KEY];
+      if (!pending) return;
+
+      // Clear immediately so it doesn't show twice on reload
+      await chrome.storage.session.remove(PENDING_KEY);
+
+      await tryShowSaveBar(pending);
+    } catch (_) {}
   }
 
   function showSaveBar(pending, vaults) {
@@ -723,7 +735,8 @@
     }, 25000);
   }
 
-  // Attach submit listeners to any form containing a password field
+  // Attach submit listeners to any form containing a password field.
+  // Handles: traditional submit, SPA button clicks, Enter-key submits.
   function attachSaveListeners() {
     document.querySelectorAll('form').forEach((form) => {
       if (form.dataset.vaultSaveAttached) return;
@@ -731,15 +744,29 @@
       if (!pw) return;
       form.dataset.vaultSaveAttached = 'true';
 
-      form.addEventListener('submit', (e) => onLoginFormSubmit(form), { once: true });
+      // Traditional form submit (navigation-based login pages)
+      form.addEventListener('submit', () => onLoginFormSubmit(form));
 
-      // SPA fallback: submit button click when form has no action
-      form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+      // Any button inside the form (SPAs often use plain <button> or <div role="button">)
+      form.querySelectorAll('button, input[type="submit"], input[type="button"]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          setTimeout(() => onLoginFormSubmit(form), 0);
-        }, { once: true });
+          // Small delay so the click handler can run first and populate fields
+          setTimeout(() => onLoginFormSubmit(form), 150);
+        });
       });
     });
+
+    // Also catch Enter key on username/password fields (forms without explicit submit buttons)
+    document.querySelectorAll('input[type="password"], input[type="email"], input[type="text"]')
+      .forEach((input) => {
+        if (input.dataset.vaultEnterAttached) return;
+        input.dataset.vaultEnterAttached = 'true';
+        input.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          const form = input.closest('form');
+          if (form) setTimeout(() => onLoginFormSubmit(form), 150);
+        });
+      });
   }
 
   async function onLoginFormSubmit(form) {
@@ -753,26 +780,20 @@
 
       const password = pwField.value;
 
+      // Skip if vault already filled this field (credential already known)
+      if (pwField.dataset.vaultFilled) return;
+
       // Skip if this host is on the "never" list
       const { vault_never_hosts = [] } = await chrome.storage.local.get('vault_never_hosts');
       if (vault_never_hosts.includes(location.hostname)) return;
 
-      // Skip if the field was filled by Vault itself (we already know this credential)
-      if (pwField.dataset.vaultFilled) return;
+      const pending = { url: location.href, login, password, ts: Date.now() };
 
-      // Check authentication before storing pending
-      const authState = await sendAsync({ action: 'getAuthState' });
-      if (!authState?.authenticated) return;
+      // Store for next-page navigation (traditional login pages)
+      await chrome.storage.session.set({ [PENDING_KEY]: pending });
 
-      // Persist pending save so the bar appears after navigation
-      await chrome.storage.session.set({
-        [PENDING_KEY]: {
-          url: location.href,
-          login,
-          password,
-          ts: Date.now(),
-        },
-      });
+      // Also try showing on same page after a short delay (SPAs that don't navigate)
+      setTimeout(() => tryShowSaveBar(pending), 1000);
     } catch (_) {
       // Never block form submission
     }
