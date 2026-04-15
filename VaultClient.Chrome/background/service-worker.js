@@ -1,5 +1,5 @@
 // ============================================================
-// Vault Password Manager — Background Service Worker
+// Vault Password Manager — Background Service Worker v2.1
 //
 // Toda a configuracao vem de chrome.storage.local['config'].
 // Sem defaults. O utilizador configura tudo na tela de settings.
@@ -93,6 +93,17 @@ async function buildProof(vaultId, secretName, clientId, subject, reason, ticket
   return base64url(new Uint8Array(sig));
 }
 
+// Encode a secret name for use in a URL path segment.
+function encodeName(name) {
+  return encodeURIComponent(name);
+}
+
+// Build a secret name from hostname + login.
+// Uses '--' as separator to avoid '/' which causes %2F encoding issues in route params.
+function buildSecretName(hostname, login) {
+  return `${hostname}--${login}`.replace(/[^\w.\-@]/g, '_').slice(0, 120);
+}
+
 function base64url(bytes) {
   const b64 = btoa(String.fromCharCode(...bytes));
   return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -104,6 +115,11 @@ function base64url(bytes) {
 
 async function apiFetch(path, options = {}) {
   const config = await getConfig();
+
+  if (!config.serverUrl) {
+    throw new Error('Servidor nao configurado. Abra as Configuracoes da extensao e insira a URL do servidor.');
+  }
+
   const auth = await getAuth();
   const url = `${config.serverUrl}${path}`;
 
@@ -113,12 +129,24 @@ async function apiFetch(path, options = {}) {
     ...options.headers,
   };
 
-  const res = await fetch(url, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (netErr) {
+    // Network-level failure (DNS, refused, timeout, CORS preflight blocked)
+    throw new Error(`Nao foi possivel conectar ao servidor (${config.serverUrl}). Verifique se o servidor esta a correr e se a URL esta correta.`);
+  }
 
   if (res.status === 401) {
-    // Clear stale session so getAuthState reflects the truth
-    await clearAuth();
-    throw new Error('SESSION_EXPIRED');
+    // /secrets/{name}/request returns 401 for proof failures (not session expiry).
+    // Only clear auth for endpoints that truly signal an invalid/expired token.
+    const isProofEndpoint = path.includes('/request');
+    if (!isProofEndpoint) {
+      await clearAuth();
+      throw new Error('SESSION_EXPIRED');
+    }
+    const body = await res.text().catch(() => '');
+    throw new Error(`API 401: ${body || 'Unauthorized'}`);
   }
 
   if (!res.ok) {
@@ -170,7 +198,7 @@ async function listSecrets(vaultId, page = 1, pageSize = 50) {
 }
 
 async function getSecretMetadata(vaultId, name) {
-  return apiFetch(`/vaults/${vaultId}/secrets/${encodeURIComponent(name)}`);
+  return apiFetch(`/vaults/${vaultId}/secrets/${encodeName(name)}`);
 }
 
 async function requestSecretValue(vaultId, secretName) {
@@ -184,44 +212,48 @@ async function requestSecretValue(vaultId, secretName) {
 
   const reason = 'Autofill via Sentinel Vault Extension';
 
-  // Build full subject matching JWT identity (DOMAIN\username)
-  const fullSubject = auth.domain
-    ? `${auth.domain}\\${auth.username}`
-    : auth.username;
-
-  // 1. Get nonce challenge
+  // 1. Get nonce challenge — do NOT pass subject manually.
+  //    The server resolves it from the JWT claims and returns the canonical form.
+  //    This guarantees both sides build the HMAC proof with the exact same subject.
   const challenge = await apiFetch('/auth/challenge', {
     method: 'POST',
     body: JSON.stringify({
       clientId: config.clientId,
-      subject: fullSubject,
       audience: 'vault.secret.request',
     }),
   });
+
+  // challenge.subject is the server-canonical subject derived from the JWT.
+  const canonicalSubject = challenge.subject || challenge.Subject;
+  if (!canonicalSubject) throw new Error('Challenge nao retornou subject.');
 
   // 2. Build HMAC proof
   const proof = await buildProof(
     vaultId,
     secretName,
     config.clientId,
-    challenge.subject || fullSubject,
+    canonicalSubject,
     reason,
     '-',
-    challenge.nonce,
-    challenge.issuedAtUtc,
+    challenge.nonce || challenge.Nonce,
+    challenge.issuedAtUtc || challenge.IssuedAtUtc,
     config.clientSecret
   );
 
-  // 3. Request secret with proof
-  const result = await apiFetch(`/vaults/${vaultId}/secrets/${encodeURIComponent(secretName)}/request`, {
+  const nonce = challenge.nonce || challenge.Nonce;
+  const issuedAtUtc = challenge.issuedAtUtc || challenge.IssuedAtUtc;
+
+  // 3. Request secret with proof — name passed in body (supports slashes)
+  const result = await apiFetch(`/vaults/${vaultId}/secrets/request`, {
     method: 'POST',
     body: JSON.stringify({
+      secretName,
       contractVersion: 'v1',
       reason,
       ticket: '-',
       clientId: config.clientId,
-      nonce: challenge.nonce,
-      issuedAtUtc: challenge.issuedAtUtc,
+      nonce,
+      issuedAtUtc,
       proof,
     }),
   });
@@ -310,43 +342,81 @@ async function handleMessage(msg) {
         throw new Error('SESSION_EXPIRED');
       }
 
-      const hostname = new URL(msg.url).hostname;
-      // Secret name: "hostname/login" — sanitized for API
-      const secretName = `${hostname}/${msg.login}`
-        .replace(/[^\w.\-/:@]/g, '_')
-        .slice(0, 120);
+      const parsedUrl = new URL(msg.url);
+      const hostname = parsedUrl.hostname;
+      const hostWithPort = parsedUrl.port ? `${parsedUrl.hostname}:${parsedUrl.port}` : parsedUrl.hostname;
 
-      // URL pattern: wildcard for the whole host
-      const urlPattern = `https://${hostname}/*`;
+      // ── Step 1: check for an existing rule for this host + login ─────
+      let existingRule = null;
+      try {
+        const matchResp = await apiFetch(`/autofill-rules/match?url=${encodeURIComponent(msg.url)}`);
+        const matches = Array.isArray(matchResp)
+          ? matchResp
+          : matchResp?.items ?? matchResp?.Items ?? [];
+        // Find a rule whose login matches exactly
+        existingRule = matches.find(
+          (r) => (r.login ?? r.Login) === msg.login
+        ) ?? null;
+      } catch (_) {
+        // match endpoint failure is non-fatal — treat as no existing rule
+      }
 
-      // 1. Upsert secret (create or update if name already exists)
-      await apiFetch(`/vaults/${msg.vaultId}/secrets`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: secretName,
-          value: msg.password,
-          contentType: 'password',
-        }),
+      if (existingRule) {
+        // ── UPDATE path ───────────────────────────────────────────────
+        // Rule already exists for this login — just update the secret value.
+        // The rule itself (urlPattern, login, secretName) stays unchanged.
+        const vaultId    = existingRule.vaultId    ?? existingRule.VaultId;
+        const secretName = existingRule.secretName ?? existingRule.SecretName;
+
+        await apiFetch(`/vaults/${vaultId}/secrets/${encodeName(secretName)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ value: msg.password, contentType: 'password' }),
+        });
+
+        return { success: true, updated: true, secretName };
+      }
+
+      // ── CREATE path ───────────────────────────────────────────────────
+      // No rule found for this login — create secret + rule from scratch.
+      const secretName = buildSecretName(hostname, msg.login);
+      const urlPattern = `${parsedUrl.protocol}//${hostWithPort}/*`;
+
+      // Step 2: upsert secret (PUT = create or overwrite)
+      await apiFetch(`/vaults/${msg.vaultId}/secrets/${encodeName(secretName)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ value: msg.password, contentType: 'password' }),
       });
 
-      // 2. Create autofill rule (ignore conflict — rule may already exist)
+      // Step 3: create autofill rule (ignore 409 = rule already exists)
       try {
         await apiFetch(`/vaults/${msg.vaultId}/autofill-rules`, {
           method: 'POST',
-          body: JSON.stringify({
-            urlPattern,
-            login: msg.login,
-            secretName,
-            isActive: true,
-          }),
+          body: JSON.stringify({ urlPattern, login: msg.login, secretName, isActive: true }),
         });
       } catch (err) {
-        // Conflict (rule already exists) is acceptable — secret was updated above
-        if (!err.message?.includes('409')) throw err;
+        if (!err.message?.includes('409')) {
+          console.error('[Vault] autofill rule creation failed:', err.message);
+          throw err;
+        }
       }
 
-      return { success: true, secretName };
+      return { success: true, updated: false, secretName };
     }
+
+    case 'storePendingSave':
+      // Content script delegates storage to the service worker because the
+      // content script can be killed by navigation before the write completes.
+      await chrome.storage.session.set({ vault_pending_save: msg.pending });
+      return { success: true };
+
+    case 'getPendingSave': {
+      const data = await chrome.storage.session.get('vault_pending_save');
+      return data.vault_pending_save || null;
+    }
+
+    case 'clearPendingSave':
+      await chrome.storage.session.remove('vault_pending_save');
+      return { success: true };
 
     case 'openPopup':
       // chrome.action.openPopup() requires user gesture; best-effort only

@@ -28,9 +28,15 @@ internal sealed class CreateAutofillRuleCommandHandler(IApplicationDbContext dbC
         }
 
         var normalizedUrl = command.UrlPattern.Trim();
+        var normalizedLogin = command.Login.Trim();
+
+        // Uniqueness is per vault + urlPattern + login combination.
+        // The same host can have multiple rules for different logins.
         var exists = await dbContext.AutofillRules
             .AsNoTracking()
-            .AnyAsync(x => x.VaultId == command.VaultId && x.UrlPattern == normalizedUrl, cancellationToken);
+            .AnyAsync(x => x.VaultId == command.VaultId
+                        && x.UrlPattern == normalizedUrl
+                        && x.Login == normalizedLogin, cancellationToken);
 
         if (exists)
         {

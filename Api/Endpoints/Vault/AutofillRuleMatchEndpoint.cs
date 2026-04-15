@@ -25,9 +25,9 @@ public sealed class AutofillRuleMatchEndpoint : IEndpoint
 
             return Results.Ok(new
             {
-                Url = url,
-                Count = result.Value.Count,
-                Items = result.Value
+                url,
+                count = result.Value.Count,
+                items = result.Value,
             });
         }).RequireAuthorization()
             .WithTags("autofill");

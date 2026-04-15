@@ -20,7 +20,7 @@ public class AutofillRuleConfiguration : IEntityTypeConfiguration<AutofillRule>
             .IsConcurrencyToken()
             .ValueGeneratedNever();
 
-        builder.HasIndex(x => new { x.VaultId, x.UrlPattern }).IsUnique();
+        builder.HasIndex(x => new { x.VaultId, x.UrlPattern, x.Login }).IsUnique();
         builder.HasIndex(x => new { x.VaultId, x.IsActive });
         builder.HasIndex(x => x.UrlPattern);
     }

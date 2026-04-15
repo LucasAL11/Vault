@@ -28,6 +28,7 @@ public sealed class AutofillRuleCreateEndpoint : IEndpoint
                     authorizationService,
                     httpContext.User,
                     cancellationToken);
+                
                 if (authResult.IsFailure)
                 {
                     return CustomResults.Problem(authResult);
@@ -36,6 +37,7 @@ public sealed class AutofillRuleCreateEndpoint : IEndpoint
                 var result = await sender.Send(
                     new CreateAutofillRuleCommand(vaultId, request.UrlPattern, request.Login, request.SecretName, request.IsActive),
                     cancellationToken);
+                
                 if (result.IsFailure)
                 {
                     return CustomResults.Problem(result);
@@ -49,7 +51,7 @@ public sealed class AutofillRuleCreateEndpoint : IEndpoint
                     userContext.Identity.ToString());
 
                 return Results.Created($"/vaults/{vaultId}/autofill-rules/{result.Value.Id}", result.Value);
-            }).RequireAuthorization("AdminPolicy")
+            }).RequireAuthorization()
             .WithTags("autofill");
     }
 }

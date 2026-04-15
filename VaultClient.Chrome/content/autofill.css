@@ -315,6 +315,12 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   color: #052e16;
 }
 
+/* Update variant — amber instead of green */
+.vault-save-update {
+  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 100%);
+  color: #431407;
+}
+
 .vault-save-confirm:hover {
   filter: brightness(1.1);
 }

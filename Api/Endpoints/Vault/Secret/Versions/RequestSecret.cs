@@ -29,6 +29,7 @@ public sealed class RequestSecret : IEndpoint
 
     private sealed class SecretRequestPayload
     {
+        public string? SecretName { get; init; }   // accepted in body as alternative to ?name= query param
         public string? ContractVersion { get; init; }
         public string? Reason { get; init; }
         public string? Ticket { get; init; }
@@ -42,9 +43,9 @@ public sealed class RequestSecret : IEndpoint
 
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapPost("/vaults/{vaultId:guid}/secrets/{name}/request", async (
+        builder.MapPost("/vaults/{vaultId:guid}/secrets/request", async (
             Guid vaultId,
-            string name,
+            [Microsoft.AspNetCore.Mvc.FromQuery] string? name,
             SecretRequestPayload request,
             IMessageDispatcher sender,
             ISecretAccessAuthorizer secretAccessAuthorizer,
@@ -58,10 +59,13 @@ public sealed class RequestSecret : IEndpoint
         {
             httpContext.Response.ApplyNoStoreHeaders();
 
-            if (string.IsNullOrWhiteSpace(name))
+            // name accepted from query param (?name=) or from the request body (secretName field)
+            var resolvedName = !string.IsNullOrWhiteSpace(name) ? name : request.SecretName;
+            if (string.IsNullOrWhiteSpace(resolvedName))
             {
-                return Results.BadRequest(new { message = "Secret name is required." });
+                return Results.BadRequest(new { message = "Secret name is required (query param ?name= or body field secretName)." });
             }
+            name = resolvedName;
 
             if (!InputValidation.TryNormalizeAsciiToken(
                     request.ContractVersion,

@@ -370,7 +370,9 @@
       if (!authState?.authenticated) return;
 
       const rules = await sendAsync({ action: 'matchAutofillRules', url: location.href });
-      const matches = Array.isArray(rules) ? rules : rules?.items || [];
+      const matches = Array.isArray(rules)
+        ? rules
+        : rules?.items ?? rules?.Items ?? [];
       if (matches.length === 0) return;
 
       // Wait briefly for fields to render (SPA pages)
@@ -462,6 +464,7 @@
           bar.classList.remove('vault-automatch-visible');
           setTimeout(() => bar.remove(), 300);
         } catch (err) {
+          console.error('[Vault] requestSecret error:', err.message, { vaultId: rule.vaultId, secretName: rule.secretName, rule });
           if (err.message === 'SESSION_EXPIRED' || err.message?.includes('SESSION_EXPIRED')) {
             btn.textContent = 'Login requerido';
             btn.style.background = '#d97706';
@@ -473,12 +476,14 @@
             }, 3000);
           } else {
             btn.textContent = 'Erro';
+            btn.title = err.message;
             btn.style.background = '#dc2626';
             setTimeout(() => {
               btn.textContent = originalText;
+              btn.title = '';
               btn.style.background = '';
               btn.disabled = false;
-            }, 2000);
+            }, 4000);
           }
         }
       });
@@ -613,9 +618,11 @@
     if (Date.now() - (pending.ts || 0) > SAVE_BAR_TTL_MS) return;
 
     try {
-      // Check "never" list before bothering the user
+      const hostname = new URL(pending.url).hostname;
+
+      // Check "never" list
       const { vault_never_hosts = [] } = await chrome.storage.local.get('vault_never_hosts');
-      if (vault_never_hosts.includes(new URL(pending.url).hostname)) return;
+      if (vault_never_hosts.includes(hostname)) return;
 
       const authState = await sendAsync({ action: 'getAuthState' });
       if (!authState?.authenticated) return;
@@ -626,45 +633,77 @@
 
       if (vaults.length === 0) return;
 
-      showSaveBar(pending, vaults);
-    } catch (_) {
-      // Ignore errors (API unavailable, etc.)
-    }
+      // Check if a rule already exists for this host (show "Atualizar" instead of "Salvar")
+      let existingRule = null;
+      try {
+        const matchResp = await sendAsync({ action: 'matchAutofillRules', url: pending.url });
+        const matches = Array.isArray(matchResp)
+          ? matchResp
+          : matchResp?.items ?? matchResp?.Items ?? [];
+        // Only treat as "update" if the exact same login already has a rule.
+        // A different email on the same host → new rule (CREATE path).
+        existingRule = matches.find((r) => (r.login ?? r.Login) === pending.login) ?? null;
+      } catch (_) {}
+
+      showSaveBar(pending, vaults, existingRule);
+    } catch (_) {}
   }
 
   // On page load: check for pending save stored by a previous page (traditional navigation)
   async function checkPendingSave() {
     try {
-      const data = await chrome.storage.session.get(PENDING_KEY);
-      const pending = data[PENDING_KEY];
+      const pending = await sendAsync({ action: 'getPendingSave' });
       if (!pending) return;
 
       // Clear immediately so it doesn't show twice on reload
-      await chrome.storage.session.remove(PENDING_KEY);
+      sendAsync({ action: 'clearPendingSave' }).catch(() => {});
 
       await tryShowSaveBar(pending);
     } catch (_) {}
   }
 
-  function showSaveBar(pending, vaults) {
+  function showSaveBar(pending, vaults, existingRule) {
     if (document.querySelector('.vault-save-bar')) return;
 
-    const vaultOptions = vaults.map((v, i) =>
-      `<option value="${esc(v.id)}" ${i === 0 ? 'selected' : ''}>${esc(v.name)}</option>`
-    ).join('');
+    const isUpdate = !!existingRule;
+    const title = isUpdate
+      ? 'Sentinel Vault: Atualizar senha?'
+      : 'Sentinel Vault: Salvar credenciais?';
+    const confirmLabel = isUpdate ? 'Atualizar' : 'Salvar';
+    const confirmClass = isUpdate ? 'vault-save-confirm vault-save-update' : 'vault-save-confirm';
+
+    // When updating, lock the vault selector to the vault of the existing rule
+    let vaultOptions;
+    if (isUpdate) {
+      // Show only the vault that owns the existing rule (no selector needed)
+      vaultOptions = vaults
+        .filter((v) => v.id === existingRule.vaultId)
+        .map((v) => `<option value="${esc(v.id)}" selected>${esc(v.name)}</option>`)
+        .join('');
+      // Fallback: if rule's vault isn't in the list, show all
+      if (!vaultOptions) {
+        vaultOptions = vaults.map((v, i) =>
+          `<option value="${esc(v.id)}" ${i === 0 ? 'selected' : ''}>${esc(v.name)}</option>`
+        ).join('');
+      }
+    } else {
+      vaultOptions = vaults.map((v, i) =>
+        `<option value="${esc(v.id)}" ${i === 0 ? 'selected' : ''}>${esc(v.name)}</option>`
+      ).join('');
+    }
 
     const bar = document.createElement('div');
     bar.className = 'vault-save-bar';
     bar.innerHTML = `
       <div class="vault-save-inner">
-        <span class="vault-save-icon">&#128272;</span>
+        <span class="vault-save-icon">${isUpdate ? '&#128260;' : '&#128272;'}</span>
         <div class="vault-save-body">
-          <span class="vault-save-title">Sentinel Vault: Salvar credenciais?</span>
+          <span class="vault-save-title">${title}</span>
           <span class="vault-save-login">&#128100; ${esc(pending.login)}</span>
         </div>
         <div class="vault-save-controls">
-          <select class="vault-save-select">${vaultOptions}</select>
-          <button class="vault-save-btn vault-save-confirm">Salvar</button>
+          <select class="vault-save-select"${isUpdate ? ' disabled' : ''}>${vaultOptions}</select>
+          <button class="vault-save-btn ${confirmClass}">${confirmLabel}</button>
           <button class="vault-save-btn vault-save-never">Nunca</button>
           <button class="vault-save-btn vault-save-dismiss">&times;</button>
         </div>
@@ -695,12 +734,19 @@
 
     bar.querySelector('.vault-save-confirm').addEventListener('click', async () => {
       const btn = bar.querySelector('.vault-save-confirm');
-      const vaultId = bar.querySelector('.vault-save-select').value;
+      // For updates the vaultId comes from the existing rule (select is disabled).
+      // For new saves the user picks it from the dropdown.
+      const vaultId = isUpdate
+        ? (existingRule.vaultId ?? existingRule.VaultId)
+        : bar.querySelector('.vault-save-select').value;
+
       btn.textContent = '...';
       btn.disabled = true;
 
       try {
-        const res = await sendAsync({
+        // The service worker resolves update vs create internally by
+        // calling matchAutofillRules again — no extra param needed.
+        await sendAsync({
           action: 'saveCredentials',
           url: pending.url,
           login: pending.login,
@@ -708,7 +754,7 @@
           vaultId,
         });
 
-        btn.textContent = '✓ Salvo';
+        btn.textContent = isUpdate ? '✓ Atualizado' : '✓ Salvo';
         btn.style.background = '#22c55e';
         setTimeout(dismiss, 1500);
       } catch (err) {
@@ -717,7 +763,7 @@
           btn.style.background = '#d97706';
           chrome.runtime.sendMessage({ action: 'openPopup' });
           setTimeout(() => {
-            btn.textContent = 'Salvar';
+            btn.textContent = confirmLabel;
             btn.style.background = '';
             btn.disabled = false;
           }, 3000);
@@ -725,7 +771,7 @@
           btn.textContent = 'Erro';
           btn.style.background = '#dc2626';
           setTimeout(() => {
-            btn.textContent = 'Salvar';
+            btn.textContent = confirmLabel;
             btn.style.background = '';
             btn.disabled = false;
           }, 2000);
@@ -761,9 +807,9 @@
     const pending = captureCredentials(form);
     if (!pending) return;
 
-    // Fire-and-forget — must complete before navigation;
-    // chrome.storage writes are fast enough in practice.
-    chrome.storage.session.set({ [PENDING_KEY]: pending }).catch(() => {});
+    // Delegate storage to the service worker — it survives page navigation.
+    // The content script can be killed mid-write; the service worker cannot.
+    chrome.runtime.sendMessage({ action: 'storePendingSave', pending }).catch(() => {});
 
     // For SPAs that don't navigate: show the bar after 1 s on the same page.
     setTimeout(() => tryShowSaveBar(pending), 1000);

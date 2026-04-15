@@ -59,7 +59,9 @@ internal sealed class MatchAutofillRulesQueryHandler(IApplicationDbContext dbCon
         if (normalizedPattern.EndsWith("*"))
         {
             var prefix = normalizedPattern[..^1];
-            return url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+            // prefix didn't match (different scheme/port) — fall through to hostname matching
         }
 
         // Match exato
@@ -68,11 +70,15 @@ internal sealed class MatchAutofillRulesQueryHandler(IApplicationDbContext dbCon
             return true;
         }
 
-        // Match por hostname: se o padrão é só o domínio, qualquer path dá match
+        // Match por hostname+porta: ignora scheme, compara host:port
         try
         {
-            var patternUri = new Uri(normalizedPattern.Contains("://") ? normalizedPattern : $"https://{normalizedPattern}");
-            var urlUri = new Uri(url.Contains("://") ? url : $"https://{url}");
+            var patternRaw = normalizedPattern.TrimEnd('*').TrimEnd('/');
+            var patternUri = new Uri(patternRaw.Contains("://") ? patternRaw : $"https://{patternRaw}");
+            var urlUri    = new Uri(url.Contains("://") ? url : $"https://{url}");
+
+            // Host deve ser igual; porta é ignorada — o padrão "https://host/*" deve
+            // corresponder a "http://host:5080/" (scheme/porta diferentes mas mesmo host).
             return string.Equals(patternUri.Host, urlUri.Host, StringComparison.OrdinalIgnoreCase);
         }
         catch
