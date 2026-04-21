@@ -3,6 +3,7 @@ using Api.Infrastructure;
 using Application.Abstractions.Messaging.Handlers;
 using Application.Authentication;
 using Application.Vault;
+using Microsoft.AspNetCore.Authorization;
 using Shared;
 
 namespace Api.Endpoints.Vault;
@@ -17,19 +18,33 @@ public class VaultUpdateEndpoint : IEndpoint
             Guid vaultId,
             Request request,
             IMessageDispatcher sender,
-            IUserContext user) =>
+            IAuthorizationService authorizationService,
+            IUserContext user,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
         {
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
+                vaultId,
+                sender,
+                authorizationService,
+                httpContext.User,
+                cancellationToken);
+            if (authResult.IsFailure)
+            {
+                return CustomResults.Problem(authResult);
+            }
+
             var command = new UpdateVaultCommand(
                 vaultId,
                 request.Name,
                 request.Description ?? string.Empty,
                 Actor: user.Identity.Username);
 
-            Result<UpdateVaultResultDto> result = await sender.Send(command);
+            Result<UpdateVaultResultDto> result = await sender.Send(command, cancellationToken);
 
             return result.Match(
                 dto => Results.Ok(dto),
                 CustomResults.Problem);
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

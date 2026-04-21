@@ -56,6 +56,46 @@ internal static class JwtHelper
         }
     }
 
+    /// <summary>
+    /// Verifica se o JWT contem pelo menos um grupo no formato <c>admin-vault-{tenant}</c>,
+    /// indicando que o usuario e Admin de Cofre (multi-empresa).
+    /// </summary>
+    internal static bool IsVaultAdmin(string? jwt)
+        => GetAdminTenants(jwt).Count > 0;
+
+    /// <summary>
+    /// Retorna os tenant IDs extraidos dos grupos <c>admin-vault-{tenant}</c> presentes no JWT.
+    /// </summary>
+    internal static IReadOnlyList<string> GetAdminTenants(string? jwt)
+    {
+        if (string.IsNullOrWhiteSpace(jwt))
+            return [];
+
+        try
+        {
+            var claims = ParsePayload(jwt);
+            var tenants = new List<string>();
+
+            foreach (var claimName in ClaimNames)
+            {
+                if (!claims.TryGetProperty(claimName, out var prop)) continue;
+
+                if (prop.ValueKind == JsonValueKind.String)
+                    TryExtractTenant(prop.GetString(), tenants);
+                else if (prop.ValueKind == JsonValueKind.Array)
+                    foreach (var item in prop.EnumerateArray())
+                        if (item.ValueKind == JsonValueKind.String)
+                            TryExtractTenant(item.GetString(), tenants);
+            }
+
+            return tenants;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     /// <summary>Retorna todos os grupos do JWT (para debug).</summary>
     internal static IReadOnlyList<string> GetGroups(string? jwt)
     {
@@ -109,6 +149,31 @@ internal static class JwtHelper
         catch
         {
             return null;
+        }
+    }
+
+    private const string VaultAdminPrefix = "admin-vault-";
+
+    private static readonly string[] ClaimNames =
+    [
+        "role", "groups",
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+    ];
+
+    private static void TryExtractTenant(string? group, List<string> tenants)
+    {
+        if (group is null) return;
+
+        // Strip domain prefix (e.g. "PLT\admin-vault-acme" → "admin-vault-acme")
+        var normalized = group;
+        var bsIdx = normalized.IndexOf('\\');
+        if (bsIdx >= 0)
+            normalized = normalized[(bsIdx + 1)..];
+
+        if (normalized.StartsWith(VaultAdminPrefix, StringComparison.OrdinalIgnoreCase)
+            && normalized.Length > VaultAdminPrefix.Length)
+        {
+            tenants.Add(normalized[VaultAdminPrefix.Length..].ToLowerInvariant());
         }
     }
 

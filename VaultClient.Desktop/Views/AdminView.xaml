@@ -20,9 +20,33 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Painel Administrativo" FontSize="16" FontWeight="Bold"
                                Foreground="#CDD6F4"/>
-                    <Border Background="#302040" CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
+                    <!-- Role badge: "ADMIN GERAL" or "ADMIN DE COFRE" -->
+                    <Border CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
                             VerticalAlignment="Center">
-                        <TextBlock Text="ADMIN" FontSize="10" FontWeight="Bold" Foreground="#CBA6F7"/>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#1E3A5F"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGlobalAdmin}" Value="True">
+                                        <Setter Property="Background" Value="#302040"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock FontSize="10" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="ADMIN DE COFRE"/>
+                                    <Setter Property="Foreground" Value="#89B4FA"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGlobalAdmin}" Value="True">
+                                            <Setter Property="Text" Value="ADMIN GERAL"/>
+                                            <Setter Property="Foreground" Value="#CBA6F7"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Border>
                 </StackPanel>
 
@@ -174,8 +198,9 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding Vaults.Count, Converter={StaticResource ZeroToVisibility}}"/>
 
-                <!-- New vault button -->
-                <Border Grid.Row="2" Padding="12,8,12,12">
+                <!-- New vault button (Global Admin only — POST /vaults requires Admin Geral) -->
+                <Border Grid.Row="2" Padding="12,8,12,12"
+                        Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
                     <Button Command="{Binding OpenCreateVaultFormCommand}"
                             FontSize="12" Padding="0,10"
                             Background="#CBA6F7" Foreground="#1E1E2E"
@@ -210,9 +235,10 @@
             <Grid Grid.Column="2">
 
                 <!-- STATE 1: No vault selected + no create form => Welcome -->
-                <Border Visibility="{Binding HasSelectedVault, Converter={StaticResource InverseBoolToVisibility}}">
+                <Border>
                     <Border.Style>
                         <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="{Binding HasSelectedVault, Converter={StaticResource InverseBoolToVisibility}}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCreateVaultForm}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -237,7 +263,7 @@
                                 Background="#CBA6F7" Foreground="#1E1E2E"
                                 BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
                                 HorizontalAlignment="Center"
-                                Visibility="{Binding Vaults.Count, Converter={StaticResource ZeroToVisibility}}">
+                                Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
                             <Button.Resources>
                                 <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
                             </Button.Resources>
@@ -413,12 +439,16 @@
                 </ScrollViewer>
 
                 <!-- STATE 3: Vault selected => Tabs content -->
-                <Grid Visibility="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}">
+                <Grid>
                     <Grid.Style>
                         <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCreateVaultForm}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ShowEditVaultForm}" Value="True">
+                                    <Setter Property="Visibility" Value="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -629,12 +659,55 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Create secret form -->
-                                <Border Grid.Row="0" Background="#181825" CornerRadius="8"
+                                <!-- Create / Edit secret form -->
+                                <Border Grid.Row="0" CornerRadius="8"
                                         Padding="20,16" Margin="0,0,0,12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#181825"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                    <Setter Property="Background" Value="#1E2030"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel>
-                                        <TextBlock Text="Adicionar Segredo" FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="#CDD6F4" Margin="0,0,0,12"/>
+                                        <!-- Form title: switches between Add / Edit -->
+                                        <Grid Margin="0,0,0,12">
+                                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#CDD6F4">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Adicionar Segredo"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                                <Setter Property="Text" Value="Editar Segredo"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Cancel edit button (only visible when editing) -->
+                                            <Button HorizontalAlignment="Right" Content="Cancelar edicao"
+                                                    Command="{Binding CancelEditSecretCommand}"
+                                                    FontSize="11" Padding="12,5"
+                                                    Background="Transparent" Foreground="#6C7086"
+                                                    BorderBrush="#45475A" BorderThickness="1" Cursor="Hand"
+                                                    Visibility="{Binding IsEditingSecret, Converter={StaticResource BoolToVisibility}}">
+                                                <Button.Resources>
+                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                                </Button.Resources>
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Foreground" Value="#CDD6F4"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
@@ -650,10 +723,21 @@
                                             <StackPanel Grid.Row="0" Grid.Column="0">
                                                 <TextBlock Text="Nome" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewSecretName, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsReadOnly="{Binding IsEditingSecret}"
                                                          FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
+                                                         Foreground="#CDD6F4"
                                                          BorderBrush="#45475A" BorderThickness="1"
                                                          CaretBrush="#CDD6F4">
+                                                    <TextBox.Style>
+                                                        <Style TargetType="TextBox">
+                                                            <Setter Property="Background" Value="#313244"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                                    <Setter Property="Background" Value="#252537"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBox.Style>
                                                     <TextBox.Resources>
                                                         <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
                                                     </TextBox.Resources>
@@ -674,7 +758,18 @@
 
                                             <!-- Row 2: Value + Button -->
                                             <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,10,0,0">
-                                                <TextBlock Text="Valor" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Foreground="#585B70" FontSize="11" Margin="0,0,0,4">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="Valor"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                                    <Setter Property="Text" Value="Novo Valor"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -690,11 +785,25 @@
                                                             <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
                                                         </TextBox.Resources>
                                                     </TextBox>
-                                                    <Button Grid.Column="1" Content="Salvar"
+                                                    <Button Grid.Column="1"
                                                             Command="{Binding CreateSecretCommand}"
                                                             FontSize="12" Padding="20,8"
                                                             Background="#89B4FA" Foreground="#1E1E2E"
                                                             BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
+                                                        <Button.Content>
+                                                            <TextBlock>
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="Salvar"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                                                <Setter Property="Text" Value="Atualizar"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Button.Content>
                                                         <Button.Resources>
                                                             <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
                                                         </Button.Resources>
@@ -740,6 +849,7 @@
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
@@ -754,7 +864,29 @@
                                                                            VerticalAlignment="Center"/>
                                                             </StackPanel>
                                                         </StackPanel>
-                                                        <Button Grid.Column="1" Content="Desativar"
+                                                        <Button Grid.Column="1" Content="Editar"
+                                                                Command="{Binding DataContext.EditSecretCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                CommandParameter="{Binding}"
+                                                                FontSize="11" Padding="12,6" Margin="0,0,6,0"
+                                                                Background="Transparent" Foreground="#89B4FA"
+                                                                BorderBrush="#45475A" BorderThickness="1"
+                                                                Cursor="Hand">
+                                                            <Button.Resources>
+                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                                            </Button.Resources>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Style.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#89B4FA"/>
+                                                                            <Setter Property="Background" Value="#1E2030"/>
+                                                                        </Trigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Grid.Column="2" Content="Desativar"
                                                                 Command="{Binding DataContext.DeleteSecretCommand,
                                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
@@ -981,8 +1113,9 @@
                             </Grid>
                         </TabItem>
 
-                        <!-- ═══ Tab: Usuarios Locais ═══ -->
-                        <TabItem Header="Usuarios">
+                        <!-- ═══ Tab: Usuarios Locais (Global Admin only) ═══ -->
+                        <TabItem Header="Usuarios"
+                                 Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
                             <Grid Margin="0,16,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -1153,12 +1286,54 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Create rule form -->
-                                <Border Grid.Row="0" Background="#181825" CornerRadius="8"
+                                <!-- Create / Edit rule form -->
+                                <Border Grid.Row="0" CornerRadius="8"
                                         Padding="20,16" Margin="0,0,0,12">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#181825"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
+                                                    <Setter Property="Background" Value="#1E2030"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel>
-                                        <TextBlock Text="Nova Regra de Autofill" FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="#CDD6F4" Margin="0,0,0,4"/>
+                                        <Grid Margin="0,0,0,4">
+                                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#CDD6F4">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Nova Regra de Autofill"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
+                                                                <Setter Property="Text" Value="Editar Regra de Autofill"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Cancel edit button -->
+                                            <Button HorizontalAlignment="Right" Content="Cancelar edicao"
+                                                    Command="{Binding CancelEditRuleCommand}"
+                                                    FontSize="11" Padding="12,5"
+                                                    Background="Transparent" Foreground="#6C7086"
+                                                    BorderBrush="#45475A" BorderThickness="1" Cursor="Hand"
+                                                    Visibility="{Binding IsEditingRule, Converter={StaticResource BoolToVisibility}}">
+                                                <Button.Resources>
+                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                                </Button.Resources>
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Foreground" Value="#CDD6F4"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
                                         <TextBlock Text="Define qual login e segredo preencher automaticamente para um site ou app."
                                                    FontSize="11" Foreground="#585B70" Margin="0,0,0,12"/>
                                         <Grid>
@@ -1211,12 +1386,26 @@
                                                 </TextBox>
                                             </StackPanel>
 
-                                            <Button Grid.Column="6" Content="Adicionar"
+                                            <Button Grid.Column="6"
                                                     Command="{Binding CreateAutofillRuleCommand}"
                                                     FontSize="12" Padding="16,8"
                                                     Background="#89B4FA" Foreground="#1E1E2E"
                                                     BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
                                                     VerticalAlignment="Bottom">
+                                                <Button.Content>
+                                                    <TextBlock>
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="Adicionar"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
+                                                                        <Setter Property="Text" Value="Atualizar"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Button.Content>
                                                 <Button.Resources>
                                                     <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
                                                 </Button.Resources>
@@ -1261,6 +1450,7 @@
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding UrlPattern}" FontSize="13" FontWeight="Medium"
@@ -1301,7 +1491,30 @@
                                                             </TextBlock>
                                                         </Border>
 
-                                                        <Button Grid.Column="2" Content="Remover"
+                                                        <Button Grid.Column="2" Content="Editar"
+                                                                Command="{Binding DataContext.EditAutofillRuleCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                CommandParameter="{Binding}"
+                                                                FontSize="11" Padding="12,6" Margin="0,0,6,0"
+                                                                Background="Transparent" Foreground="#89B4FA"
+                                                                BorderBrush="#45475A" BorderThickness="1"
+                                                                Cursor="Hand">
+                                                            <Button.Resources>
+                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
+                                                            </Button.Resources>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Style.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#89B4FA"/>
+                                                                            <Setter Property="Background" Value="#1E2030"/>
+                                                                        </Trigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+
+                                                        <Button Grid.Column="3" Content="Remover"
                                                                 Command="{Binding DataContext.DeleteAutofillRuleCommand,
                                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"

@@ -335,6 +335,16 @@ public sealed class VaultApiClient
         return doc.RootElement.GetProperty("id").GetGuid();
     }
 
+    public async Task UpdateAutofillRuleAsync(
+        Guid vaultId, Guid ruleId, string urlPattern, string login, string secretName, bool isActive,
+        CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.PutAsJsonAsync(
+            $"{_baseUrl}/vaults/{vaultId}/autofill-rules/{ruleId}",
+            new { urlPattern, login, secretName, isActive }, ct));
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task DeleteAutofillRuleAsync(
         Guid vaultId, Guid ruleId, CancellationToken ct = default)
     {

@@ -19,7 +19,7 @@ public sealed class AdMapListEndpoint : IEndpoint
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -44,6 +44,6 @@ public sealed class AdMapListEndpoint : IEndpoint
                 Count = result.Value.Count,
                 Items = result.Value
             });
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

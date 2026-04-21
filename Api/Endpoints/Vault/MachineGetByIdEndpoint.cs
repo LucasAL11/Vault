@@ -17,7 +17,7 @@ public sealed class MachineGetByIdEndpoint : IEndpoint
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -30,6 +30,6 @@ public sealed class MachineGetByIdEndpoint : IEndpoint
 
             var result = await sender.Send(new GetMachineByIdQuery(vaultId, machineId), cancellationToken);
             return result.IsFailure ? CustomResults.Problem(result) : Results.Ok(result.Value);
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

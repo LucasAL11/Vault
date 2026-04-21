@@ -30,6 +30,7 @@ public sealed class GetSecret : IEndpoint
             }
 
             var actor = userContext.Identity.ToString();
+            
             var authorization = await secretAccessAuthorizer.AuthorizeAsync(
                 vaultId: vaultId,
                 secretName: name,
@@ -64,6 +65,7 @@ public sealed class GetSecret : IEndpoint
             }
 
             var metadata = result.Value;
+            
             var auditResult = await sender.Send(
                 new AppendSecretAuditCommand(
                     VaultId: vaultId,
@@ -94,6 +96,7 @@ public sealed class GetSecret : IEndpoint
                 metadata.IsRevoked,
                 metadata.Expires
             });
-        }).RequireAuthorization().RequireRateLimiting("SecretReadPolicy");
+        }).RequireAuthorization()
+            .RequireRateLimiting("SecretReadPolicy");
     }
 }

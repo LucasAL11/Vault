@@ -24,7 +24,7 @@ public sealed class AdMapUpdateEndpoint : IEndpoint
             ILogger<AdMapUpdateEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -52,6 +52,6 @@ public sealed class AdMapUpdateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

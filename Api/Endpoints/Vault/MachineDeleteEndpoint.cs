@@ -20,7 +20,7 @@ public sealed class MachineDeleteEndpoint : IEndpoint
             ILogger<MachineDeleteEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -44,6 +44,6 @@ public sealed class MachineDeleteEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.NoContent();
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

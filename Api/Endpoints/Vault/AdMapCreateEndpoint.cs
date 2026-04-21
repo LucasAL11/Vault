@@ -23,12 +23,13 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                 ILogger<AdMapCreateEndpoint> logger,
                 CancellationToken cancellationToken) =>
             {
-                var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+                var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                     vaultId,
                     sender,
                     authorizationService,
                     httpContext.User,
                     cancellationToken);
+
                 if (authResult.IsFailure)
                 {
                     return CustomResults.Problem(authResult);
@@ -55,7 +56,7 @@ public sealed class AdMapCreateEndpoint : IEndpoint
                     userContext.Identity.ToString());
 
                 return Results.Created($"/vaults/{vaultId}/ad-maps/{result.Value.Id}", result.Value);
-            }).RequireAuthorization("AdminPolicy")
+            }).RequireAuthorization()
             .WithTags("active-directory");
     }
 }

@@ -22,7 +22,7 @@ public sealed class MachineCreateEndpoint : IEndpoint
             ILogger<MachineCreateEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -48,6 +48,6 @@ public sealed class MachineCreateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Created($"/vaults/{vaultId}/machines/{machine.Id}", machine);
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

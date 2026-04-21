@@ -24,6 +24,13 @@ public sealed partial class AdminViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _statusType    = "info"; // "info", "success", "error"
 
+    /// <summary>
+    /// True when the logged-in user is Admin Geral (has an AD group containing "Admin").
+    /// Controls visibility of global-only features: Users tab, Novo Cofre button.
+    /// Vault admins (admin-vault-{tenant}) see only vault-scoped tabs.
+    /// </summary>
+    [ObservableProperty] private bool _isGlobalAdmin;
+
     // ── Layout state ──────────────────────────────────────────────────────
     [ObservableProperty] private int _selectedTab; // 0=Secrets, 1=AD Maps, 2=Users, 3=Autofill
 
@@ -54,10 +61,13 @@ public sealed partial class AdminViewModel : ObservableObject
     [ObservableProperty] private string _editVaultName        = string.Empty;
     [ObservableProperty] private string _editVaultDescription = string.Empty;
 
-    // Secret creation
+    // Secret creation / editing
     [ObservableProperty] private string _newSecretName        = string.Empty;
     [ObservableProperty] private string _newSecretValue       = string.Empty;
     [ObservableProperty] private string _newSecretContentType = string.Empty;
+
+    /// <summary>True when editing an existing secret (name is read-only).</summary>
+    [ObservableProperty] private bool _isEditingSecret;
 
     // AD Map creation
     [ObservableProperty] private string _newAdMapGroupId   = string.Empty;
@@ -68,10 +78,14 @@ public sealed partial class AdminViewModel : ObservableObject
     [ObservableProperty] private string _newUserFirstName = string.Empty;
     [ObservableProperty] private string _newUserLastName  = string.Empty;
 
-    // Autofill rule creation
+    // Autofill rule creation / editing
     [ObservableProperty] private string _newRuleUrlPattern = string.Empty;
     [ObservableProperty] private string _newRuleLogin      = string.Empty;
     [ObservableProperty] private string _newRuleSecretName = string.Empty;
+
+    /// <summary>True when editing an existing autofill rule.</summary>
+    [ObservableProperty] private bool _isEditingRule;
+    private Guid _editingRuleId;
 
     // ── Computed helpers ──────────────────────────────────────────────────
     public bool HasSelectedVault => SelectedVault is not null;
@@ -181,9 +195,10 @@ public sealed partial class AdminViewModel : ObservableObject
 
         try
         {
-            await Task.WhenAll(
-                LoadVaultsInternalAsync(),
-                LoadUsersInternalAsync());
+            var tasks = new List<Task> { LoadVaultsInternalAsync() };
+            if (IsGlobalAdmin)
+                tasks.Add(LoadUsersInternalAsync());
+            await Task.WhenAll(tasks);
 
             // Auto-select first vault or stored vault
             if (Vaults.Count > 0 && SelectedVault is null)
@@ -413,7 +428,9 @@ public sealed partial class AdminViewModel : ObservableObject
             await _api.UpsertSecretAsync(VaultId, NewSecretName.Trim(), NewSecretValue,
                 string.IsNullOrWhiteSpace(NewSecretContentType) ? null : NewSecretContentType.Trim());
 
-            SetStatus($"Segredo '{NewSecretName}' salvo.", "success");
+            var verb = IsEditingSecret ? "atualizado" : "criado";
+            SetStatus($"Segredo '{NewSecretName}' {verb}.", "success");
+            IsEditingSecret = false;
             NewSecretName = NewSecretValue = NewSecretContentType = string.Empty;
             await LoadSecretsInternalAsync();
         }
@@ -428,6 +445,25 @@ public sealed partial class AdminViewModel : ObservableObject
         => !IsBusy
            && !string.IsNullOrWhiteSpace(NewSecretName)
            && !string.IsNullOrWhiteSpace(NewSecretValue);
+
+    [RelayCommand]
+    private void EditSecret(SecretItem? secret)
+    {
+        if (secret is null) return;
+        NewSecretName        = secret.Name;
+        NewSecretValue       = string.Empty;
+        NewSecretContentType = secret.ContentType ?? string.Empty;
+        IsEditingSecret      = true;
+    }
+
+    [RelayCommand]
+    private void CancelEditSecret()
+    {
+        IsEditingSecret      = false;
+        NewSecretName        = string.Empty;
+        NewSecretValue       = string.Empty;
+        NewSecretContentType = string.Empty;
+    }
 
     [RelayCommand]
     private async Task DeleteSecretAsync(SecretItem? secret)
@@ -519,19 +555,53 @@ public sealed partial class AdminViewModel : ObservableObject
 
     // ── Autofill Rules ────────────────────────────────────────────────────
 
+    [RelayCommand]
+    private void EditAutofillRule(AutofillRuleItem? rule)
+    {
+        if (rule is null) return;
+        _editingRuleId     = rule.Id;
+        NewRuleUrlPattern  = rule.UrlPattern;
+        NewRuleLogin       = rule.Login;
+        NewRuleSecretName  = rule.SecretName;
+        IsEditingRule      = true;
+    }
+
+    [RelayCommand]
+    private void CancelEditRule()
+    {
+        IsEditingRule     = false;
+        _editingRuleId    = Guid.Empty;
+        NewRuleUrlPattern = NewRuleLogin = NewRuleSecretName = string.Empty;
+    }
+
     [RelayCommand(CanExecute = nameof(CanCreateAutofillRule))]
     private async Task CreateAutofillRuleAsync()
     {
         IsBusy = true;
         try
         {
-            await _api.CreateAutofillRuleAsync(
-                VaultId,
-                NewRuleUrlPattern.Trim(),
-                NewRuleLogin.Trim(),
-                NewRuleSecretName.Trim());
+            if (IsEditingRule)
+            {
+                await _api.UpdateAutofillRuleAsync(
+                    VaultId, _editingRuleId,
+                    NewRuleUrlPattern.Trim(),
+                    NewRuleLogin.Trim(),
+                    NewRuleSecretName.Trim(),
+                    isActive: true);
+                SetStatus($"Regra para '{NewRuleUrlPattern}' atualizada.", "success");
+            }
+            else
+            {
+                await _api.CreateAutofillRuleAsync(
+                    VaultId,
+                    NewRuleUrlPattern.Trim(),
+                    NewRuleLogin.Trim(),
+                    NewRuleSecretName.Trim());
+                SetStatus($"Regra para '{NewRuleUrlPattern}' criada.", "success");
+            }
 
-            SetStatus($"Regra para '{NewRuleUrlPattern}' criada.", "success");
+            IsEditingRule = false;
+            _editingRuleId = Guid.Empty;
             NewRuleUrlPattern = NewRuleLogin = NewRuleSecretName = string.Empty;
             await LoadAutofillRulesInternalAsync();
         }

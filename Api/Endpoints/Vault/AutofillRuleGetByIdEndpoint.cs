@@ -17,12 +17,13 @@ public sealed class AutofillRuleGetByIdEndpoint : IEndpoint
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
                 httpContext.User,
                 cancellationToken);
+            
             if (authResult.IsFailure)
             {
                 return CustomResults.Problem(authResult);
@@ -31,13 +32,14 @@ public sealed class AutofillRuleGetByIdEndpoint : IEndpoint
             var result = await sender.Send(
                 new GetAutofillRuleByIdQuery(vaultId, ruleId),
                 cancellationToken);
+            
             if (result.IsFailure)
             {
                 return CustomResults.Problem(result);
             }
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization("AdminPolicy")
+        }).RequireAuthorization()
             .WithTags("autofill");
     }
 }

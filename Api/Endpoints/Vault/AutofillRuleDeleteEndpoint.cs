@@ -20,12 +20,13 @@ public sealed class AutofillRuleDeleteEndpoint : IEndpoint
             ILogger<AutofillRuleDeleteEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
                 httpContext.User,
                 cancellationToken);
+            
             if (authResult.IsFailure)
             {
                 return CustomResults.Problem(authResult);
@@ -44,7 +45,7 @@ public sealed class AutofillRuleDeleteEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.NoContent();
-        }).RequireAuthorization("AdminPolicy")
+        }).RequireAuthorization()
             .WithTags("autofill");
     }
 }

@@ -28,7 +28,6 @@ public sealed class AutofillRuleCreateEndpoint : IEndpoint
                     authorizationService,
                     httpContext.User,
                     cancellationToken);
-                
                 if (authResult.IsFailure)
                 {
                     return CustomResults.Problem(authResult);
@@ -37,7 +36,6 @@ public sealed class AutofillRuleCreateEndpoint : IEndpoint
                 var result = await sender.Send(
                     new CreateAutofillRuleCommand(vaultId, request.UrlPattern, request.Login, request.SecretName, request.IsActive),
                     cancellationToken);
-                
                 if (result.IsFailure)
                 {
                     return CustomResults.Problem(result);

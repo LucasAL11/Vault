@@ -18,7 +18,7 @@ public sealed class MachineListEndpoint : IEndpoint
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -41,6 +41,6 @@ public sealed class MachineListEndpoint : IEndpoint
                 Count = result.Value.Count,
                 Items = result.Value
             });
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

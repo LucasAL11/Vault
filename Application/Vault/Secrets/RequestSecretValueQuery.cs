@@ -21,7 +21,8 @@ public sealed class RequestSecretValueQueryHandler(
     {
         var secret = await dbContext.Secrets
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.VaultId == query.VaultId && x.Name == query.Name, cancellationToken);
+            .SingleOrDefaultAsync(x => x.VaultId == query.VaultId 
+                                       && x.Name == query.Name, cancellationToken);
 
         if (secret is null)
         {
@@ -29,11 +30,16 @@ public sealed class RequestSecretValueQueryHandler(
         }
 
         var now = DateTimeOffset.UtcNow;
+        
         var activeVersionsQuery = dbContext.SecretVersions
             .AsNoTracking()
             .Where(x => x.SecretId == secret.Id && !x.IsRevoked);
 
         Domain.vault.SecretVersion? activeVersion;
+        
+        
+        
+        
         if (DbProviderCompatibility.IsSqliteProvider(dbContext))
         {
             activeVersion = (await activeVersionsQuery.ToListAsync(cancellationToken))

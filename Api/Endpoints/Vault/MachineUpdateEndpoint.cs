@@ -24,7 +24,7 @@ public sealed class MachineUpdateEndpoint : IEndpoint
             ILogger<MachineUpdateEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -49,6 +49,6 @@ public sealed class MachineUpdateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization("AdminPolicy");
+        }).RequireAuthorization();
     }
 }

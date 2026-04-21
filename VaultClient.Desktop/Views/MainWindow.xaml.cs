@@ -75,8 +75,10 @@ public partial class MainWindow : Window
         LoginPanel.Visibility           = Visibility.Collapsed;
         AdminViewControl.Visibility     = Visibility.Collapsed;
 
-        // Show/hide admin button based on JWT claims
-        _secretsVm.IsAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
+        // Show admin button for both Global Admins and Vault Admins
+        var isGlobalAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
+        var isVaultAdmin  = JwtHelper.IsVaultAdmin(_api.CurrentJwt);
+        _secretsVm.IsAdmin = isGlobalAdmin || isVaultAdmin;
 
         // Show vault name from the selected vault in admin, if available
         if (_adminVm.SelectedVault is not null)
@@ -90,6 +92,7 @@ public partial class MainWindow : Window
         SetupPanel.Visibility           = Visibility.Collapsed;
         LoginPanel.Visibility           = Visibility.Collapsed;
 
+        _adminVm.IsGlobalAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
         _adminVm.LoadCommand.Execute(null);
     }
 

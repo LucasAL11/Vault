@@ -23,7 +23,7 @@ public sealed class AutofillRuleUpdateEndpoint : IEndpoint
             ILogger<AutofillRuleUpdateEndpoint> logger,
             CancellationToken cancellationToken) =>
         {
-            var authResult = await VaultAuthorization.AuthorizeVaultAsync(
+            var authResult = await VaultAuthorization.AuthorizeVaultAdminAsync(
                 vaultId,
                 sender,
                 authorizationService,
@@ -50,7 +50,7 @@ public sealed class AutofillRuleUpdateEndpoint : IEndpoint
                 userContext.Identity.ToString());
 
             return Results.Ok(result.Value);
-        }).RequireAuthorization("AdminPolicy")
+        }).RequireAuthorization()
             .WithTags("autofill");
     }
 }
