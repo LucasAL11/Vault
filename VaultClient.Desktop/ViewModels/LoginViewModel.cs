@@ -36,16 +36,12 @@ public sealed partial class LoginViewModel(VaultApiClient api, CredentialStore c
             var domain = credentials.Get(AppConfig.DomainKey);
             var useAd  = !string.IsNullOrWhiteSpace(domain);
 
-            var ok = useAd
-                ? await api.LoginAdAsync(Username.Trim(), domain!, password)
-                : await api.LoginLocalAsync(Username.Trim(), password);
-
-            if (ok)
-                LoginSucceeded?.Invoke(this, EventArgs.Empty);
+            if (useAd)
+                await api.LoginAdAsync(Username.Trim(), domain!, password);
             else
-                ErrorMessage = useAd
-                    ? "Usuário ou senha inválidos no Active Directory."
-                    : "Usuário ou senha inválidos.";
+                await api.LoginLocalAsync(Username.Trim(), password);
+
+            LoginSucceeded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

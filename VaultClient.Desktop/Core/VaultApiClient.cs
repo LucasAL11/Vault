@@ -36,27 +36,59 @@ public sealed class VaultApiClient
 
     // ── Auth ─────────────────────────────────────────────────────────────────
 
-    /// <summary>Login local com usuário + senha.</summary>
-    public Task<bool> LoginLocalAsync(string username, string password, CancellationToken ct = default)
+    /// <summary>Login local com usuário + senha. Lança InvalidOperationException com detalhe em caso de erro.</summary>
+    public Task LoginLocalAsync(string username, string password, CancellationToken ct = default)
         => AuthenticateAsync(new { username, password }, ct);
 
-    /// <summary>Login AD com usuário + domínio + senha (validada contra o AD).</summary>
-    public Task<bool> LoginAdAsync(string username, string domain, string password, CancellationToken ct = default)
+    /// <summary>Login AD com usuário + domínio + senha. Lança InvalidOperationException com detalhe em caso de erro.</summary>
+    public Task LoginAdAsync(string username, string domain, string password, CancellationToken ct = default)
         => AuthenticateAsync(new { username, domain, password }, ct);
 
-    private async Task<bool> AuthenticateAsync(object payload, CancellationToken ct)
+    private async Task AuthenticateAsync(object payload, CancellationToken ct)
     {
         var response = await _http.PostAsJsonAsync($"{_baseUrl}/users", payload, ct);
 
         if (!response.IsSuccessStatusCode)
-            return false;
+        {
+            // Tenta extrair a mensagem de erro do corpo da resposta (ProblemDetails)
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var detail = TryExtractDetail(body);
+            throw new InvalidOperationException(
+                detail ?? $"Falha na autenticação (HTTP {(int)response.StatusCode}).");
+        }
 
         var token = await response.Content.ReadAsStringAsync(ct);
         token = token.Trim('"');
 
         _credentials.Set("jwt", token);
         SetAuthHeader(token);
-        return true;
+    }
+
+    private static string? TryExtractDetail(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // ProblemDetails: { detail, errors: { Field: ["msg"] } }
+            if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+                return detail.GetString();
+
+            if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
+            {
+                var msgs = errors.EnumerateObject()
+                    .SelectMany(p => p.Value.ValueKind == JsonValueKind.Array
+                        ? p.Value.EnumerateArray().Select(v => v.GetString())
+                        : [p.Value.GetString()])
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                if (msgs.Count > 0) return string.Join("; ", msgs);
+            }
+        }
+        catch { /* json inválido */ }
+        return null;
     }
 
     public void RestoreSession()
