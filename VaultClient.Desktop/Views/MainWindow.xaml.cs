@@ -1,6 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Interop;
 using VaultClient.Desktop.Core;
 using VaultClient.Desktop.ViewModels;
 
@@ -8,6 +9,33 @@ namespace VaultClient.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    // ── DWM — remove rounded corners + border (Windows 11) ───────────────
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33; // Win11 only
+    private const int DWMWCP_DONOTROUND = 1;
+
+    // Remove the 1px white top-border that Win11 adds even with WindowStyle=None
+    private const int DWMWA_BORDER_COLOR = 34;
+    private const int DWMWA_COLOR_NONE   = unchecked((int)0xFFFFFFFE);
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+
+        // Square corners
+        var corner = DWMWCP_DONOTROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+
+        // Remove the white 1px border DWM draws at the top
+        var noBorder = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
+    }
+
     // ── Window chrome handlers ────────────────────────────────────────────
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
