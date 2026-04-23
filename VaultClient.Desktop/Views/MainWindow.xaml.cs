@@ -9,17 +9,38 @@ namespace VaultClient.Desktop.Views;
 
 public partial class MainWindow : Window
 {
-    // ── DWM — remove rounded corners + border (Windows 11) ───────────────
+    // ── Win32 / DWM ──────────────────────────────────────────────────────
 
     [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33; // Win11 only
-    private const int DWMWCP_DONOTROUND = 1;
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_DONOTROUND              = 1;
 
-    // Remove the 1px white top-border that Win11 adds even with WindowStyle=None
-    private const int DWMWA_BORDER_COLOR = 34;
-    private const int DWMWA_COLOR_NONE   = unchecked((int)0xFFFFFFFE);
+    private const int WM_NCCALCSIZE = 0x0083;
+    private const int WM_NCHITTEST  = 0x0084;
+
+    // Resize hit-test regions (returned from WM_NCHITTEST)
+    private const int HTCLIENT      = 1;
+    private const int HTLEFT        = 10;
+    private const int HTRIGHT       = 11;
+    private const int HTTOP         = 12;
+    private const int HTTOPLEFT     = 13;
+    private const int HTTOPRIGHT    = 14;
+    private const int HTBOTTOM      = 15;
+    private const int HTBOTTOMLEFT  = 16;
+    private const int HTBOTTOMRIGHT = 17;
+
+    private const int ResizeBorder = 6; // px
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int x, y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int left, top, right, bottom; }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -27,13 +48,62 @@ public partial class MainWindow : Window
 
         var hwnd = new WindowInteropHelper(this).Handle;
 
-        // Square corners
+        // Square corners on Windows 11
         var corner = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
 
-        // Remove the white 1px border DWM draws at the top
-        var noBorder = DWMWA_COLOR_NONE;
-        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
+        // Hook WndProc to eliminate the NC area (white bar) and handle resize
+        HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
+        {
+            // Returning 0 tells Windows the entire window rect is client area
+            // → eliminates the 1px white NC border Win11 adds
+            case WM_NCCALCSIZE when wParam != IntPtr.Zero:
+                handled = true;
+                return IntPtr.Zero;
+
+            // Restore resize hit-testing since we removed the NC area
+            case WM_NCHITTEST:
+                var result = HitTest(hwnd, lParam);
+                if (result != HTCLIENT)
+                {
+                    handled = true;
+                    return new IntPtr(result);
+                }
+                break;
+        }
+        return IntPtr.Zero;
+    }
+
+    private int HitTest(IntPtr hwnd, IntPtr lParam)
+    {
+        if (WindowState == WindowState.Maximized)
+            return HTCLIENT;
+
+        GetWindowRect(hwnd, out var rc);
+
+        var x = (short)(lParam.ToInt32() & 0xFFFF);
+        var y = (short)(lParam.ToInt32() >> 16);
+
+        var onLeft   = x < rc.left   + ResizeBorder;
+        var onRight  = x > rc.right  - ResizeBorder;
+        var onTop    = y < rc.top    + ResizeBorder;
+        var onBottom = y > rc.bottom - ResizeBorder;
+
+        if (onTop    && onLeft)  return HTTOPLEFT;
+        if (onTop    && onRight) return HTTOPRIGHT;
+        if (onBottom && onLeft)  return HTBOTTOMLEFT;
+        if (onBottom && onRight) return HTBOTTOMRIGHT;
+        if (onTop)               return HTTOP;
+        if (onBottom)            return HTBOTTOM;
+        if (onLeft)              return HTLEFT;
+        if (onRight)             return HTRIGHT;
+
+        return HTCLIENT;
     }
 
     // ── Window chrome handlers ────────────────────────────────────────────
@@ -62,6 +132,7 @@ public partial class MainWindow : Window
             : WindowState.Maximized;
     }
 
+    // ── App fields ───────────────────────────────────────────────────────
 
     private readonly LoginViewModel   _loginVm;
     private readonly SecretsViewModel _secretsVm;
@@ -90,15 +161,14 @@ public partial class MainWindow : Window
         SetupViewControl.DataContext   = _setupVm;
         AdminViewControl.DataContext   = _adminVm;
 
-        _loginVm.LoginSucceeded     += OnLoginSucceeded;
-        _loginVm.OpenSettings       += OnOpenSettings;
-        _secretsVm.LoggedOut        += OnLoggedOut;
-        _secretsVm.OpenSettings     += OnOpenSettings;
-        _secretsVm.OpenAdmin        += OnOpenAdmin;
-        _setupVm.SetupCompleted     += OnSetupCompleted;
-        _adminVm.GoBack             += OnAdminGoBack;
+        _loginVm.LoginSucceeded += OnLoginSucceeded;
+        _loginVm.OpenSettings   += OnOpenSettings;
+        _secretsVm.LoggedOut    += OnLoggedOut;
+        _secretsVm.OpenSettings += OnOpenSettings;
+        _secretsVm.OpenAdmin    += OnOpenAdmin;
+        _setupVm.SetupCompleted += OnSetupCompleted;
+        _adminVm.GoBack         += OnAdminGoBack;
 
-        // Decide initial screen
         if (!AppConfig.IsConfigured(credentials))
             ShowSetup();
         else if (api.HasSession)
@@ -107,68 +177,66 @@ public partial class MainWindow : Window
             ShowLogin();
     }
 
-    // -- Navigation -------------------------------------------------------
+    // ── Navigation ───────────────────────────────────────────────────────
 
     private void ShowSetup()
     {
-        SetupPanel.Visibility           = Visibility.Visible;
-        LoginPanel.Visibility           = Visibility.Collapsed;
-        SecretsViewControl.Visibility   = Visibility.Collapsed;
-        AdminViewControl.Visibility     = Visibility.Collapsed;
+        SetupPanel.Visibility         = Visibility.Visible;
+        LoginPanel.Visibility         = Visibility.Collapsed;
+        SecretsViewControl.Visibility = Visibility.Collapsed;
+        AdminViewControl.Visibility   = Visibility.Collapsed;
+        BtnMinimize.Visibility        = Visibility.Collapsed;
+        BtnMaximize.Visibility        = Visibility.Collapsed;
     }
 
     private void ShowLogin()
     {
-        LoginPanel.Visibility           = Visibility.Visible;
-        SetupPanel.Visibility           = Visibility.Collapsed;
-        SecretsViewControl.Visibility   = Visibility.Collapsed;
-        AdminViewControl.Visibility     = Visibility.Collapsed;
+        LoginPanel.Visibility         = Visibility.Visible;
+        SetupPanel.Visibility         = Visibility.Collapsed;
+        SecretsViewControl.Visibility = Visibility.Collapsed;
+        AdminViewControl.Visibility   = Visibility.Collapsed;
+        // Login screen: only close button
+        BtnMinimize.Visibility        = Visibility.Collapsed;
+        BtnMaximize.Visibility        = Visibility.Collapsed;
     }
 
     private void ShowSecrets()
     {
-        SecretsViewControl.Visibility   = Visibility.Visible;
-        SetupPanel.Visibility           = Visibility.Collapsed;
-        LoginPanel.Visibility           = Visibility.Collapsed;
-        AdminViewControl.Visibility     = Visibility.Collapsed;
+        SecretsViewControl.Visibility = Visibility.Visible;
+        SetupPanel.Visibility         = Visibility.Collapsed;
+        LoginPanel.Visibility         = Visibility.Collapsed;
+        AdminViewControl.Visibility   = Visibility.Collapsed;
+        BtnMinimize.Visibility        = Visibility.Visible;
+        BtnMaximize.Visibility        = Visibility.Visible;
 
-        // Show admin button for both Global Admins and Vault Admins
         var isGlobalAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
         var isVaultAdmin  = JwtHelper.IsVaultAdmin(_api.CurrentJwt);
         _secretsVm.IsAdmin = isGlobalAdmin || isVaultAdmin;
 
-        // Show vault name from the selected vault in admin, if available
         if (_adminVm.SelectedVault is not null)
             _secretsVm.VaultName = _adminVm.SelectedVault.Name;
     }
 
     private void ShowAdmin()
     {
-        AdminViewControl.Visibility     = Visibility.Visible;
-        SecretsViewControl.Visibility   = Visibility.Collapsed;
-        SetupPanel.Visibility           = Visibility.Collapsed;
-        LoginPanel.Visibility           = Visibility.Collapsed;
+        AdminViewControl.Visibility   = Visibility.Visible;
+        SecretsViewControl.Visibility = Visibility.Collapsed;
+        SetupPanel.Visibility         = Visibility.Collapsed;
+        LoginPanel.Visibility         = Visibility.Collapsed;
+        BtnMinimize.Visibility        = Visibility.Visible;
+        BtnMaximize.Visibility        = Visibility.Visible;
 
         _adminVm.IsGlobalAdmin = JwtHelper.IsAdmin(_api.CurrentJwt);
         _adminVm.LoadCommand.Execute(null);
     }
 
-    // -- Handlers ---------------------------------------------------------
+    // ── Handlers ─────────────────────────────────────────────────────────
 
-    private void OnLoginSucceeded(object? sender, EventArgs e)
-        => ShowSecrets();
-
-    private void OnLoggedOut(object? sender, EventArgs e)
-        => ShowLogin();
-
-    private void OnOpenSettings(object? sender, EventArgs e)
-        => ShowSetup();
-
-    private void OnOpenAdmin(object? sender, EventArgs e)
-        => ShowAdmin();
-
-    private void OnAdminGoBack(object? sender, EventArgs e)
-        => ShowSecrets();
+    private void OnLoginSucceeded(object? sender, EventArgs e) => ShowSecrets();
+    private void OnLoggedOut(object? sender, EventArgs e)      => ShowLogin();
+    private void OnOpenSettings(object? sender, EventArgs e)   => ShowSetup();
+    private void OnOpenAdmin(object? sender, EventArgs e)      => ShowAdmin();
+    private void OnAdminGoBack(object? sender, EventArgs e)    => ShowSecrets();
 
     private void OnSetupCompleted(object? sender, EventArgs e)
     {
