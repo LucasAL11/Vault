@@ -1,5 +1,5 @@
 // ============================================================
-// Sentinel Vault - Popup UI Logic
+// Sentil · Midnight Ops — Popup UI Logic
 // ============================================================
 
 const $ = (sel) => document.querySelector(sel);
@@ -11,14 +11,16 @@ let currentVaultName = null;
 let allSecrets = [];
 
 // --- Views ---
-
+// popup.css: .view { display: none } / .view.active { display: flex }
 function showView(id) {
-  $$('.view').forEach((v) => v.classList.add('hidden'));
-  $(`#view-${id}`).classList.remove('hidden');
+  $$('.view').forEach((v) => v.classList.remove('active'));
+  $(`#view-${id}`).classList.add('active');
 }
 
-// --- Message to background ---
+function show(el) { if (el) el.style.display = ''; }
+function hide(el) { if (el) el.style.display = 'none'; }
 
+// --- Message to background ---
 function send(msg) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(msg, (res) => {
@@ -30,18 +32,16 @@ function send(msg) {
 }
 
 // --- Init ---
-
 document.addEventListener('DOMContentLoaded', async () => {
-  // Show splash
   showView('splash');
 
   try {
     const state = await send({ action: 'getAuthState' });
-    // Brief splash delay for polish
-    await new Promise((r) => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 700));
 
     if (state.authenticated) {
-      $('#logged-user').textContent = state.domain
+      const userEl = $('#logged-user');
+      if (userEl) userEl.textContent = state.domain
         ? `${state.domain}\\${state.username}`
         : state.username;
       showView('vaults');
@@ -50,10 +50,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Pre-fill domain from config
       try {
         const config = await send({ action: 'getConfig' });
-        if (config.defaultDomain) {
-          // Store for AD login
-          document.body.dataset.defaultDomain = config.defaultDomain;
-        }
+        const domainEl = $('#login-domain');
+        if (domainEl && config.defaultDomain) domainEl.value = config.defaultDomain;
       } catch (_) { /* ignore */ }
       showView('login');
     }
@@ -65,63 +63,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // --- Event binding ---
-
 function bindEvents() {
   // Login
-  $('#form-login').addEventListener('submit', handleLogin);
-  $('#btn-ad-login').addEventListener('click', handleLogin);
-  $('#btn-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
-  $('#btn-toggle-pass').addEventListener('click', togglePasswordVisibility);
+  $('#form-login')?.addEventListener('submit', handleLogin);
+  $('#btn-settings')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
   // Vault list
-  $('#btn-logout').addEventListener('click', handleLogout);
-  $('#nav-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  $('#btn-logout')?.addEventListener('click', handleLogout);
+  $('#nav-settings')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
   // Secret list
-  $('#btn-back-vaults').addEventListener('click', () => showView('vaults'));
-  $('#secret-search').addEventListener('input', handleSecretSearch);
-  $('#btn-add-credential').addEventListener('click', openAddCredential);
+  $('#btn-back-vaults')?.addEventListener('click', () => showView('vaults'));
+  $('#secret-search')?.addEventListener('input', handleSecretSearch);
+  $('#btn-add-credential')?.addEventListener('click', openAddCredential);
   $$('.nav-settings-2').forEach((el) => el.addEventListener('click', () => chrome.runtime.openOptionsPage()));
 
   // Add credential
-  $('#btn-back-from-add').addEventListener('click', () => showView('secrets'));
-  $('#btn-cancel-add').addEventListener('click', () => showView('secrets'));
-  $('#form-add-credential').addEventListener('submit', handleAddCredential);
-}
-
-// --- Password Toggle ---
-
-function togglePasswordVisibility() {
-  const input = $('#login-pass');
-  const icon = $('#btn-toggle-pass .material-symbols-outlined');
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.textContent = 'visibility_off';
-  } else {
-    input.type = 'password';
-    icon.textContent = 'visibility';
-  }
+  $('#btn-back-from-add')?.addEventListener('click', () => showView('secrets'));
+  $('#btn-cancel-add')?.addEventListener('click', () => showView('secrets'));
+  $('#form-add-credential')?.addEventListener('submit', handleAddCredential);
 }
 
 // --- Login ---
-
 async function handleLogin(e) {
   e.preventDefault();
+
   const btn = $('#btn-login');
   const errEl = $('#login-error');
-  errEl.classList.add('hidden');
-  btn.disabled = true;
-  btn.textContent = 'Authenticating...';
+
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+  if (btn) { btn.disabled = true; btn.textContent = '// autenticando…'; }
 
   try {
-    // Always read domain fresh from config
     let domain;
     try {
       const config = await send({ action: 'getConfig' });
       domain = config.defaultDomain || undefined;
-    } catch (_) {
-      domain = document.body.dataset.defaultDomain || undefined;
-    }
+    } catch (_) { /* ignore */ }
+
+    // Prefer domain field if user typed something
+    const domainField = $('#login-domain');
+    if (domainField?.value.trim()) domain = domainField.value.trim();
 
     const result = await send({
       action: 'login',
@@ -130,115 +112,100 @@ async function handleLogin(e) {
       domain,
     });
 
-    $('#logged-user').textContent = result.domain
+    const userEl = $('#logged-user');
+    if (userEl) userEl.textContent = result.domain
       ? `${result.domain}\\${result.username}`
       : result.username;
 
     showView('vaults');
     loadVaults();
   } catch (err) {
-    errEl.textContent = err.message || 'Authentication failed';
-    errEl.classList.remove('hidden');
+    if (errEl) {
+      errEl.textContent = err.message || 'falha na autenticacao';
+      errEl.classList.add('visible');
+    }
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Login';
+    if (btn) { btn.disabled = false; btn.textContent = '> auth.login()'; }
   }
 }
 
 async function handleLogout() {
   await send({ action: 'logout' });
-  $('#login-pass').value = '';
+  const passEl = $('#login-pass');
+  if (passEl) passEl.value = '';
   showView('login');
 }
 
 // --- Vaults ---
-
 async function loadVaults() {
   const listEl = $('#vault-list');
   const emptyEl = $('#vault-empty');
   const loadEl = $('#vault-loading');
-  const countEl = $('#vault-count');
 
   listEl.innerHTML = '';
-  emptyEl.classList.add('hidden');
-  loadEl.classList.remove('hidden');
-  countEl.textContent = '';
+  hide(emptyEl);
+  show(loadEl);
 
   try {
     const data = await send({ action: 'listVaults' });
     const vaults = Array.isArray(data) ? data : data?.items || data?.vaults || [];
 
-    loadEl.classList.add('hidden');
+    hide(loadEl);
 
-    if (vaults.length === 0) {
-      emptyEl.classList.remove('hidden');
-      return;
-    }
+    if (vaults.length === 0) { show(emptyEl); return; }
 
-    countEl.textContent = `${vaults.length} Secure Vault${vaults.length !== 1 ? 's' : ''}`;
-
-    vaults.forEach((v, i) => {
-      const item = document.createElement('div');
-      item.className = 'vault-card';
-      if (i === 0) item.classList.add('selected');
-
-      const iconClass = i === 0 ? 'default' : 'neutral';
-      const iconName = i === 0 ? 'lock' : 'corporate_fare';
-
-      item.innerHTML = `
-        <div class="vault-card-icon ${iconClass}">
-          <span class="material-symbols-outlined filled">${iconName}</span>
+    vaults.forEach((v) => {
+      const initial = (v.name || '?')[0].toUpperCase();
+      const card = document.createElement('div');
+      card.className = 'vault-card';
+      card.innerHTML = `
+        <div class="vault-icon">${esc(initial)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="vault-name">${esc(v.name)}</div>
+          <div class="vault-meta">${esc(v.environment || 'Production')} · ${esc(v.status || 'Active')}</div>
         </div>
-        <div class="vault-card-info">
-          <div class="vault-card-name">
-            ${esc(v.name)}
-            ${i === 0 ? '<span class="badge-default">Default</span>' : ''}
-          </div>
-          <div class="vault-card-meta">${esc(v.environment || 'Production')} &middot; ${esc(v.status || 'Active')}</div>
-        </div>
-        <span class="material-symbols-outlined vault-card-arrow">chevron_right</span>
       `;
-      item.addEventListener('click', () => openVault(v.id, v.name));
-      listEl.appendChild(item);
+      card.addEventListener('click', () => openVault(v.id, v.name));
+      listEl.appendChild(card);
     });
   } catch (err) {
-    loadEl.classList.add('hidden');
-    listEl.innerHTML = `<div class="alert-error">${esc(err.message)}</div>`;
+    hide(loadEl);
+    listEl.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
   }
 }
 
 function openVault(vaultId, vaultName) {
   currentVaultId = vaultId;
   currentVaultName = vaultName;
-  $('#vault-name').textContent = vaultName;
-  $('#secret-search').value = '';
+  const nameEl = $('#vault-name');
+  if (nameEl) nameEl.textContent = vaultName;
+  const searchEl = $('#secret-search');
+  if (searchEl) searchEl.value = '';
   showView('secrets');
   loadSecrets();
 }
 
 // --- Secrets ---
-
 async function loadSecrets() {
   const listEl = $('#secret-list');
   const emptyEl = $('#secret-empty');
   const loadEl = $('#secret-loading');
-  const countEl = $('#secret-count');
+  const errEl = $('#secret-error');
 
   listEl.innerHTML = '';
-  emptyEl.classList.add('hidden');
-  loadEl.classList.remove('hidden');
-  countEl.textContent = '';
+  hide(emptyEl);
+  hide(errEl);
+  show(loadEl);
 
   try {
     const data = await send({ action: 'listSecrets', vaultId: currentVaultId });
     allSecrets = Array.isArray(data) ? data : data?.items || data?.secrets || [];
 
-    loadEl.classList.add('hidden');
-    countEl.textContent = `${allSecrets.length} Credential${allSecrets.length !== 1 ? 's' : ''}`;
+    hide(loadEl);
     renderSecrets(allSecrets);
   } catch (err) {
-    loadEl.classList.add('hidden');
-    listEl.innerHTML = `<div class="alert-error">${esc(err.message)}</div>`;
+    hide(loadEl);
+    if (errEl) { errEl.textContent = err.message; show(errEl); }
   }
 }
 
@@ -247,29 +214,26 @@ function renderSecrets(secrets) {
   const emptyEl = $('#secret-empty');
   listEl.innerHTML = '';
 
-  if (secrets.length === 0) {
-    emptyEl.classList.remove('hidden');
-    return;
-  }
-  emptyEl.classList.add('hidden');
+  if (secrets.length === 0) { show(emptyEl); return; }
+  hide(emptyEl);
 
   secrets.forEach((s) => {
-    const name = s.name || s.Name;
+    const name = s.name || s.Name || '';
     const ver = s.currentVersion || s.version || '';
-    const status = s.status || '';
+    const expires = s.expires;
     const initial = (name || '?')[0].toUpperCase();
 
     const item = document.createElement('div');
     item.className = 'credential-item';
     item.innerHTML = `
-      <div class="credential-icon">
-        <div class="credential-icon-letter">${esc(initial)}</div>
-      </div>
-      <div class="credential-info">
+      <div class="credential-icon">${esc(initial)}</div>
+      <div style="flex:1;min-width:0;">
         <div class="credential-name">${esc(name)}</div>
-        <div class="credential-sub">v${esc(String(ver))} ${status ? '&middot; ' + esc(status) : ''}</div>
+        <div class="credential-meta">
+          <span class="version-badge">v${esc(String(ver))}</span>
+          ${expires ? '<span class="expiry-badge">EXPIRA</span>' : ''}
+        </div>
       </div>
-      <span class="material-symbols-outlined credential-action">vpn_key</span>
     `;
     item.addEventListener('click', () => doAutofill(name, item));
     listEl.appendChild(item);
@@ -277,61 +241,49 @@ function renderSecrets(secrets) {
 }
 
 function handleSecretSearch() {
-  const q = $('#secret-search').value.trim().toLowerCase();
+  const q = ($('#secret-search')?.value || '').trim().toLowerCase();
   if (!q) return renderSecrets(allSecrets);
-  const filtered = allSecrets.filter((s) => {
-    const name = (s.name || s.Name || '').toLowerCase();
-    return name.includes(q);
-  });
-  renderSecrets(filtered);
+  renderSecrets(allSecrets.filter((s) => (s.name || s.Name || '').toLowerCase().includes(q)));
 }
 
-// --- Autofill (direct on click) ---
-
+// --- Autofill ---
 async function doAutofill(secretName, itemEl) {
-  // Prevent double-click
   if (itemEl.classList.contains('filling')) return;
   itemEl.classList.add('filling');
 
   const nameEl = itemEl.querySelector('.credential-name');
-  const originalName = nameEl.textContent;
-  nameEl.textContent = 'Filling...';
+  const originalName = nameEl?.textContent;
+  if (nameEl) nameEl.textContent = 'preenchendo…';
 
   try {
-    await send({
-      action: 'autofillSecret',
-      vaultId: currentVaultId,
-      secretName,
-    });
-
-    nameEl.textContent = 'Filled!';
-    itemEl.style.background = 'rgba(99, 138, 255, 0.15)';
+    await send({ action: 'autofillSecret', vaultId: currentVaultId, secretName });
+    if (nameEl) nameEl.textContent = 'preenchido!';
     setTimeout(() => window.close(), 600);
   } catch (err) {
-    nameEl.textContent = originalName;
+    if (nameEl) nameEl.textContent = originalName;
     itemEl.classList.remove('filling');
-    // Show error inline
+
     let errEl = $('#secret-list-error');
     if (!errEl) {
       errEl = document.createElement('div');
       errEl.id = 'secret-list-error';
-      errEl.className = 'alert-error';
-      errEl.style.margin = '8px 0 0';
-      $('#secret-list').parentElement.appendChild(errEl);
+      errEl.className = 'status-error';
+      listEl.parentElement?.appendChild(errEl);
     }
     errEl.textContent = err.message;
-    errEl.classList.remove('hidden');
-    setTimeout(() => errEl.classList.add('hidden'), 4000);
+    show(errEl);
+    setTimeout(() => hide(errEl), 4000);
   }
 }
 
 // --- Add Credential ---
-
 function openAddCredential() {
-  $('#add-url').value = '';
-  $('#add-login').value = '';
-  $('#add-secret-name').value = '';
-  $('#add-error').classList.add('hidden');
+  ['#add-url', '#add-login', '#add-secret-name'].forEach((sel) => {
+    const el = $(sel);
+    if (el) el.value = '';
+  });
+  const errEl = $('#add-error');
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
   showView('add-credential');
 }
 
@@ -339,37 +291,32 @@ async function handleAddCredential(e) {
   e.preventDefault();
   const btn = $('#btn-save-credential');
   const errEl = $('#add-error');
-  errEl.classList.add('hidden');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'salvando…'; }
 
   try {
     await send({
       action: 'createAutofillRule',
       vaultId: currentVaultId,
-      urlPattern: $('#add-url').value.trim(),
-      login: $('#add-login').value.trim(),
-      secretName: $('#add-secret-name').value.trim(),
+      urlPattern: $('#add-url')?.value.trim(),
+      login: $('#add-login')?.value.trim(),
+      secretName: $('#add-secret-name')?.value.trim(),
     });
 
-    btn.textContent = 'Saved!';
+    if (btn) btn.textContent = 'salvo!';
     setTimeout(() => {
       showView('secrets');
-      btn.textContent = 'Save Credential';
-      btn.disabled = false;
+      if (btn) { btn.textContent = 'salvar'; btn.disabled = false; }
     }, 800);
   } catch (err) {
-    errEl.textContent = err.message || 'Failed to save credential';
-    errEl.classList.remove('hidden');
-    btn.disabled = false;
-    btn.textContent = 'Save Credential';
+    if (errEl) { errEl.textContent = err.message || 'erro ao salvar'; errEl.classList.add('visible'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'salvar'; }
   }
 }
 
 // --- Util ---
-
 function esc(str) {
   const d = document.createElement('div');
-  d.textContent = str;
+  d.textContent = String(str ?? '');
   return d.innerHTML;
 }
