@@ -1,245 +1,209 @@
 <!DOCTYPE html>
-<html class="dark" lang="pt-BR">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="popup.css">
-  <title>Sentinel Vault</title>
+  <title>Sentil</title>
 </head>
 <body>
-  <!-- Decorative BG -->
-  <div class="bg-glow bg-glow-top"></div>
-  <div class="bg-glow bg-glow-bottom"></div>
+  <div id="app">
 
-  <!-- ========== SPLASH ========== -->
-  <div id="view-splash" class="view">
-    <div class="splash-container">
-      <div class="splash-shield">
-        <div class="splash-shield-ring"></div>
-        <div class="splash-shield-inner">
-          <span class="material-symbols-outlined filled">shield</span>
-        </div>
-      </div>
-      <h1 class="splash-title">Sentinel</h1>
-      <div class="splash-status">
-        <div class="splash-dot"></div>
-        <span class="splash-status-text">Decrypting Vault...</span>
+    <!-- ══════════════════════════════════
+         SPLASH
+    ══════════════════════════════════ -->
+    <div id="view-splash" class="view">
+      <div class="splash-mark">
+        <!-- S logo mark -->
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                fill="#7ce8a9"/>
+        </svg>
+        <p>iniciando</p>
       </div>
     </div>
-  </div>
 
-  <!-- ========== LOGIN ========== -->
-  <div id="view-login" class="view hidden">
-    <!-- TopBar -->
-    <header class="top-bar">
-      <div class="top-bar-brand">
-        <span class="material-symbols-outlined">lock</span>
-        <span class="top-bar-title" style="color: var(--primary);">Login</span>
+    <!-- ══════════════════════════════════
+         LOGIN
+    ══════════════════════════════════ -->
+    <div id="view-login" class="view">
+      <header class="top-bar">
+        <div class="top-bar-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                  fill="#7ce8a9"/>
+          </svg>
+          <span>Sentil</span>
+        </div>
+        <span class="top-bar-chip">AUTH</span>
+      </header>
+
+      <div class="scroll-area" style="padding: 24px 20px;">
+        <div class="login-tag">// ACESSO RESTRITO</div>
+        <div class="login-header">
+          <h1>identify.yourself</h1>
+          <p>// Active Directory authentication.<br>// All attempts are logged and signed.</p>
+        </div>
+
+        <div id="login-error" class="login-error"></div>
+
+        <form id="form-login">
+          <div class="field-group">
+            <label class="field-label" for="login-user">// USUARIO</label>
+            <input id="login-user" class="field-input" type="text" placeholder="usuario@plastcor.corp" required autocomplete="username">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="login-domain">// DOMINIO</label>
+            <input id="login-domain" class="field-input" type="text" placeholder="PLASTCOR" autocomplete="off">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="login-pass">// SENHA</label>
+            <input id="login-pass" class="field-input" type="password" placeholder="••••••••••••" required autocomplete="current-password">
+          </div>
+
+          <button type="submit" id="btn-login" class="btn-primary">&gt; auth.login()</button>
+        </form>
+
+        <div class="login-footer">
+          <button id="btn-settings">configuracoes</button>
+        </div>
       </div>
-      <span class="top-bar-title" style="letter-spacing: 0.1em; font-size: 13px;">Sentinel Vault</span>
-    </header>
+    </div>
 
-    <div class="view-content">
-      <!-- Hero -->
-      <div class="login-hero">
-        <div class="login-shield">
-          <div class="login-shield-glow"></div>
-          <div class="login-shield-box">
-            <span class="material-symbols-outlined filled">shield</span>
-          </div>
+    <!-- ══════════════════════════════════
+         VAULTS
+    ══════════════════════════════════ -->
+    <div id="view-vaults" class="view">
+      <header class="top-bar">
+        <div class="top-bar-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                  fill="#7ce8a9"/>
+          </svg>
+          <span>Sentil</span>
         </div>
-        <h1 class="login-title">Access Secured</h1>
-        <p class="login-subtitle">Enter your credentials to unlock your digital sentinel.</p>
-      </div>
-
-      <!-- Form -->
-      <form id="form-login" class="form-section">
-        <div class="field-group">
-          <label class="field-label">Username or Email</label>
-          <div class="field-input-wrap">
-            <input id="login-user" class="field-input" type="text" placeholder="name@company.com" required>
-            <span class="field-input-icon">
-              <span class="material-symbols-outlined">alternate_email</span>
-            </span>
-          </div>
-        </div>
-
-        <div class="field-group">
-          <div class="field-row">
-            <label class="field-label" style="margin-bottom:0">Master Password</label>
-          </div>
-          <div class="field-input-wrap">
-            <input id="login-pass" class="field-input" type="password" placeholder="••••••••••••" required style="letter-spacing: 0.15em;">
-            <button type="button" class="field-input-icon" id="btn-toggle-pass">
-              <span class="material-symbols-outlined">visibility</span>
-            </button>
-          </div>
-        </div>
-
-        <div id="login-error" class="alert-error hidden"></div>
-
-        <div style="padding-top: 8px; display:flex; flex-direction:column; gap:10px;">
-          <button type="submit" id="btn-login" class="btn-primary">Login</button>
-
-          <div class="divider-text"><span>OR</span></div>
-
-          <button type="button" id="btn-ad-login" class="btn-secondary">
-            <span class="material-symbols-outlined" style="font-size:18px;">corporate_fare</span>
-            Active Directory
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="logged-user" class="top-bar-chip"></span>
+          <button id="btn-logout" style="background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
+            <span class="material-symbols-outlined" style="font-size:16px;">logout</span>
           </button>
         </div>
-      </form>
+      </header>
 
-      <div style="text-align:center; padding: 12px 0;">
-        <button id="btn-settings" class="btn-text">
-          <span class="material-symbols-outlined" style="font-size:16px;">settings</span>
-          Settings
+      <div class="scroll-area" id="vault-list"></div>
+
+      <div id="vault-loading" class="status-inline" style="display:none;">carregando cofres…</div>
+      <div id="vault-empty" style="display:none;">
+        <div class="empty-state">
+          <div class="empty-icon">[ ]</div>
+          <p>nenhum cofre disponivel</p>
+          <p class="empty-sub">// verifique suas permissoes</p>
+        </div>
+      </div>
+
+      <nav class="bottom-nav">
+        <button class="active" id="nav-vaults">
+          <span class="material-symbols-outlined">lock</span>
+          cofres
         </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== VAULT LIST (Select Vault) ========== -->
-  <div id="view-vaults" class="view hidden">
-    <header class="top-bar">
-      <div class="top-bar-brand">
-        <span class="material-symbols-outlined filled" style="color: var(--primary);">shield</span>
-        <span class="top-bar-title">Sentinel Vault</span>
-      </div>
-      <div class="top-bar-actions">
-        <span id="logged-user" class="user-badge"></span>
-        <button id="btn-logout" class="btn-icon" title="Logout">
-          <span class="material-symbols-outlined">logout</span>
+        <button id="nav-settings">
+          <span class="material-symbols-outlined">settings</span>
+          config
         </button>
-      </div>
-    </header>
-
-    <div class="view-content" style="position:relative;">
-      <h2 class="page-title">Vaults</h2>
-      <p id="vault-count" class="page-subtitle"></p>
-
-      <div id="vault-list" class="credential-list"></div>
-
-      <div id="vault-loading" class="state-loading hidden">
-        <span class="material-symbols-outlined">sync</span>
-        <span class="splash-status-text">Loading vaults...</span>
-      </div>
-
-      <div id="vault-empty" class="state-empty hidden">
-        <span class="material-symbols-outlined">lock</span>
-        <span class="state-empty-text">No vaults available for your user.</span>
-      </div>
+      </nav>
     </div>
 
-    <!-- Bottom Nav -->
-    <nav class="bottom-nav">
-      <button class="nav-item active">
-        <span class="material-symbols-outlined filled">shield</span>
-        <span class="nav-item-label">Vault</span>
-      </button>
-      <button class="nav-item" id="nav-settings">
-        <span class="material-symbols-outlined">settings</span>
-        <span class="nav-item-label">Settings</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- ========== SECRET LIST ========== -->
-  <div id="view-secrets" class="view hidden">
-    <header class="top-bar">
-      <div class="top-bar-brand">
-        <button id="btn-back-vaults" class="btn-icon">
-          <span class="material-symbols-outlined">arrow_back</span>
+    <!-- ══════════════════════════════════
+         SECRETS
+    ══════════════════════════════════ -->
+    <div id="view-secrets" class="view">
+      <header class="top-bar">
+        <button id="btn-back-vaults" class="top-bar-back">
+          <span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>
+          <span id="vault-name"></span>
         </button>
-        <span id="vault-name" class="top-bar-title" style="font-size: 14px;"></span>
-      </div>
-      <div class="top-bar-actions">
-        <button id="btn-add-credential" class="btn-icon" title="Add credential">
-          <span class="material-symbols-outlined">add_circle</span>
+        <button id="btn-add-credential" style="background:transparent;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;">
+          <span class="material-symbols-outlined" style="font-size:18px;">add</span>
         </button>
-      </div>
-    </header>
-
-    <div class="view-content">
-      <h2 class="page-title" id="secrets-title">Credentials</h2>
-      <p id="secret-count" class="page-subtitle"></p>
+      </header>
 
       <div class="search-bar">
-        <span class="material-symbols-outlined">search</span>
-        <input id="secret-search" type="text" placeholder="Search credentials...">
+        <input id="secret-search" type="text" placeholder="// filtrar segredos…">
       </div>
 
-      <div id="secret-list" class="credential-list"></div>
+      <div class="scroll-area" style="flex:1;">
+        <div id="secret-list" class="credential-list"></div>
 
-      <div id="secret-loading" class="state-loading hidden">
-        <span class="material-symbols-outlined">sync</span>
-        <span class="splash-status-text">Loading credentials...</span>
+        <div id="secret-loading" class="status-inline" style="display:none;">carregando segredos…</div>
+        <div id="secret-error" class="status-error" style="display:none;"></div>
+
+        <div id="secret-empty" style="display:none;">
+          <div class="empty-state">
+            <div class="empty-icon">[ ]</div>
+            <p>nenhum segredo</p>
+            <p class="empty-sub">// os segredos aparecerao aqui</p>
+          </div>
+        </div>
       </div>
 
-      <div id="secret-empty" class="state-empty hidden">
-        <span class="material-symbols-outlined">vpn_key</span>
-        <span class="state-empty-text">No credentials in this vault.</span>
-      </div>
-    </div>
-
-    <nav class="bottom-nav">
-      <button class="nav-item active">
-        <span class="material-symbols-outlined filled">shield</span>
-        <span class="nav-item-label">Vault</span>
-      </button>
-      <button class="nav-item nav-settings-2">
-        <span class="material-symbols-outlined">settings</span>
-        <span class="nav-item-label">Settings</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- ========== ADD CREDENTIAL ========== -->
-  <div id="view-add-credential" class="view hidden">
-    <header class="top-bar">
-      <div class="top-bar-brand">
-        <button id="btn-back-from-add" class="btn-icon">
-          <span class="material-symbols-outlined">close</span>
+      <nav class="bottom-nav">
+        <button class="active">
+          <span class="material-symbols-outlined">lock</span>
+          cofres
         </button>
-        <span class="top-bar-title" style="font-size: 14px;">New Credential</span>
-      </div>
-    </header>
-
-    <div class="view-content">
-      <div style="text-align:center; margin-bottom: 16px;">
-        <div style="display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius: var(--radius-lg); background: var(--surface-container-high); margin-bottom: 8px;">
-          <span class="material-symbols-outlined filled" style="font-size:28px; color: var(--primary);">add_moderator</span>
-        </div>
-        <p style="font-size: 11px; color: var(--on-surface-variant);">Protected by 256-bit AES encryption.</p>
-      </div>
-
-      <form id="form-add-credential" class="form-section" style="padding: 0;">
-        <div class="field-group">
-          <label class="field-label">Service URL</label>
-          <input id="add-url" class="field-input" type="url" placeholder="https://example.com/*" required>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Username or Email</label>
-          <input id="add-login" class="field-input" type="text" placeholder="user@example.com" required>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Secret Name (in vault)</label>
-          <input id="add-secret-name" class="field-input" type="text" placeholder="e.g. erp-password" required>
-        </div>
-
-        <div id="add-error" class="alert-error hidden"></div>
-
-        <div class="btn-group" style="margin-top: 20px;">
-          <button type="button" id="btn-cancel-add" class="btn-secondary" style="flex:1;">Cancel</button>
-          <button type="submit" id="btn-save-credential" class="btn-primary" style="flex:2;">
-            Save Credential
-          </button>
-        </div>
-      </form>
+        <button class="nav-settings-2">
+          <span class="material-symbols-outlined">settings</span>
+          config
+        </button>
+      </nav>
     </div>
-  </div>
+
+    <!-- ══════════════════════════════════
+         ADD CREDENTIAL
+    ══════════════════════════════════ -->
+    <div id="view-add-credential" class="view">
+      <header class="top-bar">
+        <button id="btn-back-from-add" class="top-bar-back">
+          <span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>
+          voltar
+        </button>
+        <span class="top-bar-chip">NOVO</span>
+      </header>
+
+      <div class="scroll-area" style="padding: 0;">
+        <h2 style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--fg);padding:20px 16px 0;">
+          // novo segredo
+        </h2>
+
+        <form id="form-add-credential" style="padding: 8px 16px 20px;">
+          <div class="field-group">
+            <label class="field-label" for="add-url">// URL DO SERVICO</label>
+            <input id="add-url" class="field-input" type="url" placeholder="https://exemplo.com/*" required>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="add-login">// USUARIO</label>
+            <input id="add-login" class="field-input" type="text" placeholder="usuario@exemplo.com" required>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="add-secret-name">// NOME NO COFRE</label>
+            <input id="add-secret-name" class="field-input" type="text" placeholder="ex: erp-senha" required>
+          </div>
+
+          <div id="add-error" class="login-error"></div>
+
+          <div class="form-actions">
+            <button type="button" id="btn-cancel-add" class="btn-ghost">cancelar</button>
+            <button type="submit" id="btn-save-credential" class="btn-primary">salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div><!-- /#app -->
 
   <script src="popup.js"></script>
 </body>
