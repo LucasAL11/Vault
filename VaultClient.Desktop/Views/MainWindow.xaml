@@ -6,25 +6,126 @@
         MinHeight="540" MinWidth="860"
         Background="#0A120C"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="False"
         ResizeMode="CanResizeWithGrip">
 
     <Grid>
-        <!-- Setup (first use or reconfiguration) -->
-        <Grid x:Name="SetupPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-              Visibility="Collapsed">
-            <views:SetupView x:Name="SetupViewControl"/>
+        <Grid.RowDefinitions>
+            <!-- Custom title bar -->
+            <RowDefinition Height="32"/>
+            <!-- Content -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════
+             CUSTOM TITLE BAR
+        ═══════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="#080E0A"
+                BorderBrush="#1A231C"
+                BorderThickness="0,0,0,1"
+                x:Name="TitleBar"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: logo + title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Viewbox Width="12" Height="12" Margin="0,0,8,0">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                                  Fill="#7CE8A9"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="Sentil"
+                               FontFamily="JetBrains Mono, Consolas, Courier New, monospace"
+                               FontSize="11" FontWeight="Bold"
+                               Foreground="#E8EBE4"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text=" · Plastcor"
+                               FontFamily="JetBrains Mono, Consolas, Courier New, monospace"
+                               FontSize="11"
+                               Foreground="#8A8F82"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Right: window controls -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            VerticalAlignment="Stretch">
+
+                    <!-- Minimize -->
+                    <Button x:Name="BtnMinimize"
+                            Click="BtnMinimize_Click"
+                            Width="46" Height="32"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            ToolTip="Minimizar"
+                            Style="{StaticResource WinBtn}">
+                        <Path Data="M10,14 L22,14" Stroke="#8A8F82" StrokeThickness="1.2"
+                              Width="12" Height="1" HorizontalAlignment="Center"/>
+                    </Button>
+
+                    <!-- Maximize / Restore -->
+                    <Button x:Name="BtnMaximize"
+                            Click="BtnMaximize_Click"
+                            Width="46" Height="32"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            ToolTip="Maximizar"
+                            Style="{StaticResource WinBtn}">
+                        <Path x:Name="MaximizeIcon"
+                              Data="M4,4 L20,4 L20,20 L4,20 Z"
+                              Stroke="#8A8F82" StrokeThickness="1.2"
+                              Fill="Transparent"
+                              Width="12" Height="12"/>
+                    </Button>
+
+                    <!-- Close -->
+                    <Button x:Name="BtnClose"
+                            Click="BtnClose_Click"
+                            Width="46" Height="32"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            ToolTip="Fechar"
+                            Style="{StaticResource WinBtnClose}">
+                        <Grid Width="12" Height="12">
+                            <Path Data="M2,2 L22,22" Stroke="#8A8F82" StrokeThickness="1.2"/>
+                            <Path Data="M22,2 L2,22" Stroke="#8A8F82" StrokeThickness="1.2"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════
+             CONTENT
+        ═══════════════════════════════════════ -->
+        <Grid Grid.Row="1">
+            <!-- Setup (first use or reconfiguration) -->
+            <Grid x:Name="SetupPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                  Visibility="Collapsed">
+                <views:SetupView x:Name="SetupViewControl"/>
+            </Grid>
+
+            <!-- Login -->
+            <Grid x:Name="LoginPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                  Visibility="Collapsed">
+                <views:LoginView x:Name="LoginViewControl"/>
+            </Grid>
+
+            <!-- Secrets (full window) -->
+            <views:SecretsView x:Name="SecretsViewControl" Visibility="Collapsed"/>
+
+            <!-- Admin (full window, AD Admins only) -->
+            <views:AdminView x:Name="AdminViewControl" Visibility="Collapsed"/>
         </Grid>
-
-        <!-- Login -->
-        <Grid x:Name="LoginPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-              Visibility="Collapsed">
-            <views:LoginView x:Name="LoginViewControl"/>
-        </Grid>
-
-        <!-- Secrets (full window) -->
-        <views:SecretsView x:Name="SecretsViewControl" Visibility="Collapsed"/>
-
-        <!-- Admin (full window, AD Admins only) -->
-        <views:AdminView x:Name="AdminViewControl" Visibility="Collapsed"/>
     </Grid>
 </Window>

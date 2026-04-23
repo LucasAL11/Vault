@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
 using VaultClient.Desktop.Core;
 using VaultClient.Desktop.ViewModels;
 
@@ -6,6 +8,33 @@ namespace VaultClient.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    // ── Window chrome handlers ────────────────────────────────────────────
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+            ToggleMaximize();
+        else
+            DragMove();
+    }
+
+    private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void BtnMaximize_Click(object sender, RoutedEventArgs e)
+        => ToggleMaximize();
+
+    private void BtnClose_Click(object sender, RoutedEventArgs e)
+        => Close();
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+    }
+
+
     private readonly LoginViewModel   _loginVm;
     private readonly SecretsViewModel _secretsVm;
     private readonly SetupViewModel   _setupVm;
