@@ -191,6 +191,20 @@ public sealed class RequestSecret : IEndpoint
             var signatureValid = SecretProofHelpers.IsSignatureValid(proofPayload, providedSignature, signatureParsed, effectiveClientSecret);
             var withinSkewWindow = SecretProofHelpers.IsWithinSkewWindow(normalizedIssuedAt, authChallengeOptions, nonceOptions);
 
+            // Temporary diagnostic: log the exact payload fields when signature fails so we
+            // can pinpoint which field the client is computing differently.
+            if (!signatureValid)
+            {
+                logger.LogWarning(
+                    "Signature mismatch — server payload fields: " +
+                    "vaultId={VaultId} | secretName=[{SecretName}] | clientId=[{ClientId}] | " +
+                    "subject=[{Subject}] | reason=[{Reason}] | ticket=[{Ticket}] | " +
+                    "nonce=[{Nonce}] | issuedAt=[{IssuedAt}]",
+                    vaultId, name, normalizedClientId,
+                    subject, normalizedReason, normalizedTicket,
+                    normalizedNonce, normalizedIssuedAt.ToString("O"));
+            }
+
             var shouldConsumeIssuedNonce = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow;
             var consumeScope = shouldConsumeIssuedNonce
                 ? NonceChallengeScope.Build(
