@@ -94,6 +94,16 @@ public sealed class SecretVersionRenewalService : BackgroundService
         {
             var result = await RenewSecretAsync(secretId, now, ct);
 
+            // One immediate retry on conflict — a concurrent write may have just cleared;
+            // the fresh scope reloads the latest RowVersion and retries the renewal.
+            if (result.IsFailure && result.Error.Type == ErrorType.Conflict)
+            {
+                _logger.LogDebug(
+                    "SecretVersionRenewal: concurrency conflict for Secret={SecretId} — retrying immediately",
+                    secretId);
+                result = await RenewSecretAsync(secretId, now, ct);
+            }
+
             if (result.IsSuccess)
                 renewed++;
             else

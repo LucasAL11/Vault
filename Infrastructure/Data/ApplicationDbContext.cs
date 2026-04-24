@@ -71,11 +71,11 @@ public  sealed class ApplicationDbContext(
                 continue;
             }
 
-            var current = rowVersionProperty.CurrentValue as byte[];
-            if (current is null || current.Length == 0)
-            {
-                rowVersionProperty.CurrentValue = RandomNumberGenerator.GetBytes(8);
-            }
+            // Always advance the token on every save — both INSERT and UPDATE.
+            // For INSERT: produces the initial token value.
+            // For UPDATE: advances it so CurrentValue != OriginalValue, ensuring the
+            //   concurrency check WHERE clause is generated correctly by EF Core / Npgsql.
+            rowVersionProperty.CurrentValue = RandomNumberGenerator.GetBytes(8);
         }
     }
 
