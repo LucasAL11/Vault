@@ -35,6 +35,7 @@ public sealed class RequestSecret : IEndpoint
         public string? Ticket { get; init; }
         public string? TicketId { get; init; }
         public string? ClientId { get; init; }
+        public string? Subject { get; init; }      // optional: subject used when the challenge nonce was issued
         public string? Nonce { get; init; }
         public DateTimeOffset? IssuedAt { get; init; }
         public DateTimeOffset? IssuedAtUtc { get; init; }
@@ -161,7 +162,7 @@ public sealed class RequestSecret : IEndpoint
                 return SecretHttpHelpers.SecureForbidden();
             }
 
-            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: null, out var subject))
+            if (!NonceChallengeScope.TryResolveSubject(httpContext, requestedSubject: request.Subject, out var subject))
             {
                 logger.LogWarning(
                     "Secret request denied: unable to resolve subject. VaultId={VaultId}, SecretName={SecretName}, User={User}",

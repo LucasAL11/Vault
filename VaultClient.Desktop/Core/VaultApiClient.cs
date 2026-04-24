@@ -151,7 +151,7 @@ public sealed class VaultApiClient
 
     // ── Secret Value via Proof ────────────────────────────────────────────────
 
-    public async Task<(string Nonce, DateTimeOffset IssuedAt)> GetChallengeAsync(
+    public async Task<(string Nonce, DateTimeOffset IssuedAt, string Subject)> GetChallengeAsync(
         string clientId, string subject, CancellationToken ct = default)
     {
         var response = await SendAsync(() => _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
@@ -160,9 +160,15 @@ public sealed class VaultApiClient
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        var nonce = doc.RootElement.GetProperty("nonce").GetString()!;
-        var issuedAt = doc.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
-        return (nonce, issuedAt);
+        var nonce       = doc.RootElement.GetProperty("nonce").GetString()!;
+        var issuedAt    = doc.RootElement.GetProperty("issuedAtUtc").GetDateTimeOffset();
+        // Use the subject the server normalised and stored in the nonce scope.
+        // The server may normalise (FQDN, ToUpperInvariant) differently from what the
+        // client sent, so we must echo it back in the proof payload and the request body.
+        var serverSubject = doc.RootElement.TryGetProperty("subject", out var subjEl)
+            ? (subjEl.GetString() ?? subject)
+            : subject;
+        return (nonce, issuedAt, serverSubject);
     }
 
     /// <summary>
@@ -173,10 +179,10 @@ public sealed class VaultApiClient
         Guid vaultId, string secretName, string clientId, string clientSecret,
         string subject, string reason, string ticket, CancellationToken ct = default)
     {
-        var (nonce, issuedAt) = await GetChallengeAsync(clientId, subject, ct);
+        var (nonce, issuedAt, serverSubject) = await GetChallengeAsync(clientId, subject, ct);
 
         var proof = ProofBuilder.Build(
-            vaultId, secretName, clientId, subject,
+            vaultId, secretName, clientId, serverSubject,
             reason, ticket, nonce, issuedAt, clientSecret);
 
         var encodedName = Uri.EscapeDataString(secretName);
@@ -184,10 +190,11 @@ public sealed class VaultApiClient
             $"{_baseUrl}/vaults/{vaultId}/secrets/request?name={encodedName}",
             new
             {
-                contractVersion = "v1",
+                contractVersion  = "v1",
                 reason,
                 ticket,
                 clientId,
+                subject          = serverSubject,   // echo the server-normalised subject
                 nonce,
                 issuedAt,
                 proof
