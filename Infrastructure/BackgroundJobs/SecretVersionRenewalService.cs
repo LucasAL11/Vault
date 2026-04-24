@@ -1,7 +1,8 @@
-using Application.Abstractions.Data;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Application.Abstractions.Security;
 using Domain.vault;
+using Infrastructure.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -70,7 +71,7 @@ public sealed class SecretVersionRenewalService : BackgroundService
         List<Guid> secretIds;
         using (var scope = _scopeFactory.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             secretIds = await db.Secrets
                 .Where(s => s.Status == Status.Active)
                 .Where(s => s.Versions.Any(v =>
@@ -89,20 +90,10 @@ public sealed class SecretVersionRenewalService : BackgroundService
         var renewed = 0;
         var skipped = 0;
 
-        // Phase 2: each secret gets its own scope so a failed save never contaminates the next iteration
+        // Phase 2: each secret gets its own scope so a failed save never contaminates the next
         foreach (var secretId in secretIds)
         {
             var result = await RenewSecretAsync(secretId, now, ct);
-
-            // One immediate retry on conflict — a concurrent write may have just cleared;
-            // the fresh scope reloads the latest RowVersion and retries the renewal.
-            if (result.IsFailure && result.Error.Type == ErrorType.Conflict)
-            {
-                _logger.LogDebug(
-                    "SecretVersionRenewal: concurrency conflict for Secret={SecretId} — retrying immediately",
-                    secretId);
-                result = await RenewSecretAsync(secretId, now, ct);
-            }
 
             if (result.IsSuccess)
                 renewed++;
@@ -127,9 +118,13 @@ public sealed class SecretVersionRenewalService : BackgroundService
     private async Task<Result> RenewSecretAsync(Guid secretId, DateTimeOffset now, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
 
-        var secret = await dbContext.Secrets
+        // Use ApplicationDbContext directly so we can access Database.BeginTransactionAsync
+        // and ExecuteUpdateAsync — bypassing EF Core's RowVersion-based OCC which is
+        // unreliable for background services on PostgreSQL with bytea tokens.
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var secret = await db.Secrets
             .Include(s => s.Versions)
             .FirstOrDefaultAsync(s => s.Id == secretId, ct);
 
@@ -151,8 +146,9 @@ public sealed class SecretVersionRenewalService : BackgroundService
             new SecretProtectionContext(secret.VaultId, secret.Id, currentVersion.Version),
             ct);
 
-        var nextVersion = secret.CurrentVersion + 1;
-        var newExpires = _options.NewVersionLifetimeDays.HasValue
+        var nextVersion   = secret.CurrentVersion + 1;
+        var snapshotedVersion = secret.CurrentVersion; // captured for WHERE guard
+        var newExpires    = _options.NewVersionLifetimeDays.HasValue
             ? now.AddDays(_options.NewVersionLifetimeDays.Value)
             : (DateTimeOffset?)null;
 
@@ -161,22 +157,51 @@ public sealed class SecretVersionRenewalService : BackgroundService
             new SecretProtectionContext(secret.VaultId, secret.Id, nextVersion),
             ct);
 
-        secret.AddVersion(
+        // Build the new version entity directly — do NOT call secret.AddVersion()
+        // because that marks the Secret as Modified and triggers EF Core's broken
+        // RowVersion OCC check on SaveChangesAsync.
+        var newSecretVersion = new SecretVersion(
+            secret.Id,
+            nextVersion,
             protectedSecret.CipherText,
             protectedSecret.Nonce,
             protectedSecret.KeyId,
             currentVersion.ContentType,
             newExpires);
 
+        var newRowVersion = RandomNumberGenerator.GetBytes(8);
+
+        // Use an explicit transaction so INSERT + UPDATE are atomic.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         try
         {
-            await dbContext.SaveChangesAsync(ct);
+            // INSERT new SecretVersion (no concurrency token on this table)
+            db.SecretVersions.Add(newSecretVersion);
+            await db.SaveChangesAsync(ct);
+
+            // UPDATE Secret.CurrentVersion + RowVersion via ExecuteUpdateAsync.
+            // We use CurrentVersion == snapshotedVersion as our own OCC guard:
+            // if something else already incremented it, we return 0 rows and surface a conflict.
+            var updated = await db.Secrets
+                .Where(s => s.Id == secretId && s.CurrentVersion == snapshotedVersion)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.CurrentVersion, nextVersion)
+                    .SetProperty(x => x.RowVersion,     newRowVersion), ct);
+
+            if (updated == 0)
+            {
+                await tx.RollbackAsync(ct);
+                return Result.Failure(Error.Conflict(
+                    "Secret.ConcurrencyConflict",
+                    "Secret was modified concurrently"));
+            }
+
+            await tx.CommitAsync(ct);
         }
-        catch (DbUpdateConcurrencyException)
+        catch
         {
-            return Result.Failure(Error.Conflict(
-                "Secret.ConcurrencyConflict",
-                "Secret was modified concurrently"));
+            await tx.RollbackAsync(ct);
+            throw;
         }
 
         _logger.LogInformation(
