@@ -19,30 +19,8 @@ public partial class MainWindow : Window
     private const int DWMWCP_DONOTROUND              = 1;
     private const int DWMWA_COLOR_NONE               = unchecked((int)0xFFFFFFFE);
 
-    private const int WM_NCCALCSIZE = 0x0083;
-    private const int WM_NCHITTEST  = 0x0084;
-
-    // Resize hit-test regions (returned from WM_NCHITTEST)
-    private const int HTCLIENT      = 1;
-    private const int HTLEFT        = 10;
-    private const int HTRIGHT       = 11;
-    private const int HTTOP         = 12;
-    private const int HTTOPLEFT     = 13;
-    private const int HTTOPRIGHT    = 14;
-    private const int HTBOTTOM      = 15;
-    private const int HTBOTTOMLEFT  = 16;
-    private const int HTBOTTOMRIGHT = 17;
-
-    private const int ResizeBorder = 6; // px
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT { public int x, y; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int left, top, right, bottom; }
-
-    [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    // WM_ERASEBKGND: suppress default white erase → eliminates flash on minimize/restore
+    private const int WM_ERASEBKGND = 0x0014;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -54,62 +32,23 @@ public partial class MainWindow : Window
         var corner = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
 
-        // Remove the 1px DWM accent border (visible on alt+tab / snap previews)
+        // Remove the DWM system-accent border (white frame on alt+tab / snap previews)
         var noBorder = DWMWA_COLOR_NONE;
         DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
 
-        // Hook WndProc to eliminate the NC area (white bar) and handle resize
+        // Hook WndProc only to suppress background erase flash
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        switch (msg)
+        // Suppress Win32 white background erase — prevents flash on minimize/restore
+        if (msg == WM_ERASEBKGND)
         {
-            // Returning 0 tells Windows the entire window rect is client area
-            // → eliminates the 1px white NC border Win11 adds
-            case WM_NCCALCSIZE when wParam != IntPtr.Zero:
-                handled = true;
-                return IntPtr.Zero;
-
-            // Restore resize hit-testing since we removed the NC area
-            case WM_NCHITTEST:
-                var result = HitTest(hwnd, lParam);
-                if (result != HTCLIENT)
-                {
-                    handled = true;
-                    return new IntPtr(result);
-                }
-                break;
+            handled = true;
+            return new IntPtr(1);
         }
         return IntPtr.Zero;
-    }
-
-    private int HitTest(IntPtr hwnd, IntPtr lParam)
-    {
-        if (WindowState == WindowState.Maximized)
-            return HTCLIENT;
-
-        GetWindowRect(hwnd, out var rc);
-
-        var x = (short)(lParam.ToInt32() & 0xFFFF);
-        var y = (short)(lParam.ToInt32() >> 16);
-
-        var onLeft   = x < rc.left   + ResizeBorder;
-        var onRight  = x > rc.right  - ResizeBorder;
-        var onTop    = y < rc.top    + ResizeBorder;
-        var onBottom = y > rc.bottom - ResizeBorder;
-
-        if (onTop    && onLeft)  return HTTOPLEFT;
-        if (onTop    && onRight) return HTTOPRIGHT;
-        if (onBottom && onLeft)  return HTBOTTOMLEFT;
-        if (onBottom && onRight) return HTBOTTOMRIGHT;
-        if (onTop)               return HTTOP;
-        if (onBottom)            return HTBOTTOM;
-        if (onLeft)              return HTLEFT;
-        if (onRight)             return HTRIGHT;
-
-        return HTCLIENT;
     }
 
     // ── Window chrome handlers ────────────────────────────────────────────
