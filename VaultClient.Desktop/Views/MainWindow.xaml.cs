@@ -15,7 +15,9 @@ public partial class MainWindow : Window
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWA_BORDER_COLOR             = 34;
     private const int DWMWCP_DONOTROUND              = 1;
+    private const int DWMWA_COLOR_NONE               = unchecked((int)0xFFFFFFFE);
 
     private const int WM_NCCALCSIZE = 0x0083;
     private const int WM_NCHITTEST  = 0x0084;
@@ -51,6 +53,10 @@ public partial class MainWindow : Window
         // Square corners on Windows 11
         var corner = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+
+        // Remove the 1px DWM accent border (visible on alt+tab / snap previews)
+        var noBorder = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
 
         // Hook WndProc to eliminate the NC area (white bar) and handle resize
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
