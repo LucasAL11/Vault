@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:VaultClient.Desktop.Views"
         Title="Sentil · Plastcor" Height="660" Width="1080"
         MinHeight="540" MinWidth="860"
-        Background="#0A120C"
+        Background="#171717"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -22,8 +22,8 @@
              CUSTOM TITLE BAR
         ═══════════════════════════════════════ -->
         <Border Grid.Row="0"
-                Background="#141A18"
-                BorderBrush="#2A3430"
+                Background="#141414"
+                BorderBrush="#2C2C2C"
                 BorderThickness="0,0,0,1"
                 x:Name="TitleBar"
                 MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">

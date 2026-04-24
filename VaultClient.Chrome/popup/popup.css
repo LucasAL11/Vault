@@ -29,16 +29,16 @@
 
 /* ── Tokens ── */
 :root {
-  --app-bg:      #181e1c;
-  --sidebar-bg:  #1e2523;
-  --list-bg:     #1b2220;
-  --row-active:  #263030;
-  --fg:          #c8cec8;
-  --muted:       #718070;
+  --app-bg:      #171717;
+  --sidebar-bg:  #1e1e1e;
+  --list-bg:     #1a1a1a;
+  --row-active:  #272727;
+  --fg:          #d0d0d0;
+  --muted:       #737373;
   --accent:      #5bad80;
-  --border:      #2a3430;
-  --field-bg:    #161c1a;
-  --chip-bg:     #222c29;
+  --border:      #2c2c2c;
+  --field-bg:    #141414;
+  --chip-bg:     #242424;
   --danger:      #c0523a;
   --danger-bg:   #2a1410;
   --warning:     #b8903a;
@@ -158,7 +158,7 @@ html, body {
 }
 .scroll-area::-webkit-scrollbar { width: 3px; }
 .scroll-area::-webkit-scrollbar-track { background: transparent; }
-.scroll-area::-webkit-scrollbar-thumb { background: #2a3a2e; border-radius: 2px; }
+.scroll-area::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }
 
 /* ══════════════════════════════════
    SPLASH
