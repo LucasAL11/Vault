@@ -7,7 +7,10 @@
     <res:NotEmptyToVisibilityConverter x:Key="NotEmptyToVisibility"/>
     <res:ZeroToVisibilityConverter x:Key="ZeroToVisibility"/>
     <res:ExpiryWarningVisibilityConverter x:Key="ExpiryWarningVisibility"/>
-    <res:NullToVisibilityConverter x:Key="NullToVisibility"/>
+    <!-- null → Collapsed, non-null → Visible -->
+    <res:NullToVisibilityConverter x:Key="NotNullToVisibility"/>
+    <!-- null → Visible, non-null → Collapsed -->
+    <res:NullToVisibilityConverter x:Key="NullToVisibility" />
     <res:StatusTypeToBrushConverter x:Key="StatusTypeToBrush"/>
     <res:StatusTypeToBgBrushConverter x:Key="StatusTypeToBgBrush"/>
     <res:SelectedItemBrushConverter x:Key="SelectedItemBrush"/>
