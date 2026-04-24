@@ -116,10 +116,7 @@
             </Grid>
 
             <!-- Login -->
-            <Grid x:Name="LoginPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-                  Visibility="Collapsed">
-                <views:LoginView x:Name="LoginViewControl"/>
-            </Grid>
+            <views:LoginView x:Name="LoginViewControl" Visibility="Collapsed"/>
 
             <!-- Secrets (full window) -->
             <views:SecretsView x:Name="SecretsViewControl" Visibility="Collapsed"/>

@@ -182,7 +182,7 @@ public partial class MainWindow : Window
     private void ShowSetup()
     {
         SetupPanel.Visibility         = Visibility.Visible;
-        LoginPanel.Visibility         = Visibility.Collapsed;
+        LoginViewControl.Visibility         = Visibility.Collapsed;
         SecretsViewControl.Visibility = Visibility.Collapsed;
         AdminViewControl.Visibility   = Visibility.Collapsed;
         BtnMinimize.Visibility        = Visibility.Collapsed;
@@ -191,7 +191,7 @@ public partial class MainWindow : Window
 
     private void ShowLogin()
     {
-        LoginPanel.Visibility         = Visibility.Visible;
+        LoginViewControl.Visibility         = Visibility.Visible;
         SetupPanel.Visibility         = Visibility.Collapsed;
         SecretsViewControl.Visibility = Visibility.Collapsed;
         AdminViewControl.Visibility   = Visibility.Collapsed;
@@ -204,7 +204,7 @@ public partial class MainWindow : Window
     {
         SecretsViewControl.Visibility = Visibility.Visible;
         SetupPanel.Visibility         = Visibility.Collapsed;
-        LoginPanel.Visibility         = Visibility.Collapsed;
+        LoginViewControl.Visibility         = Visibility.Collapsed;
         AdminViewControl.Visibility   = Visibility.Collapsed;
         BtnMinimize.Visibility        = Visibility.Visible;
         BtnMaximize.Visibility        = Visibility.Visible;
@@ -222,7 +222,7 @@ public partial class MainWindow : Window
         AdminViewControl.Visibility   = Visibility.Visible;
         SecretsViewControl.Visibility = Visibility.Collapsed;
         SetupPanel.Visibility         = Visibility.Collapsed;
-        LoginPanel.Visibility         = Visibility.Collapsed;
+        LoginViewControl.Visibility         = Visibility.Collapsed;
         BtnMinimize.Visibility        = Visibility.Visible;
         BtnMaximize.Visibility        = Visibility.Visible;
 
