@@ -36,7 +36,7 @@
                                           Fill="{StaticResource Brush.Accent}"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="Sentil"
+                            <TextBlock Text="SENTINEL"
                                        FontFamily="{StaticResource Font.Mono}"
                                        FontSize="14" FontWeight="Bold"
                                        Foreground="{StaticResource Brush.Fg}"
@@ -153,7 +153,7 @@
                                    FontSize="10" Foreground="{StaticResource Brush.Accent}" Margin="0,0,0,18"/>
 
                         <!-- Title -->
-                        <TextBlock Text="identify.yourself"
+                        <TextBlock Text="se.identifique"
                                    FontFamily="{StaticResource Font.Mono}"
                                    FontSize="24" FontWeight="SemiBold"
                                    Foreground="{StaticResource Brush.Fg}"
@@ -163,9 +163,9 @@
                         <TextBlock FontFamily="{StaticResource Font.Mono}"
                                    FontSize="11" Foreground="{StaticResource Brush.Muted}"
                                    Margin="0,0,0,28" LineHeight="18">
-                            <Run Text="// Connect via Active Directory."/>
+                            <Run Text="// Conecte-se com seu usuario."/>
                             <LineBreak/>
-                            <Run Text="// All attempts are logged and signed."/>
+                            <Run Text="// todas as tentativas são registradas e assinadas."/>
                         </TextBlock>
 
                         <!-- Username -->
@@ -177,14 +177,7 @@
                                  Style="{StaticResource SentilTextBox}"
                                  Margin="0,0,0,14"/>
 
-                        <!-- Domain (optional) -->
-                        <TextBlock Text="// DOMINIO"
-                                   FontFamily="{StaticResource Font.Mono}"
-                                   FontSize="10" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
-                        <TextBox x:Name="DomainBox"
-                                 Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource SentilTextBox}"
-                                 Margin="0,0,0,14"/>
+                 
 
                         <!-- Password -->
                         <TextBlock Text="// SENHA"

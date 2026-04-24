@@ -3,45 +3,51 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:VaultClient.Desktop.Models"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
-             Background="#1E1E2E">
+             Background="{StaticResource Brush.AppBg}">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- Header -->
-            <RowDefinition Height="*"/>     <!-- Body: Sidebar + Content -->
+            <RowDefinition Height="*"/>     <!-- Body -->
             <RowDefinition Height="Auto"/>  <!-- Status bar -->
         </Grid.RowDefinitions>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- HEADER                                                             -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Background="#181825" Padding="20,12">
+        <!-- ══════════════════════════════════════════════════════════
+             HEADER
+        ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="{StaticResource Brush.SidebarBg}"
+                BorderBrush="{StaticResource Brush.Border}"
+                BorderThickness="0,0,0,1"
+                Padding="20,12">
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Painel Administrativo" FontSize="16" FontWeight="Bold"
-                               Foreground="#CDD6F4"/>
-                    <!-- Role badge: "ADMIN GERAL" or "ADMIN DE COFRE" -->
-                    <Border CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
+                    <!-- S-mark -->
+                    <Viewbox Width="13" Height="13" Margin="0,0,8,0">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                                  Fill="{StaticResource Brush.Accent}"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="Admin"
+                               FontFamily="{StaticResource Font.Mono}"
+                               FontSize="13" FontWeight="Bold"
+                               Foreground="{StaticResource Brush.Fg}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Role badge -->
+                    <Border CornerRadius="2" Padding="7,2" Margin="12,0,0,0"
+                            Background="{StaticResource Brush.ChipBg}"
                             VerticalAlignment="Center">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="#1E3A5F"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsGlobalAdmin}" Value="True">
-                                        <Setter Property="Background" Value="#302040"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock FontSize="10" FontWeight="Bold">
+                        <TextBlock FontFamily="{StaticResource Font.Mono}" FontSize="9" FontWeight="SemiBold">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="ADMIN DE COFRE"/>
-                                    <Setter Property="Foreground" Value="#89B4FA"/>
+                                    <Setter Property="Text"       Value="ADMIN DE COFRE"/>
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGlobalAdmin}" Value="True">
-                                            <Setter Property="Text" Value="ADMIN GERAL"/>
-                                            <Setter Property="Foreground" Value="#CBA6F7"/>
+                                            <Setter Property="Text"       Value="ADMIN GERAL"/>
+                                            <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -50,449 +56,323 @@
                     </Border>
                 </StackPanel>
 
-                <Button Content="Voltar" HorizontalAlignment="Right"
+                <Button Content="← voltar"
+                        HorizontalAlignment="Right"
                         Command="{Binding BackToSecretsCommand}"
-                        FontSize="12" Padding="16,7"
-                        Background="Transparent" Foreground="#6C7086"
-                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
-                    <Button.Resources>
-                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                    </Button.Resources>
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                                    <Setter Property="BorderBrush" Value="#CDD6F4"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                        Style="{StaticResource SentilButtonGhost}"
+                        FontFamily="{StaticResource Font.Mono}"
+                        FontSize="11" Padding="14,6"/>
             </Grid>
         </Border>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- BODY: SIDEBAR + CONTENT                                            -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- ══════════════════════════════════════════════════════════
+             BODY: SIDEBAR + CONTENT
+        ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260"/>   <!-- Sidebar -->
-                <ColumnDefinition Width="1"/>     <!-- Divider -->
-                <ColumnDefinition Width="*"/>     <!-- Content -->
+                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="1"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ═══ SIDEBAR: Vault List ═══ -->
-            <Grid Grid.Column="0" Background="#181825">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>  <!-- Sidebar header -->
-                    <RowDefinition Height="*"/>     <!-- Vault list -->
-                    <RowDefinition Height="Auto"/>  <!-- New vault button -->
-                </Grid.RowDefinitions>
+            <!-- ── SIDEBAR ───────────────────────────────────────────── -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource Brush.SidebarBg}"
+                    BorderBrush="{StaticResource Brush.Border}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                <!-- Sidebar header -->
-                <Border Grid.Row="0" Padding="16,14,16,10">
-                    <TextBlock Text="COFRES" FontSize="11" FontWeight="Bold"
-                               Foreground="#6C7086"/>
-                </Border>
+                    <!-- Sidebar label -->
+                    <Border Grid.Row="0" Padding="14,12,14,8"
+                            BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="COFRES"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Muted}"/>
+                    </Border>
 
-                <!-- Vault list -->
-                <ListBox Grid.Row="1" ItemsSource="{Binding Vaults}"
-                         SelectedItem="{Binding SelectedVault, Mode=TwoWay}"
-                         Background="Transparent" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         Padding="4,0">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                            <Setter Property="Padding" Value="0"/>
-                            <Setter Property="Margin" Value="4,1"/>
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                            <Setter Property="Cursor" Value="Hand"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                CornerRadius="6" Padding="12,10">
-                                            <ContentPresenter/>
+                    <!-- Vault list -->
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Vaults}"
+                             SelectedItem="{Binding SelectedVault, Mode=TwoWay}"
+                             Style="{StaticResource SentilListBox}"
+                             Padding="0">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SentilListBoxItem}"/>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:VaultItem}">
+                                <Border Padding="14,10"
+                                        BorderBrush="{StaticResource Brush.Border}"
+                                        BorderThickness="0,0,0,1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Width="28" Height="28"
+                                                Background="{StaticResource Brush.ChipBg}"
+                                                CornerRadius="2" Margin="0,0,10,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="12" FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
+                                                        <Setter Property="Text" Value="D"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Environment}" Value="Production">
+                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
+                                                                <Setter Property="Text" Value="P"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Environment}" Value="Staging">
+                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Warning}"/>
+                                                                <Setter Property="Text" Value="S"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#252537"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#313244"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type models:VaultItem}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
 
-                                <!-- Vault icon -->
-                                <Border Grid.Column="0" Width="32" Height="32"
-                                        CornerRadius="6" Margin="0,0,10,0"
-                                        VerticalAlignment="Center">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#1E3A5F"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Environment}" Value="Production">
-                                                    <Setter Property="Background" Value="#1A3A1A"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Environment}" Value="Staging">
-                                                    <Setter Property="Background" Value="#3A3A1A"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <TextBlock FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="D"/>
-                                                <Setter Property="Foreground" Value="#89B4FA"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Environment}" Value="Production">
-                                                        <Setter Property="Text" Value="P"/>
-                                                        <Setter Property="Foreground" Value="#A6E3A1"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Environment}" Value="Staging">
-                                                        <Setter Property="Text" Value="S"/>
-                                                        <Setter Property="Foreground" Value="#F9E2AF"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource Brush.Fg}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding Environment}"
+                                                           FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="10" Foreground="{StaticResource Brush.Muted}"/>
+                                                <TextBlock Text=" · "
+                                                           FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="10" Foreground="{StaticResource Brush.Border}"/>
+                                                <TextBlock Text="{Binding Group}"
+                                                           FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
 
-                                <!-- Vault info -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
-                                               Foreground="#CDD6F4" TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                        <TextBlock Text="{Binding Environment}" FontSize="10"
-                                                   Foreground="#6C7086"/>
-                                        <TextBlock Text=" · " FontSize="10" Foreground="#45475A"/>
-                                        <TextBlock Text="{Binding Group}" FontSize="10"
-                                                   Foreground="#6C7086" TextTrimming="CharacterEllipsis"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                    <!-- Empty vault state -->
+                    <TextBlock Grid.Row="1"
+                               Text="// nenhum cofre"
+                               FontFamily="{StaticResource Font.Mono}"
+                               FontSize="11" Foreground="{StaticResource Brush.Muted}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding Vaults.Count, Converter={StaticResource ZeroToVisibility}}"/>
 
-                <!-- Empty vault state -->
-                <TextBlock Grid.Row="1" Text="Nenhum cofre criado"
-                           FontSize="12" Foreground="#45475A"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding Vaults.Count, Converter={StaticResource ZeroToVisibility}}"/>
-
-                <!-- New vault button (Global Admin only — POST /vaults requires Admin Geral) -->
-                <Border Grid.Row="2" Padding="12,8,12,12"
-                        Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
-                    <Button Command="{Binding OpenCreateVaultFormCommand}"
-                            FontSize="12" Padding="0,10"
-                            Background="#CBA6F7" Foreground="#1E1E2E"
-                            BorderThickness="0" Cursor="Hand"
-                            FontWeight="SemiBold">
-                        <Button.Resources>
-                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                        </Button.Resources>
-                        <Button.Content>
+                    <!-- New vault button (Global Admin only) -->
+                    <Border Grid.Row="2" Padding="10,8,10,10"
+                            Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
+                        <Button Command="{Binding OpenCreateVaultFormCommand}"
+                                Style="{StaticResource SentilButtonAccent}"
+                                FontSize="12" Padding="0,9">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="+" FontSize="16" FontWeight="Bold" Margin="0,-2,6,0"/>
-                                <TextBlock Text="Novo Cofre" FontSize="12" VerticalAlignment="Center"/>
+                                <TextBlock Text="+" FontSize="14" FontWeight="Bold" Margin="0,-1,6,0"/>
+                                <TextBlock Text="novo cofre" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Button.Content>
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#D4B8FC"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </Border>
-            </Grid>
+                        </Button>
+                    </Border>
+                </Grid>
+            </Border>
 
             <!-- Divider -->
-            <Border Grid.Column="1" Background="#313244"/>
+            <Border Grid.Column="1" Background="{StaticResource Brush.Border}"/>
 
-            <!-- ═══ CONTENT AREA ═══ -->
+            <!-- ── CONTENT ────────────────────────────────────────────── -->
             <Grid Grid.Column="2">
 
-                <!-- STATE 1: No vault selected + no create form => Welcome -->
-                <Border>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="{Binding HasSelectedVault, Converter={StaticResource InverseBoolToVisibility}}"/>
+                <!-- STATE 1: No vault + no form => Welcome -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility"
+                                    Value="{Binding HasSelectedVault, Converter={StaticResource InverseBoolToVisibility}}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCreateVaultForm}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Border.Style>
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40">
-                        <Border Width="64" Height="64" CornerRadius="32"
-                                Background="#252537" HorizontalAlignment="Center" Margin="0,0,0,16">
-                            <TextBlock Text="&#x1F512;" FontSize="28"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock Text="Selecione um cofre" FontSize="18" FontWeight="SemiBold"
-                                   Foreground="#CDD6F4" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                        <TextBlock Text="Escolha um cofre na barra lateral para gerenciar&#x0a;seus segredos, permissoes e mapeamentos AD."
-                                   FontSize="13" Foreground="#6C7086" TextAlignment="Center"
-                                   LineHeight="20"/>
-                        <Button Content="Criar primeiro cofre" Margin="0,20,0,0"
-                                Command="{Binding OpenCreateVaultFormCommand}"
-                                FontSize="13" Padding="20,10"
-                                Background="#CBA6F7" Foreground="#1E1E2E"
-                                BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
-                                HorizontalAlignment="Center"
-                                Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
-                            <Button.Resources>
-                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                            </Button.Resources>
-                        </Button>
-                    </StackPanel>
-                </Border>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="[ ]"
+                               FontFamily="{StaticResource Font.Mono}"
+                               FontSize="36" Foreground="{StaticResource Brush.Border}"
+                               HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                    <TextBlock Text="selecione um cofre"
+                               FontFamily="{StaticResource Font.Mono}"
+                               FontSize="13" Foreground="{StaticResource Brush.Muted}"
+                               HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                    <TextBlock Text="// escolha na barra lateral para gerenciar segredos, AD maps e autofill"
+                               FontFamily="{StaticResource Font.Mono}"
+                               FontSize="10" Foreground="{StaticResource Brush.Border}"
+                               HorizontalAlignment="Center" TextAlignment="Center"/>
+                    <Button Content="criar primeiro cofre"
+                            Margin="0,20,0,0"
+                            Command="{Binding OpenCreateVaultFormCommand}"
+                            Style="{StaticResource SentilButtonAccent}"
+                            FontSize="12" Padding="24,10"
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}"/>
+                </StackPanel>
 
                 <!-- STATE 2: Create vault form -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding ShowCreateVaultForm, Converter={StaticResource BoolToVisibility}}">
-                    <StackPanel MaxWidth="520" Margin="32,24,32,24" HorizontalAlignment="Left">
+                    <StackPanel MaxWidth="520" Margin="32,24" HorizontalAlignment="Left">
 
-                        <!-- Form header -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                            <TextBlock Text="Novo Cofre" FontSize="20" FontWeight="Bold"
-                                       Foreground="#CDD6F4" VerticalAlignment="Center"/>
-                        </StackPanel>
+                        <TextBlock Text="// novo cofre"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Accent}"
+                                   Margin="0,0,0,6"/>
+                        <TextBlock Text="Criar Cofre"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="18" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Fg}"
+                                   Margin="0,0,0,6"/>
+                        <TextBlock Text="Organize segredos por equipe, projeto ou ambiente."
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,24"/>
 
-                        <TextBlock Text="Crie um cofre para organizar segredos por equipe, projeto ou ambiente."
-                                   FontSize="13" Foreground="#6C7086" Margin="0,0,0,24" LineHeight="20"/>
-
-                        <!-- Nome do Cofre -->
-                        <TextBlock Text="Nome do Cofre *" Foreground="#BAC2DE" FontSize="12"
-                                   FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <!-- Nome -->
+                        <TextBlock Text="// NOME *" FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
                         <TextBox Text="{Binding NewVaultName, UpdateSourceTrigger=PropertyChanged}"
-                                 FontSize="13" Padding="12,10"
-                                 Background="#313244" Foreground="#CDD6F4"
-                                 BorderBrush="#45475A" BorderThickness="1"
-                                 CaretBrush="#CDD6F4" Margin="0,0,0,4">
-                            <TextBox.Resources>
-                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                            </TextBox.Resources>
-                        </TextBox>
-                        <TextBlock Text="Ex: TI Producao, Cofre Licitacoes, DevOps Staging"
-                                   FontSize="11" Foreground="#585B70" Margin="0,0,0,16"/>
+                                 Style="{StaticResource SentilTextBox}" Margin="0,0,0,4"/>
+                        <TextBlock Text="ex: TI Producao, Cofre Licitacoes"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}" Margin="0,0,0,16"/>
 
                         <!-- Slug -->
-                        <TextBlock Text="Slug (identificador unico)" Foreground="#BAC2DE" FontSize="12"
-                                   FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <TextBlock Text="// SLUG" FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
                         <TextBox Text="{Binding NewVaultSlug, UpdateSourceTrigger=PropertyChanged}"
-                                 FontSize="13" Padding="12,10"
-                                 Background="#313244" Foreground="#CDD6F4"
-                                 BorderBrush="#45475A" BorderThickness="1"
-                                 CaretBrush="#CDD6F4" Margin="0,0,0,4">
-                            <TextBox.Resources>
-                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                            </TextBox.Resources>
-                        </TextBox>
-                        <TextBlock Text="Gerado automaticamente a partir do nome. Usado em URLs e automacoes."
-                                   FontSize="11" Foreground="#585B70" Margin="0,0,0,16"/>
+                                 Style="{StaticResource SentilTextBox}" Margin="0,0,0,4"/>
+                        <TextBlock Text="gerado automaticamente — usado em URLs e automacoes"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}" Margin="0,0,0,16"/>
 
-                        <!-- Row: Tenant ID + Grupo AD -->
+                        <!-- Tenant + Grupo AD -->
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="12"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Tenant ID *" Foreground="#BAC2DE" FontSize="12"
-                                           FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBlock Text="// TENANT ID *" FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding NewVaultTenantId, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="13" Padding="12,10"
-                                         Background="#313244" Foreground="#CDD6F4"
-                                         BorderBrush="#45475A" BorderThickness="1"
-                                         CaretBrush="#CDD6F4">
-                                    <TextBox.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                    </TextBox.Resources>
-                                </TextBox>
-                                <TextBlock Text="Identificador da organizacao" FontSize="11"
-                                           Foreground="#585B70" Margin="0,4,0,0"/>
+                                         Style="{StaticResource SentilTextBox}"/>
                             </StackPanel>
-
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="Grupo AD *" Foreground="#BAC2DE" FontSize="12"
-                                           FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBlock Text="// GRUPO AD *" FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding NewVaultGroup, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="13" Padding="12,10"
-                                         Background="#313244" Foreground="#CDD6F4"
-                                         BorderBrush="#45475A" BorderThickness="1"
-                                         CaretBrush="#CDD6F4">
-                                    <TextBox.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                    </TextBox.Resources>
-                                </TextBox>
-                                <TextBlock Text="Grupo proprietario do cofre" FontSize="11"
-                                           Foreground="#585B70" Margin="0,4,0,0"/>
+                                         Style="{StaticResource SentilTextBox}"/>
                             </StackPanel>
                         </Grid>
 
-                        <!-- Row: Ambiente + Descricao -->
-                        <TextBlock Text="Ambiente" Foreground="#BAC2DE" FontSize="12"
-                                   FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <!-- Ambiente -->
+                        <TextBlock Text="// AMBIENTE" FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,8"/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <RadioButton Content="  Production" GroupName="VaultEnv"
-                                         IsChecked="True"
-                                         Foreground="#CDD6F4" FontSize="12" Margin="0,0,20,0"
-                                         Tag="Production" Checked="VaultEnv_Checked"/>
-                            <RadioButton Content="  Staging" GroupName="VaultEnv"
-                                         Foreground="#CDD6F4" FontSize="12" Margin="0,0,20,0"
-                                         Tag="Staging" Checked="VaultEnv_Checked"/>
-                            <RadioButton Content="  Development" GroupName="VaultEnv"
-                                         Foreground="#CDD6F4" FontSize="12"
-                                         Tag="Development" Checked="VaultEnv_Checked"/>
+                            <RadioButton Content="Production"  GroupName="VaultEnv" IsChecked="True"
+                                         Foreground="{StaticResource Brush.Fg}" FontFamily="{StaticResource Font.Mono}"
+                                         FontSize="11" Margin="0,0,20,0" Tag="Production" Checked="VaultEnv_Checked"/>
+                            <RadioButton Content="Staging"     GroupName="VaultEnv"
+                                         Foreground="{StaticResource Brush.Fg}" FontFamily="{StaticResource Font.Mono}"
+                                         FontSize="11" Margin="0,0,20,0" Tag="Staging" Checked="VaultEnv_Checked"/>
+                            <RadioButton Content="Development" GroupName="VaultEnv"
+                                         Foreground="{StaticResource Brush.Fg}" FontFamily="{StaticResource Font.Mono}"
+                                         FontSize="11" Tag="Development" Checked="VaultEnv_Checked"/>
                         </StackPanel>
 
-                        <!-- Descricao -->
-                        <TextBlock Text="Descricao (opcional)" Foreground="#BAC2DE" FontSize="12"
-                                   FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <!-- Descrição -->
+                        <TextBlock Text="// DESCRICAO" FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,5"/>
                         <TextBox Text="{Binding NewVaultDescription, UpdateSourceTrigger=PropertyChanged}"
-                                 FontSize="13" Padding="12,10"
-                                 Background="#313244" Foreground="#CDD6F4"
-                                 BorderBrush="#45475A" BorderThickness="1"
-                                 CaretBrush="#CDD6F4" Margin="0,0,0,24"
+                                 Style="{StaticResource SentilTextBox}"
                                  AcceptsReturn="True" TextWrapping="Wrap"
-                                 MinHeight="60" MaxHeight="100"
-                                 VerticalScrollBarVisibility="Auto">
-                            <TextBox.Resources>
-                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                            </TextBox.Resources>
-                        </TextBox>
+                                 MinHeight="56" MaxHeight="90"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Margin="0,0,0,24"/>
 
-                        <!-- Action buttons -->
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                             <Button Command="{Binding CreateVaultCommand}"
-                                    FontSize="13" Padding="24,10"
-                                    Background="#CBA6F7" Foreground="#1E1E2E"
-                                    BorderThickness="0" Cursor="Hand"
-                                    FontWeight="SemiBold" Margin="0,0,10,0">
-                                <Button.Resources>
-                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                </Button.Resources>
-                                <Button.Content>
-                                    <TextBlock Text="Criar Cofre"/>
-                                </Button.Content>
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#D4B8FC"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled" Value="False">
-                                                <Setter Property="Background" Value="#45475A"/>
-                                                <Setter Property="Foreground" Value="#6C7086"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-
-                            <Button Content="Cancelar"
-                                    Command="{Binding CancelCreateVaultCommand}"
-                                    FontSize="13" Padding="24,10"
-                                    Background="Transparent" Foreground="#6C7086"
-                                    BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
-                                <Button.Resources>
-                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                </Button.Resources>
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
+                                    Style="{StaticResource SentilButtonAccent}"
+                                    FontSize="12" Padding="24,10" Margin="0,0,10,0"
+                                    Content="criar cofre"/>
+                            <Button Command="{Binding CancelCreateVaultCommand}"
+                                    Style="{StaticResource SentilButtonGhost}"
+                                    FontSize="11" Padding="18,10" Content="cancelar"/>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- STATE 3: Vault selected => Tabs content -->
+                <!-- STATE 3: Vault selected -->
                 <Grid>
                     <Grid.Style>
                         <Style TargetType="Grid">
-                            <Setter Property="Visibility" Value="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}"/>
+                            <Setter Property="Visibility"
+                                    Value="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCreateVaultForm}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding ShowEditVaultForm}" Value="True">
-                                    <Setter Property="Visibility" Value="{Binding SelectedVault, Converter={StaticResource NullToVisibility}}"/>
-                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
-
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>  <!-- Vault context banner -->
-                        <RowDefinition Height="Auto"/>  <!-- Edit vault form -->
-                        <RowDefinition Height="*"/>     <!-- Tab content -->
+                        <RowDefinition Height="Auto"/>   <!-- Vault banner -->
+                        <RowDefinition Height="Auto"/>   <!-- Edit form -->
+                        <RowDefinition Height="*"/>      <!-- Tabs -->
                     </Grid.RowDefinitions>
 
-                    <!-- Vault context banner -->
-                    <Border Grid.Row="0" Background="#1E1E2E" Padding="24,16,24,8">
+                    <!-- Vault banner -->
+                    <Border Grid.Row="0"
+                            Background="{StaticResource Brush.SidebarBg}"
+                            BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="0,0,0,1"
+                            Padding="24,14">
                         <Grid>
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <TextBlock Text="{Binding SelectedVault.Name}" FontSize="18" FontWeight="Bold"
-                                               Foreground="#CDD6F4"/>
-                                    <Border CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
+                                    <TextBlock Text="{Binding SelectedVault.Name}"
+                                               FontSize="15" FontWeight="Bold"
+                                               Foreground="{StaticResource Brush.Fg}"/>
+                                    <Border CornerRadius="2" Padding="7,2" Margin="10,0,0,0"
+                                            Background="{StaticResource Brush.ChipBg}"
                                             VerticalAlignment="Center">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#1E3A5F"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Production">
-                                                        <Setter Property="Background" Value="#1A3A1A"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Staging">
-                                                        <Setter Property="Background" Value="#3A3A1A"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <TextBlock FontSize="10" FontWeight="SemiBold">
+                                        <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="9" FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#89B4FA"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
                                                     <Setter Property="Text" Value="{Binding SelectedVault.Environment}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Production">
-                                                            <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding SelectedVault.Environment}" Value="Staging">
-                                                            <Setter Property="Foreground" Value="#F9E2AF"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Warning}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -500,149 +380,97 @@
                                         </TextBlock>
                                     </Border>
                                 </StackPanel>
-                                <TextBlock FontSize="12" Foreground="#6C7086">
+                                <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="10" Foreground="{StaticResource Brush.Muted}">
                                     <Run Text="{Binding SelectedVault.Group}"/>
                                     <Run Text=" · "/>
                                     <Run Text="{Binding SelectedVault.Slug}"/>
-                                    <Run Text=" · "/>
-                                    <Run Text="{Binding SelectedVault.Id, StringFormat='{}{0:N}'}"/>
                                 </TextBlock>
                             </StackPanel>
 
-                            <!-- Edit / Delete buttons -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button Command="{Binding OpenEditVaultFormCommand}"
-                                        Content="Editar" FontSize="11" Padding="12,6" Margin="0,0,8,0"
-                                        Background="Transparent" Foreground="#89B4FA"
-                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
-                                    <Button.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style>
-                                    </Button.Resources>
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="BorderBrush" Value="#89B4FA"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                        Content="editar"
+                                        Style="{StaticResource SentilButtonGhost}"
+                                        FontFamily="{StaticResource Font.Mono}"
+                                        FontSize="11" Padding="12,5" Margin="0,0,6,0"/>
                                 <Button Command="{Binding DeleteVaultCommand}"
-                                        Content="Excluir" FontSize="11" Padding="12,6"
-                                        Background="Transparent" Foreground="#F38BA8"
-                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
-                                    <Button.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style>
-                                    </Button.Resources>
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="BorderBrush" Value="#F38BA8"/>
-                                                    <Setter Property="Background" Value="#2B0D0D"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                        Content="excluir"
+                                        Style="{StaticResource SentilButtonGhost}"
+                                        FontFamily="{StaticResource Font.Mono}"
+                                        FontSize="11" Padding="12,5"
+                                        Foreground="{StaticResource Brush.Danger}"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- Edit vault form (inline, collapses when not editing) -->
-                    <Border Grid.Row="1" Background="#181825" Padding="24,16"
+                    <!-- Edit vault inline form -->
+                    <Border Grid.Row="1"
+                            Background="{StaticResource Brush.ListBg}"
+                            BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="0,0,0,1"
+                            Padding="24,14"
                             Visibility="{Binding ShowEditVaultForm, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
-                            <TextBlock Text="Editar Cofre" FontSize="14" FontWeight="SemiBold"
-                                       Foreground="#CDD6F4" Margin="0,0,0,14"/>
+                            <TextBlock Text="// editar cofre"
+                                       FontFamily="{StaticResource Font.Mono}"
+                                       FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,10"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="12"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Nome *" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding EditVaultName, UpdateSourceTrigger=PropertyChanged}"
-                                             FontSize="12" Padding="10,8"
-                                             Background="#313244" Foreground="#CDD6F4"
-                                             BorderBrush="#45475A" BorderThickness="1" CaretBrush="#CDD6F4">
-                                        <TextBox.Resources>
-                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                        </TextBox.Resources>
-                                    </TextBox>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Descricao" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding EditVaultDescription, UpdateSourceTrigger=PropertyChanged}"
-                                             FontSize="12" Padding="10,8"
-                                             Background="#313244" Foreground="#CDD6F4"
-                                             BorderBrush="#45475A" BorderThickness="1" CaretBrush="#CDD6F4">
-                                        <TextBox.Resources>
-                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                        </TextBox.Resources>
-                                    </TextBox>
-                                </StackPanel>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding EditVaultName, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SentilTextBox}"/>
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding EditVaultDescription, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SentilTextBox}"/>
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button Command="{Binding SaveVaultCommand}"
-                                        Content="Salvar" FontSize="12" Padding="20,8" Margin="0,0,8,0"
-                                        Background="#CBA6F7" Foreground="#1E1E2E"
-                                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
-                                    <Button.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                    </Button.Resources>
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Style.Triggers>
-                                                <Trigger Property="IsEnabled" Value="False">
-                                                    <Setter Property="Background" Value="#45475A"/>
-                                                    <Setter Property="Foreground" Value="#6C7086"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                        Content="salvar"
+                                        Style="{StaticResource SentilButtonAccent}"
+                                        FontSize="11" Padding="18,7" Margin="0,0,8,0"/>
                                 <Button Command="{Binding CancelEditVaultCommand}"
-                                        Content="Cancelar" FontSize="12" Padding="20,8"
-                                        Background="Transparent" Foreground="#6C7086"
-                                        BorderBrush="#45475A" BorderThickness="1" Cursor="Hand">
-                                    <Button.Resources>
-                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                    </Button.Resources>
-                                </Button>
+                                        Content="cancelar"
+                                        Style="{StaticResource SentilButtonGhost}"
+                                        FontSize="11" Padding="18,7"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- Tabs -->
-                    <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTab}"
-                                Background="#1E1E2E" BorderThickness="0" Padding="0" Margin="20,4,20,0">
-
+                    <TabControl Grid.Row="2"
+                                SelectedIndex="{Binding SelectedTab}"
+                                Background="{StaticResource Brush.AppBg}"
+                                BorderThickness="0" Padding="0" Margin="20,8,20,0">
                         <TabControl.Resources>
                             <Style TargetType="TabItem">
-                                <Setter Property="Background" Value="#1E1E2E"/>
-                                <Setter Property="Foreground" Value="#6C7086"/>
-                                <Setter Property="Padding" Value="16,8"/>
-                                <Setter Property="FontSize" Value="13"/>
+                                <Setter Property="Background"    Value="Transparent"/>
+                                <Setter Property="Foreground"    Value="{StaticResource Brush.Muted}"/>
+                                <Setter Property="Padding"       Value="14,7"/>
+                                <Setter Property="FontSize"      Value="11"/>
+                                <Setter Property="FontFamily"    Value="{StaticResource Font.Mono}"/>
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="TabItem">
                                             <Border x:Name="Bd" Padding="{TemplateBinding Padding}"
                                                     Background="Transparent"
-                                                    BorderBrush="Transparent" BorderThickness="0,0,0,2">
-                                                <ContentPresenter ContentSource="Header"
-                                                                  HorizontalAlignment="Center"/>
+                                                    BorderBrush="Transparent"
+                                                    BorderThickness="0,0,0,2">
+                                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#CBA6F7"/>
-                                                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                                            Value="{StaticResource Brush.Accent}"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Fg}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Fg}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -651,175 +479,115 @@
                             </Style>
                         </TabControl.Resources>
 
-                        <!-- ═══ Tab: Segredos ═══ -->
-                        <TabItem Header="Segredos">
-                            <Grid Margin="0,16,0,0">
+                        <!-- ── Tab: Segredos ── -->
+                        <TabItem Header="segredos">
+                            <Grid Margin="0,14,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Create / Edit secret form -->
-                                <Border Grid.Row="0" CornerRadius="8"
-                                        Padding="20,16" Margin="0,0,0,12">
+                                <!-- Form -->
+                                <Border Grid.Row="0" CornerRadius="2" Padding="18,14" Margin="0,0,0,10">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#181825"/>
+                                            <Setter Property="Background" Value="{StaticResource Brush.SidebarBg}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
-                                                    <Setter Property="Background" Value="#1E2030"/>
+                                                    <Setter Property="Background" Value="{StaticResource Brush.ListBg}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
                                     <StackPanel>
-                                        <!-- Form title: switches between Add / Edit -->
-                                        <Grid Margin="0,0,0,12">
-                                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#CDD6F4">
+                                        <Grid Margin="0,0,0,10">
+                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource Brush.Fg}"
+                                                       VerticalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="Adicionar Segredo"/>
+                                                        <Setter Property="Text" Value="// adicionar segredo"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
-                                                                <Setter Property="Text" Value="Editar Segredo"/>
+                                                                <Setter Property="Text" Value="// editar segredo"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <!-- Cancel edit button (only visible when editing) -->
-                                            <Button HorizontalAlignment="Right" Content="Cancelar edicao"
+                                            <Button HorizontalAlignment="Right"
+                                                    Content="cancelar edicao"
                                                     Command="{Binding CancelEditSecretCommand}"
-                                                    FontSize="11" Padding="12,5"
-                                                    Background="Transparent" Foreground="#6C7086"
-                                                    BorderBrush="#45475A" BorderThickness="1" Cursor="Hand"
-                                                    Visibility="{Binding IsEditingSecret, Converter={StaticResource BoolToVisibility}}">
-                                                <Button.Resources>
-                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                </Button.Resources>
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
+                                                    Style="{StaticResource SentilButtonGhost}"
+                                                    FontFamily="{StaticResource Font.Mono}"
+                                                    FontSize="10" Padding="10,4"
+                                                    Visibility="{Binding IsEditingSecret, Converter={StaticResource BoolToVisibility}}"/>
                                         </Grid>
                                         <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="12"/>
-                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Row 1: Name + ContentType -->
-                                            <StackPanel Grid.Row="0" Grid.Column="0">
-                                                <TextBlock Text="Nome" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="// NOME" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewSecretName, UpdateSourceTrigger=PropertyChanged}"
                                                          IsReadOnly="{Binding IsEditingSecret}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="TextBox">
-                                                            <Setter Property="Background" Value="#313244"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
-                                                                    <Setter Property="Background" Value="#252537"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBox.Style>
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
-                                            </StackPanel>
-                                            <StackPanel Grid.Row="0" Grid.Column="2">
-                                                <TextBlock Text="Tipo" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding NewSecretContentType, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
 
-                                            <!-- Row 2: Value + Button -->
-                                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,10,0,0">
-                                                <TextBlock Foreground="#585B70" FontSize="11" Margin="0,0,0,4">
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="// TIPO" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding NewSecretContentType, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource SentilTextBox}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="4">
+                                                <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Text" Value="Valor"/>
+                                                            <Setter Property="Text" Value="// VALOR"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
-                                                                    <Setter Property="Text" Value="Novo Valor"/>
+                                                                    <Setter Property="Text" Value="// NOVO VALOR"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBox Grid.Column="0"
-                                                             Text="{Binding NewSecretValue, UpdateSourceTrigger=PropertyChanged}"
-                                                             FontSize="12" Padding="10,8"
-                                                             Background="#313244" Foreground="#CDD6F4"
-                                                             BorderBrush="#45475A" BorderThickness="1"
-                                                             CaretBrush="#CDD6F4" Margin="0,0,10,0">
-                                                        <TextBox.Resources>
-                                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                        </TextBox.Resources>
-                                                    </TextBox>
-                                                    <Button Grid.Column="1"
-                                                            Command="{Binding CreateSecretCommand}"
-                                                            FontSize="12" Padding="20,8"
-                                                            Background="#89B4FA" Foreground="#1E1E2E"
-                                                            BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
-                                                        <Button.Content>
-                                                            <TextBlock>
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Text" Value="Salvar"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
-                                                                                <Setter Property="Text" Value="Atualizar"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </Button.Content>
-                                                        <Button.Resources>
-                                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                        </Button.Resources>
-                                                        <Button.Style>
-                                                            <Style TargetType="Button">
+                                                <TextBox Text="{Binding NewSecretValue, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource SentilTextBox}"/>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="6"
+                                                    Command="{Binding CreateSecretCommand}"
+                                                    Style="{StaticResource SentilButtonAccent}"
+                                                    FontSize="11" Padding="18,0"
+                                                    VerticalAlignment="Bottom" Height="36">
+                                                <Button.Content>
+                                                    <TextBlock FontFamily="{StaticResource Font.Mono}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="salvar"/>
                                                                 <Style.Triggers>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Background" Value="#45475A"/>
-                                                                        <Setter Property="Foreground" Value="#6C7086"/>
-                                                                    </Trigger>
+                                                                    <DataTrigger Binding="{Binding IsEditingSecret}" Value="True">
+                                                                        <Setter Property="Text" Value="atualizar"/>
+                                                                    </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                </Grid>
-                                            </StackPanel>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Button.Content>
+                                            </Button>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -827,24 +595,15 @@
                                 <!-- Secrets list -->
                                 <Grid Grid.Row="1">
                                     <ListBox ItemsSource="{Binding Secrets}"
-                                             Background="Transparent" BorderThickness="0"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                             Style="{StaticResource SentilListBox}">
                                         <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                <Setter Property="Padding" Value="0"/>
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#252537"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SentilListBoxItem}"/>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type models:SecretItem}">
-                                                <Border Padding="14,12" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                                <Border Padding="14,11"
+                                                        BorderBrush="{StaticResource Brush.Border}"
+                                                        BorderThickness="0,0,0,1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
@@ -852,152 +611,111 @@
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
-                                                                       Foreground="#CDD6F4"/>
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontSize="12" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource Brush.Fg}"/>
                                                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                                <Border Background="#252537" CornerRadius="3" Padding="5,2" Margin="0,0,6,0">
+                                                                <Border Background="{StaticResource Brush.ChipBg}"
+                                                                        CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
                                                                     <TextBlock Text="{Binding CurrentVersion, StringFormat='v{0}'}"
-                                                                               FontSize="10" Foreground="#6C7086"/>
+                                                                               FontFamily="{StaticResource Font.Mono}"
+                                                                               FontSize="9" Foreground="{StaticResource Brush.Muted}"/>
                                                                 </Border>
                                                                 <TextBlock Text="{Binding ContentType}"
-                                                                           FontSize="11" Foreground="#585B70"
+                                                                           FontFamily="{StaticResource Font.Mono}"
+                                                                           FontSize="10" Foreground="{StaticResource Brush.Muted}"
                                                                            VerticalAlignment="Center"/>
                                                             </StackPanel>
                                                         </StackPanel>
-                                                        <Button Grid.Column="1" Content="Editar"
-                                                                Command="{Binding DataContext.EditSecretCommand,
-                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        <Button Grid.Column="1" Content="editar"
+                                                                Command="{Binding DataContext.EditSecretCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
-                                                                FontSize="11" Padding="12,6" Margin="0,0,6,0"
-                                                                Background="Transparent" Foreground="#89B4FA"
-                                                                BorderBrush="#45475A" BorderThickness="1"
-                                                                Cursor="Hand">
-                                                            <Button.Resources>
-                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                            </Button.Resources>
-                                                            <Button.Style>
-                                                                <Style TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#89B4FA"/>
-                                                                            <Setter Property="Background" Value="#1E2030"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
-                                                        <Button Grid.Column="2" Content="Desativar"
-                                                                Command="{Binding DataContext.DeleteSecretCommand,
-                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                Style="{StaticResource SentilButtonGhost}"
+                                                                FontFamily="{StaticResource Font.Mono}"
+                                                                FontSize="10" Padding="10,4" Margin="0,0,6,0"/>
+                                                        <Button Grid.Column="2" Content="desativar"
+                                                                Command="{Binding DataContext.DeleteSecretCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
-                                                                FontSize="11" Padding="12,6"
-                                                                Background="Transparent" Foreground="#F38BA8"
-                                                                BorderBrush="#45475A" BorderThickness="1"
-                                                                Cursor="Hand">
-                                                            <Button.Resources>
-                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                            </Button.Resources>
-                                                            <Button.Style>
-                                                                <Style TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#F38BA8"/>
-                                                                            <Setter Property="Background" Value="#2B0D0D"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
+                                                                Style="{StaticResource SentilButtonGhost}"
+                                                                FontFamily="{StaticResource Font.Mono}"
+                                                                FontSize="10" Padding="10,4"
+                                                                Foreground="{StaticResource Brush.Danger}"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-
-                                    <!-- Empty state -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding Secrets.Count, Converter={StaticResource ZeroToVisibility}}">
-                                        <TextBlock Text="Nenhum segredo neste cofre"
-                                                   FontSize="14" Foreground="#585B70"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Use o formulario acima para adicionar o primeiro segredo."
-                                                   FontSize="12" Foreground="#45475A"
+                                        <TextBlock Text="[ ]" FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="24" Foreground="{StaticResource Brush.Border}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                        <TextBlock Text="nenhum segredo neste cofre"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" Foreground="{StaticResource Brush.Muted}"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
                         </TabItem>
 
-                        <!-- ═══ Tab: AD Maps ═══ -->
-                        <TabItem Header="Permissoes AD">
-                            <Grid Margin="0,16,0,0">
+                        <!-- ── Tab: AD Maps ── -->
+                        <TabItem Header="permissoes AD">
+                            <Grid Margin="0,14,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Info banner -->
-                                <Border Grid.Row="0" Background="#181825" CornerRadius="8"
-                                        Padding="20,16" Margin="0,0,0,12">
+                                <!-- Form -->
+                                <Border Grid.Row="0"
+                                        Background="{StaticResource Brush.SidebarBg}"
+                                        CornerRadius="2" Padding="18,14" Margin="0,0,0,10">
                                     <StackPanel>
-                                        <TextBlock Text="Vincular Grupo AD" FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="#CDD6F4" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Membros do grupo terao acesso aos segredos deste cofre conforme a permissao."
-                                                   FontSize="11" Foreground="#585B70" Margin="0,0,0,12"/>
+                                        <TextBlock Text="// vincular grupo AD"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Brush.Fg}" Margin="0,0,0,4"/>
+                                        <TextBlock Text="membros do grupo terao acesso aos segredos conforme a permissao"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,12"/>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="12"/>
-                                                <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="130"/>
                                                 <ColumnDefinition Width="10"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Grupo AD" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// GRUPO" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewAdMapGroupId, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="2">
-                                                <TextBlock Text="Permissao" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// PERMISSAO" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <ComboBox SelectedItem="{Binding NewAdMapPermission}"
-                                                          FontSize="12" Padding="10,6"
-                                                          Background="#313244" Foreground="#CDD6F4"
-                                                          BorderBrush="#45475A" BorderThickness="1">
+                                                          Background="{StaticResource Brush.FieldBg}"
+                                                          Foreground="{StaticResource Brush.Fg}"
+                                                          BorderBrush="{StaticResource Brush.Border}"
+                                                          FontFamily="{StaticResource Font.Mono}"
+                                                          FontSize="12" Padding="8,6">
                                                     <sys:String>Read</sys:String>
                                                     <sys:String>Write</sys:String>
                                                     <sys:String>Admin</sys:String>
                                                 </ComboBox>
                                             </StackPanel>
 
-                                            <Button Grid.Column="4" Content="Vincular"
+                                            <Button Grid.Column="4" Content="vincular"
                                                     Command="{Binding CreateAdMapCommand}"
-                                                    FontSize="12" Padding="20,8"
-                                                    Background="#89B4FA" Foreground="#1E1E2E"
-                                                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
-                                                    VerticalAlignment="Bottom">
-                                                <Button.Resources>
-                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                </Button.Resources>
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter Property="Background" Value="#45475A"/>
-                                                                <Setter Property="Foreground" Value="#6C7086"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
+                                                    Style="{StaticResource SentilButtonAccent}"
+                                                    FontFamily="{StaticResource Font.Mono}"
+                                                    FontSize="11" Padding="18,0"
+                                                    VerticalAlignment="Bottom" Height="36"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1005,24 +723,15 @@
                                 <!-- AD Maps list -->
                                 <Grid Grid.Row="1">
                                     <ListBox ItemsSource="{Binding AdMaps}"
-                                             Background="Transparent" BorderThickness="0"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                             Style="{StaticResource SentilListBox}">
                                         <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                <Setter Property="Padding" Value="0"/>
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#252537"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SentilListBoxItem}"/>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type models:AdMapItem}">
-                                                <Border Padding="14,12" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                                <Border Padding="14,11"
+                                                        BorderBrush="{StaticResource Brush.Border}"
+                                                        BorderThickness="0,0,0,1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
@@ -1032,38 +741,41 @@
                                                         </Grid.ColumnDefinitions>
 
                                                         <TextBlock Grid.Column="0" Text="{Binding GroupId}"
-                                                                   FontSize="13" Foreground="#CDD6F4"
-                                                                   FontWeight="Medium" VerticalAlignment="Center"/>
+                                                                   FontSize="12" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource Brush.Fg}"
+                                                                   VerticalAlignment="Center"/>
 
-                                                        <!-- Permission badge -->
-                                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,3" Margin="8,0"
-                                                                VerticalAlignment="Center" Background="#1E3A5F">
-                                                            <TextBlock Text="{Binding Permission}" FontSize="11"
-                                                                       Foreground="#89B4FA" FontWeight="SemiBold"/>
+                                                        <Border Grid.Column="1" CornerRadius="2" Padding="7,2"
+                                                                Margin="8,0" Background="{StaticResource Brush.ChipBg}"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Permission}"
+                                                                       FontFamily="{StaticResource Font.Mono}"
+                                                                       FontSize="9" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource Brush.Accent}"/>
                                                         </Border>
 
-                                                        <!-- Status badge -->
-                                                        <Border Grid.Column="2" CornerRadius="4" Padding="8,3" Margin="0,0,10,0"
-                                                                VerticalAlignment="Center">
+                                                        <Border Grid.Column="2" CornerRadius="2" Padding="7,2"
+                                                                Margin="0,0,10,0" VerticalAlignment="Center">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="#1A3A1A"/>
+                                                                    <Setter Property="Background" Value="#162218"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                                            <Setter Property="Background" Value="#2B0D0D"/>
+                                                                            <Setter Property="Background" Value="#2A1410"/>
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <TextBlock FontSize="10" FontWeight="SemiBold">
+                                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                                       FontSize="9" FontWeight="SemiBold">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
-                                                                        <Setter Property="Text" Value="Ativo"/>
-                                                                        <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                                        <Setter Property="Text" Value="ATIVO"/>
+                                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Success}"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                                                <Setter Property="Text" Value="Inativo"/>
-                                                                                <Setter Property="Foreground" Value="#F38BA8"/>
+                                                                                <Setter Property="Text" Value="INATIVO"/>
+                                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Danger}"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1071,67 +783,54 @@
                                                             </TextBlock>
                                                         </Border>
 
-                                                        <Button Grid.Column="3" Content="Remover"
-                                                                Command="{Binding DataContext.DeleteAdMapCommand,
-                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        <Button Grid.Column="3" Content="remover"
+                                                                Command="{Binding DataContext.DeleteAdMapCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
-                                                                FontSize="11" Padding="12,6"
-                                                                Background="Transparent" Foreground="#F38BA8"
-                                                                BorderBrush="#45475A" BorderThickness="1"
-                                                                Cursor="Hand">
-                                                            <Button.Resources>
-                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                            </Button.Resources>
-                                                            <Button.Style>
-                                                                <Style TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#F38BA8"/>
-                                                                            <Setter Property="Background" Value="#2B0D0D"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
+                                                                Style="{StaticResource SentilButtonGhost}"
+                                                                FontFamily="{StaticResource Font.Mono}"
+                                                                FontSize="10" Padding="10,4"
+                                                                Foreground="{StaticResource Brush.Danger}"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-
-                                    <!-- Empty state -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding AdMaps.Count, Converter={StaticResource ZeroToVisibility}}">
-                                        <TextBlock Text="Nenhum grupo vinculado"
-                                                   FontSize="14" Foreground="#585B70"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Vincule um grupo AD para controlar quem acessa os segredos deste cofre."
-                                                   FontSize="12" Foreground="#45475A"
+                                        <TextBlock Text="[ ]" FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="24" Foreground="{StaticResource Brush.Border}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                        <TextBlock Text="nenhum grupo vinculado"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" Foreground="{StaticResource Brush.Muted}"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
                         </TabItem>
 
-                        <!-- ═══ Tab: Usuarios Locais (Global Admin only) ═══ -->
-                        <TabItem Header="Usuarios"
+                        <!-- ── Tab: Usuarios Locais (Global Admin only) ── -->
+                        <TabItem Header="usuarios"
                                  Visibility="{Binding IsGlobalAdmin, Converter={StaticResource BoolToVisibility}}">
-                            <Grid Margin="0,16,0,0">
+                            <Grid Margin="0,14,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Create user form -->
-                                <Border Grid.Row="0" Background="#181825" CornerRadius="8"
-                                        Padding="20,16" Margin="0,0,0,12">
+                                <!-- Form -->
+                                <Border Grid.Row="0"
+                                        Background="{StaticResource Brush.SidebarBg}"
+                                        CornerRadius="2" Padding="18,14" Margin="0,0,0,10">
                                     <StackPanel>
-                                        <TextBlock Text="Registrar Usuario Local" FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="#CDD6F4" Margin="0,0,0,12"/>
+                                        <TextBlock Text="// registrar usuario local"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Brush.Fg}" Margin="0,0,0,12"/>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="10"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <Grid.RowDefinitions>
@@ -1139,80 +838,45 @@
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
 
-                                            <!-- Row 1: Username + Password -->
+                                            <!-- Row 1 -->
                                             <StackPanel Grid.Row="0" Grid.Column="0">
-                                                <TextBlock Text="Usuario" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// USUARIO" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewUserUsername, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
                                             <StackPanel Grid.Row="0" Grid.Column="2">
-                                                <TextBlock Text="Senha" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// SENHA" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <PasswordBox x:Name="NewUserPasswordBox"
-                                                             FontSize="12" Padding="10,8"
-                                                             Background="#313244" Foreground="#CDD6F4"
-                                                             BorderBrush="#45475A" BorderThickness="1">
-                                                    <PasswordBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </PasswordBox.Resources>
-                                                </PasswordBox>
+                                                             Style="{StaticResource SentilPasswordBox}"/>
                                             </StackPanel>
 
-                                            <!-- Row 2: FirstName + LastName + Button -->
+                                            <!-- Row 2 -->
                                             <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,10,0,0">
-                                                <TextBlock Text="Nome" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// NOME" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewUserFirstName, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
                                             <Grid Grid.Row="1" Grid.Column="2" Margin="0,10,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="10"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                                    <TextBlock Text="Sobrenome" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="// SOBRENOME" FontFamily="{StaticResource Font.Mono}"
+                                                               FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                     <TextBox Text="{Binding NewUserLastName, UpdateSourceTrigger=PropertyChanged}"
-                                                             FontSize="12" Padding="10,8"
-                                                             Background="#313244" Foreground="#CDD6F4"
-                                                             BorderBrush="#45475A" BorderThickness="1"
-                                                             CaretBrush="#CDD6F4">
-                                                        <TextBox.Resources>
-                                                            <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                        </TextBox.Resources>
-                                                    </TextBox>
+                                                             Style="{StaticResource SentilTextBox}"/>
                                                 </StackPanel>
-                                                <Button x:Name="CreateUserButton" Grid.Column="1"
-                                                        Content="Criar" VerticalAlignment="Bottom"
-                                                        FontSize="12" Padding="20,8"
-                                                        Background="#89B4FA" Foreground="#1E1E2E"
-                                                        BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
-                                                    <Button.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </Button.Resources>
-                                                    <Button.Style>
-                                                        <Style TargetType="Button">
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Background" Value="#45475A"/>
-                                                                    <Setter Property="Foreground" Value="#6C7086"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                </Button>
+                                                <Button x:Name="CreateUserButton" Grid.Column="2"
+                                                        Content="criar"
+                                                        Style="{StaticResource SentilButtonAccent}"
+                                                        FontFamily="{StaticResource Font.Mono}"
+                                                        FontSize="11" Padding="18,0"
+                                                        VerticalAlignment="Bottom" Height="36"/>
                                             </Grid>
                                         </Grid>
                                     </StackPanel>
@@ -1221,39 +885,37 @@
                                 <!-- Users list -->
                                 <Grid Grid.Row="1">
                                     <ListBox ItemsSource="{Binding Users}"
-                                             Background="Transparent" BorderThickness="0"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                             Style="{StaticResource SentilListBox}">
                                         <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                <Setter Property="Padding" Value="0"/>
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#252537"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SentilListBoxItem}"/>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type models:UserItem}">
-                                                <Border Padding="14,10" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                                <Border Padding="14,10"
+                                                        BorderBrush="{StaticResource Brush.Border}"
+                                                        BorderThickness="0,0,0,1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="*"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <Border Grid.Column="0" Background="#302040" CornerRadius="16"
-                                                                Width="36" Height="36" Margin="0,0,12,0">
-                                                            <TextBlock Text="U" FontSize="14" FontWeight="SemiBold"
-                                                                       Foreground="#CBA6F7"
-                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <Border Grid.Column="0" Width="32" Height="32"
+                                                                Background="{StaticResource Brush.Accent}"
+                                                                CornerRadius="16" Margin="0,0,10,0">
+                                                            <TextBlock Text="{Binding Initials}"
+                                                                       FontFamily="{StaticResource Font.Mono}"
+                                                                       FontSize="12" FontWeight="Bold"
+                                                                       Foreground="#181e1c"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
                                                         </Border>
                                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Username}" FontSize="13"
-                                                                       FontWeight="Medium" Foreground="#CDD6F4"/>
-                                                            <TextBlock FontSize="11" Foreground="#6C7086" Margin="0,2,0,0">
+                                                            <TextBlock Text="{Binding Username}"
+                                                                       FontSize="12" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource Brush.Fg}"/>
+                                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                                       FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                                                       Margin="0,2,0,0">
                                                                 <Run Text="{Binding FirstName}"/>
                                                                 <Run Text=" "/>
                                                                 <Run Text="{Binding LastName}"/>
@@ -1264,187 +926,135 @@
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-
-                                    <!-- Empty state -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding Users.Count, Converter={StaticResource ZeroToVisibility}}">
-                                        <TextBlock Text="Nenhum usuario local"
-                                                   FontSize="14" Foreground="#585B70"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Registre usuarios locais para acesso sem Active Directory."
-                                                   FontSize="12" Foreground="#45475A"
+                                        <TextBlock Text="[ ]" FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="24" Foreground="{StaticResource Brush.Border}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                        <TextBlock Text="nenhum usuario local"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" Foreground="{StaticResource Brush.Muted}"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
                         </TabItem>
-                        <!-- ═══ Tab: Autofill Rules ═══ -->
-                        <TabItem Header="Autofill">
-                            <Grid Margin="0,16,0,0">
+
+                        <!-- ── Tab: Autofill ── -->
+                        <TabItem Header="autofill">
+                            <Grid Margin="0,14,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Create / Edit rule form -->
-                                <Border Grid.Row="0" CornerRadius="8"
-                                        Padding="20,16" Margin="0,0,0,12">
+                                <!-- Form -->
+                                <Border Grid.Row="0" CornerRadius="2" Padding="18,14" Margin="0,0,0,10">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#181825"/>
+                                            <Setter Property="Background" Value="{StaticResource Brush.SidebarBg}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
-                                                    <Setter Property="Background" Value="#1E2030"/>
+                                                    <Setter Property="Background" Value="{StaticResource Brush.ListBg}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
                                     <StackPanel>
-                                        <Grid Margin="0,0,0,4">
-                                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#CDD6F4">
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource Brush.Fg}"
+                                                       VerticalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="Nova Regra de Autofill"/>
+                                                        <Setter Property="Text" Value="// nova regra de autofill"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
-                                                                <Setter Property="Text" Value="Editar Regra de Autofill"/>
+                                                                <Setter Property="Text" Value="// editar regra de autofill"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <!-- Cancel edit button -->
-                                            <Button HorizontalAlignment="Right" Content="Cancelar edicao"
+                                            <Button HorizontalAlignment="Right"
+                                                    Content="cancelar edicao"
                                                     Command="{Binding CancelEditRuleCommand}"
-                                                    FontSize="11" Padding="12,5"
-                                                    Background="Transparent" Foreground="#6C7086"
-                                                    BorderBrush="#45475A" BorderThickness="1" Cursor="Hand"
-                                                    Visibility="{Binding IsEditingRule, Converter={StaticResource BoolToVisibility}}">
-                                                <Button.Resources>
-                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                </Button.Resources>
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
+                                                    Style="{StaticResource SentilButtonGhost}"
+                                                    FontFamily="{StaticResource Font.Mono}"
+                                                    FontSize="10" Padding="10,4"
+                                                    Visibility="{Binding IsEditingRule, Converter={StaticResource BoolToVisibility}}"/>
                                         </Grid>
-                                        <TextBlock Text="Define qual login e segredo preencher automaticamente para um site ou app."
-                                                   FontSize="11" Foreground="#585B70" Margin="0,0,0,12"/>
+                                        <TextBlock Text="define login e segredo para preencher automaticamente para um host ou app"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,12"/>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="12"/>
-                                                <ColumnDefinition Width="140"/>
-                                                <ColumnDefinition Width="12"/>
-                                                <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="130"/>
                                                 <ColumnDefinition Width="10"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Host / App (URL ou padrao)" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// HOST / URL" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewRuleUrlPattern, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
-
                                             <StackPanel Grid.Column="2">
-                                                <TextBlock Text="Email / Login" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// LOGIN" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewRuleLogin, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
-
                                             <StackPanel Grid.Column="4">
-                                                <TextBlock Text="Nome do Segredo (senha)" Foreground="#585B70" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="// SEGREDO" FontFamily="{StaticResource Font.Mono}"
+                                                           FontSize="9" Foreground="{StaticResource Brush.Muted}" Margin="0,0,0,4"/>
                                                 <TextBox Text="{Binding NewRuleSecretName, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="12" Padding="10,8"
-                                                         Background="#313244" Foreground="#CDD6F4"
-                                                         BorderBrush="#45475A" BorderThickness="1"
-                                                         CaretBrush="#CDD6F4">
-                                                    <TextBox.Resources>
-                                                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                    </TextBox.Resources>
-                                                </TextBox>
+                                                         Style="{StaticResource SentilTextBox}"/>
                                             </StackPanel>
 
                                             <Button Grid.Column="6"
                                                     Command="{Binding CreateAutofillRuleCommand}"
-                                                    FontSize="12" Padding="16,8"
-                                                    Background="#89B4FA" Foreground="#1E1E2E"
-                                                    BorderThickness="0" Cursor="Hand" FontWeight="SemiBold"
-                                                    VerticalAlignment="Bottom">
+                                                    Style="{StaticResource SentilButtonAccent}"
+                                                    FontFamily="{StaticResource Font.Mono}"
+                                                    FontSize="11" Padding="18,0"
+                                                    VerticalAlignment="Bottom" Height="36">
                                                 <Button.Content>
                                                     <TextBlock>
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="Adicionar"/>
+                                                                <Setter Property="Text" Value="adicionar"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsEditingRule}" Value="True">
-                                                                        <Setter Property="Text" Value="Atualizar"/>
+                                                                        <Setter Property="Text" Value="atualizar"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </Button.Content>
-                                                <Button.Resources>
-                                                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                                                </Button.Resources>
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter Property="Background" Value="#45475A"/>
-                                                                <Setter Property="Foreground" Value="#6C7086"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
                                             </Button>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Autofill Rules list -->
+                                <!-- Rules list -->
                                 <Grid Grid.Row="1">
                                     <ListBox ItemsSource="{Binding AutofillRules}"
-                                             Background="Transparent" BorderThickness="0"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                             Style="{StaticResource SentilListBox}">
                                         <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                <Setter Property="Padding" Value="0"/>
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#252537"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
+                                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource SentilListBoxItem}"/>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type models:AutofillRuleItem}">
-                                                <Border Padding="14,12" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                                                <Border Padding="14,11"
+                                                        BorderBrush="{StaticResource Brush.Border}"
+                                                        BorderThickness="0,0,0,1">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
@@ -1452,38 +1062,47 @@
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
+
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding UrlPattern}" FontSize="13" FontWeight="Medium"
-                                                                       Foreground="#CDD6F4" TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Text="{Binding UrlPattern}"
+                                                                       FontSize="12" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource Brush.Fg}"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                                <TextBlock Text="{Binding Login}" FontSize="11" Foreground="#89B4FA"/>
-                                                                <TextBlock Text=" → " FontSize="11" Foreground="#45475A"/>
-                                                                <TextBlock Text="{Binding SecretName}" FontSize="11" Foreground="#A6E3A1"/>
+                                                                <TextBlock Text="{Binding Login}"
+                                                                           FontFamily="{StaticResource Font.Mono}"
+                                                                           FontSize="10" Foreground="{StaticResource Brush.Accent}"/>
+                                                                <TextBlock Text=" → "
+                                                                           FontFamily="{StaticResource Font.Mono}"
+                                                                           FontSize="10" Foreground="{StaticResource Brush.Muted}"/>
+                                                                <TextBlock Text="{Binding SecretName}"
+                                                                           FontFamily="{StaticResource Font.Mono}"
+                                                                           FontSize="10" Foreground="{StaticResource Brush.Success}"/>
                                                             </StackPanel>
                                                         </StackPanel>
 
-                                                        <!-- Active badge -->
-                                                        <Border Grid.Column="1" CornerRadius="4" Padding="8,3" Margin="8,0,10,0"
-                                                                VerticalAlignment="Center">
+                                                        <Border Grid.Column="1" CornerRadius="2" Padding="7,2"
+                                                                Margin="8,0,10,0" VerticalAlignment="Center">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="#1A3A1A"/>
+                                                                    <Setter Property="Background" Value="#162218"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                                            <Setter Property="Background" Value="#2B0D0D"/>
+                                                                            <Setter Property="Background" Value="#2A1410"/>
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <TextBlock FontSize="10" FontWeight="SemiBold">
+                                                            <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                                                       FontSize="9" FontWeight="SemiBold">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
-                                                                        <Setter Property="Text" Value="Ativo"/>
-                                                                        <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                                        <Setter Property="Text" Value="ATIVO"/>
+                                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Success}"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                                                <Setter Property="Text" Value="Inativo"/>
-                                                                                <Setter Property="Foreground" Value="#F38BA8"/>
+                                                                                <Setter Property="Text" Value="INATIVO"/>
+                                                                                <Setter Property="Foreground" Value="{StaticResource Brush.Danger}"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1491,65 +1110,32 @@
                                                             </TextBlock>
                                                         </Border>
 
-                                                        <Button Grid.Column="2" Content="Editar"
-                                                                Command="{Binding DataContext.EditAutofillRuleCommand,
-                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        <Button Grid.Column="2" Content="editar"
+                                                                Command="{Binding DataContext.EditAutofillRuleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
-                                                                FontSize="11" Padding="12,6" Margin="0,0,6,0"
-                                                                Background="Transparent" Foreground="#89B4FA"
-                                                                BorderBrush="#45475A" BorderThickness="1"
-                                                                Cursor="Hand">
-                                                            <Button.Resources>
-                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                            </Button.Resources>
-                                                            <Button.Style>
-                                                                <Style TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#89B4FA"/>
-                                                                            <Setter Property="Background" Value="#1E2030"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
-
-                                                        <Button Grid.Column="3" Content="Remover"
-                                                                Command="{Binding DataContext.DeleteAutofillRuleCommand,
-                                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                Style="{StaticResource SentilButtonGhost}"
+                                                                FontFamily="{StaticResource Font.Mono}"
+                                                                FontSize="10" Padding="10,4" Margin="0,0,6,0"/>
+                                                        <Button Grid.Column="3" Content="remover"
+                                                                Command="{Binding DataContext.DeleteAutofillRuleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                 CommandParameter="{Binding}"
-                                                                FontSize="11" Padding="12,6"
-                                                                Background="Transparent" Foreground="#F38BA8"
-                                                                BorderBrush="#45475A" BorderThickness="1"
-                                                                Cursor="Hand">
-                                                            <Button.Resources>
-                                                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="4"/></Style>
-                                                            </Button.Resources>
-                                                            <Button.Style>
-                                                                <Style TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#F38BA8"/>
-                                                                            <Setter Property="Background" Value="#2B0D0D"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                        </Button>
+                                                                Style="{StaticResource SentilButtonGhost}"
+                                                                FontFamily="{StaticResource Font.Mono}"
+                                                                FontSize="10" Padding="10,4"
+                                                                Foreground="{StaticResource Brush.Danger}"/>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-
-                                    <!-- Empty state -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding AutofillRules.Count, Converter={StaticResource ZeroToVisibility}}">
-                                        <TextBlock Text="Nenhuma regra de autofill"
-                                                   FontSize="14" Foreground="#585B70"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Adicione regras para preencher login e senha automaticamente no Chrome."
-                                                   FontSize="12" Foreground="#45475A"
+                                        <TextBlock Text="[ ]" FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="24" Foreground="{StaticResource Brush.Border}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                        <TextBlock Text="nenhuma regra de autofill"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="11" Foreground="{StaticResource Brush.Muted}"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Grid>
@@ -1561,16 +1147,18 @@
             </Grid>
         </Grid>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- STATUS BAR                                                         -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2" Padding="16,10"
+        <!-- ══════════════════════════════════════════════════════════
+             STATUS BAR
+        ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2" Padding="16,8"
                 Background="{Binding StatusType, Converter={StaticResource StatusTypeToBgBrush}}">
             <Grid>
                 <ProgressBar IsIndeterminate="True" Height="2" VerticalAlignment="Top"
-                             Foreground="#CBA6F7" Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource Brush.Accent}"
+                             Background="Transparent" BorderThickness="0"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="12"
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
                            Foreground="{Binding StatusType, Converter={StaticResource StatusTypeToBrush}}"
                            VerticalAlignment="Center"
                            Visibility="{Binding StatusMessage, Converter={StaticResource NotEmptyToVisibility}}"/>
