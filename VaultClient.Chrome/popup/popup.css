@@ -29,20 +29,20 @@
 
 /* ── Tokens ── */
 :root {
-  --app-bg:      #0a120c;
-  --sidebar-bg:  #0e1610;
-  --list-bg:     #0c1410;
-  --row-active:  #14211a;
-  --fg:          #e8ebe4;
-  --muted:       #8a8f82;
-  --accent:      #7ce8a9;
-  --border:      #1a231c;
-  --field-bg:    #0d180f;
-  --chip-bg:     #182219;
-  --danger:      #d8573e;
-  --danger-bg:   #1e0a07;
-  --warning:     #d8a13e;
-  --success:     #3e7d5c;
+  --app-bg:      #181e1c;
+  --sidebar-bg:  #1e2523;
+  --list-bg:     #1b2220;
+  --row-active:  #263030;
+  --fg:          #c8cec8;
+  --muted:       #718070;
+  --accent:      #5bad80;
+  --border:      #2a3430;
+  --field-bg:    #161c1a;
+  --chip-bg:     #222c29;
+  --danger:      #c0523a;
+  --danger-bg:   #2a1410;
+  --warning:     #b8903a;
+  --success:     #4a8c65;
 
   --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Consolas', monospace;
@@ -266,7 +266,7 @@ html, body {
   margin-top: 6px;
   transition: background 0.12s, opacity 0.12s;
 }
-.btn-primary:hover { background: #9aefba; }
+.btn-primary:hover { background: #6dc492; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-ghost {
@@ -439,7 +439,7 @@ html, body {
   transition: background 0.12s;
   z-index: 10;
 }
-.fab:hover { background: #9aefba; }
+.fab:hover { background: #6dc492; }
 
 /* ══════════════════════════════════
    ADD CREDENTIAL

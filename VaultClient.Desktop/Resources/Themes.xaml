@@ -6,20 +6,20 @@
          Developed by Lucas Luna · Plastcor Internal Tooling
     ═══════════════════════════════════════════════════════════ -->
 
-    <!-- Color Tokens -->
-    <Color x:Key="Col.AppBg">#0A120C</Color>
-    <Color x:Key="Col.SidebarBg">#0E1610</Color>
-    <Color x:Key="Col.ListBg">#0C1410</Color>
-    <Color x:Key="Col.RowActive">#14211A</Color>
-    <Color x:Key="Col.Fg">#E8EBE4</Color>
-    <Color x:Key="Col.Muted">#8A8F82</Color>
-    <Color x:Key="Col.Accent">#7CE8A9</Color>
-    <Color x:Key="Col.Border">#1A231C</Color>
-    <Color x:Key="Col.FieldBg">#0D180F</Color>
-    <Color x:Key="Col.ChipBg">#182219</Color>
-    <Color x:Key="Col.Danger">#D8573E</Color>
-    <Color x:Key="Col.Warning">#D8A13E</Color>
-    <Color x:Key="Col.Success">#3E7D5C</Color>
+    <!-- Color Tokens — Daily palette (softer, less saturated) -->
+    <Color x:Key="Col.AppBg">#181E1C</Color>
+    <Color x:Key="Col.SidebarBg">#1E2523</Color>
+    <Color x:Key="Col.ListBg">#1B2220</Color>
+    <Color x:Key="Col.RowActive">#263030</Color>
+    <Color x:Key="Col.Fg">#C8CEC8</Color>
+    <Color x:Key="Col.Muted">#718070</Color>
+    <Color x:Key="Col.Accent">#5BAD80</Color>
+    <Color x:Key="Col.Border">#2A3430</Color>
+    <Color x:Key="Col.FieldBg">#161C1A</Color>
+    <Color x:Key="Col.ChipBg">#222C29</Color>
+    <Color x:Key="Col.Danger">#C0523A</Color>
+    <Color x:Key="Col.Warning">#B8903A</Color>
+    <Color x:Key="Col.Success">#4A8C65</Color>
 
     <!-- Brushes -->
     <SolidColorBrush x:Key="Brush.AppBg"     Color="{StaticResource Col.AppBg}"/>
@@ -123,7 +123,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#9AEFBA"/>
+                            <Setter Property="Background" Value="#6DC492"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Background" Value="{StaticResource Brush.ChipBg}"/>
