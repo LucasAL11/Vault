@@ -209,13 +209,22 @@ public sealed class RequestSecret : IEndpoint
             var proofValid = hasClientSecret && nonceParsed && signatureValid && withinSkewWindow && nonceConsumed;
             if (!proofValid)
             {
+                logger.LogWarning(
+                    "Secret request denied — breakdown: hasClientSecret={HasSecret}, nonceParsed={NonceParsed}, " +
+                    "signatureValid={SigValid}, withinSkew={InSkew}, nonceConsumed={NonceConsumed}, " +
+                    "resolvedSubject={Subject}, consumeScope={Scope}. " +
+                    "VaultId={VaultId}, SecretName={SecretName}, User={User}",
+                    hasClientSecret, nonceParsed, signatureValid, withinSkewWindow, nonceConsumed,
+                    subject, consumeScope,
+                    vaultId, name, actor);
+
                 var deniedAuditResult = await sender.Send(
                     new AppendSecretAuditCommand(
                         VaultId: vaultId,
                         SecretName: name,
                         Action: "SECRET_REQUEST_VALUE_DENIED",
                         Actor: actor,
-                        Details: $"reason=invalid-proof;clientId={normalizedClientId}"),
+                        Details: $"reason=invalid-proof;clientId={normalizedClientId};subject={subject}"),
                     cancellationToken);
 
                 if (deniedAuditResult.IsFailure)
@@ -223,11 +232,6 @@ public sealed class RequestSecret : IEndpoint
                     return CustomResults.Problem(deniedAuditResult);
                 }
 
-                logger.LogWarning(
-                    "Secret request denied: proof validation failed. VaultId={VaultId}, SecretName={SecretName}, User={User}",
-                    vaultId,
-                    name,
-                    actor);
                 return Results.Unauthorized();
             }
 
