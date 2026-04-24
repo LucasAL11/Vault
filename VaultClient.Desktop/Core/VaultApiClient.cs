@@ -114,6 +114,12 @@ public sealed class VaultApiClient
 
     private async Task<HttpResponseMessage> SendAsync(Func<Task<HttpResponseMessage>> request)
     {
+        // Re-inject JWT from credential store before every request so that a previous
+        // Logout() call (triggered by an unrelated 401) doesn't silently drop the header.
+        var token = _credentials.Get("jwt");
+        if (!string.IsNullOrWhiteSpace(token))
+            SetAuthHeader(token);
+
         var response = await request();
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
@@ -154,8 +160,10 @@ public sealed class VaultApiClient
     public async Task<(string Nonce, DateTimeOffset IssuedAt, string Subject)> GetChallengeAsync(
         string clientId, string subject, CancellationToken ct = default)
     {
-        var response = await SendAsync(() => _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
-            new { clientId, subject, audience = _challengeAudience }, ct));
+        // Challenge is an anonymous endpoint — bypass SendAsync so a transient failure
+        // here never clears the user's JWT via the Logout() path.
+        var response = await _http.PostAsJsonAsync($"{_baseUrl}/auth/challenge",
+            new { clientId, subject, audience = _challengeAudience }, ct);
 
         response.EnsureSuccessStatusCode();
 
@@ -186,20 +194,31 @@ public sealed class VaultApiClient
             reason, ticket, nonce, issuedAt, clientSecret);
 
         var encodedName = Uri.EscapeDataString(secretName);
-        var response = await SendAsync(() => _http.PostAsJsonAsync(
-            $"{_baseUrl}/vaults/{vaultId}/secrets/request?name={encodedName}",
-            new
-            {
-                contractVersion  = "v1",
-                reason,
-                ticket,
-                clientId,
-                subject          = serverSubject,   // echo the server-normalised subject
-                nonce,
-                issuedAt,
-                proof
-            }, ct));
 
+        // Build an explicit HttpRequestMessage so we can:
+        // (a) inject the JWT fresh from credentials (not relying on DefaultRequestHeaders
+        //     which may have been cleared by an unrelated Logout() call)
+        // (b) bypass SendAsync — a 401 here means "bad proof", not "session expired",
+        //     so we must NOT call Logout() or fire SessionExpired.
+        var jwt = _credentials.Get("jwt") ?? string.Empty;
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_baseUrl}/vaults/{vaultId}/secrets/request?name={encodedName}");
+        msg.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
+        msg.Content = JsonContent.Create(new
+        {
+            contractVersion  = "v1",
+            reason,
+            ticket,
+            clientId,
+            subject          = serverSubject,
+            nonce,
+            issuedAt,
+            proof
+        });
+
+        var response = await _http.SendAsync(msg, ct);
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
