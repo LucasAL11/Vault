@@ -179,8 +179,9 @@ public sealed class VaultApiClient
             vaultId, secretName, clientId, subject,
             reason, ticket, nonce, issuedAt, clientSecret);
 
+        var encodedName = Uri.EscapeDataString(secretName);
         var response = await SendAsync(() => _http.PostAsJsonAsync(
-            $"{_baseUrl}/vaults/{vaultId}/secrets/{secretName}/request",
+            $"{_baseUrl}/vaults/{vaultId}/secrets/request?name={encodedName}",
             new
             {
                 contractVersion = "v1",
