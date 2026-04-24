@@ -1,181 +1,351 @@
 <UserControl x:Class="VaultClient.Desktop.Views.SetupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="440">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Border Background="#181825" CornerRadius="12" Padding="44,36"
-            BorderBrush="#313244" BorderThickness="1">
-        <StackPanel>
+    <Border Background="{StaticResource Brush.AppBg}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <!-- Left: brand panel -->
+                <ColumnDefinition Width="1.1*"/>
+                <!-- Right: form -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- Title -->
-            <Border Width="56" Height="56" CornerRadius="28"
-                    Background="#252537" HorizontalAlignment="Center" Margin="0,0,0,16">
-                <TextBlock Text="&#x2699;" FontSize="24"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <!-- ═══════════════════════════════════════
+                 LEFT PANEL
+            ═══════════════════════════════════════ -->
+            <Border Grid.Column="0"
+                    Background="#0F0F0F"
+                    BorderBrush="{StaticResource Brush.Border}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Top: logo + badge -->
+                    <Grid Grid.Row="0" Margin="28,22,28,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Viewbox Width="18" Height="18">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z"
+                                          Fill="{StaticResource Brush.Accent}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="SENTINEL"
+                                       FontFamily="{StaticResource Font.Mono}"
+                                       FontSize="14" FontWeight="Bold"
+                                       Foreground="{StaticResource Brush.Fg}"
+                                       VerticalAlignment="Center"
+                                       Margin="9,0,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Ellipse Width="6" Height="6" Fill="#E8A04A"
+                                     VerticalAlignment="Center" Margin="0,0,6,0">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="#E8A04A" BlurRadius="6" ShadowDepth="0"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <TextBlock Text="SETUP MODE"
+                                       FontFamily="{StaticResource Font.Mono}"
+                                       FontSize="9" FontWeight="SemiBold"
+                                       Foreground="#E8A04A"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Center: config icon -->
+                    <Viewbox Grid.Row="1" Width="180" Height="180"
+                             VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Canvas Width="220" Height="220">
+                            <!-- Outer rings -->
+                            <Ellipse Canvas.Left="14" Canvas.Top="14" Width="192" Height="192"
+                                     Fill="Transparent" Stroke="#E8A04A" StrokeThickness="0.7" Opacity="0.14"/>
+                            <Ellipse Canvas.Left="30" Canvas.Top="30" Width="160" Height="160"
+                                     Fill="Transparent" Stroke="#E8A04A" StrokeThickness="0.7" Opacity="0.22"
+                                     StrokeDashArray="3 8"/>
+                            <Ellipse Canvas.Left="46" Canvas.Top="46" Width="128" Height="128"
+                                     Fill="Transparent" Stroke="#E8A04A" StrokeThickness="0.7" Opacity="0.34"
+                                     StrokeDashArray="40 20"/>
+                            <!-- Crosshair lines -->
+                            <Line X1="10"  Y1="110" X2="44"  Y2="110" Stroke="#E8A04A" StrokeThickness="0.6" Opacity="0.35"/>
+                            <Line X1="176" Y1="110" X2="210" Y2="110" Stroke="#E8A04A" StrokeThickness="0.6" Opacity="0.35"/>
+                            <Line X1="110" Y1="10"  X2="110" Y2="44"  Stroke="#E8A04A" StrokeThickness="0.6" Opacity="0.35"/>
+                            <Line X1="110" Y1="176" X2="110" Y2="210" Stroke="#E8A04A" StrokeThickness="0.6" Opacity="0.35"/>
+                            <!-- Gear body -->
+                            <Ellipse Canvas.Left="84" Canvas.Top="84" Width="52" Height="52"
+                                     Fill="Transparent" Stroke="#E8A04A" StrokeThickness="1.6"/>
+                            <Ellipse Canvas.Left="98" Canvas.Top="98" Width="24" Height="24"
+                                     Fill="Transparent" Stroke="#E8A04A" StrokeThickness="1.2"/>
+                            <!-- Gear teeth (8 small rects rotated) -->
+                            <Rectangle Canvas.Left="107" Canvas.Top="76" Width="6" Height="10"
+                                       Fill="#E8A04A" Opacity="0.7"/>
+                            <Rectangle Canvas.Left="107" Canvas.Top="134" Width="6" Height="10"
+                                       Fill="#E8A04A" Opacity="0.7"/>
+                            <Rectangle Canvas.Left="76" Canvas.Top="107" Width="10" Height="6"
+                                       Fill="#E8A04A" Opacity="0.7"/>
+                            <Rectangle Canvas.Left="134" Canvas.Top="107" Width="10" Height="6"
+                                       Fill="#E8A04A" Opacity="0.7"/>
+                            <!-- Label -->
+                            <TextBlock Canvas.Left="78" Canvas.Top="150"
+                                       Text="0x53455455 50"
+                                       FontFamily="{StaticResource Font.Mono}"
+                                       FontSize="9" Foreground="#E8A04A"
+                                       Opacity="0.5"/>
+                        </Canvas>
+                    </Viewbox>
+
+                    <!-- Bottom: info block -->
+                    <Border Grid.Row="2" Margin="20,0,20,24"
+                            Background="#0A0A0A"
+                            BorderBrush="{StaticResource Brush.Border}"
+                            BorderThickness="1"
+                            Padding="12,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="CFG "
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="#E8A04A" FontWeight="SemiBold" Width="34"/>
+                                <TextBlock Text="inicializando modo de configuracao"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="SRV "
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" FontWeight="SemiBold" Width="34"/>
+                                <TextBlock Text="aguardando URL do servidor"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" Opacity="0.6"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="VLT "
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" FontWeight="SemiBold" Width="34"/>
+                                <TextBlock Text="aguardando Vault ID"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" Opacity="0.6"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="SEC "
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" FontWeight="SemiBold" Width="34"/>
+                                <TextBlock Text="aguardando credenciais do cliente"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="10"
+                                           Foreground="{StaticResource Brush.Muted}" Opacity="0.6"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
-            <TextBlock Text="Configuracao do Vault"
-                       FontSize="20" FontWeight="Bold"
-                       Foreground="#CDD6F4"
-                       HorizontalAlignment="Center" Margin="0,0,0,4"/>
-            <TextBlock Text="Conecte ao servidor do cofre de senhas"
-                       FontSize="12" Foreground="#6C7086"
-                       HorizontalAlignment="Center" Margin="0,0,0,28"/>
 
-            <!-- Server URL -->
-            <TextBlock Text="URL do Servidor" Foreground="#BAC2DE" FontSize="12"
-                       FontWeight="SemiBold" Margin="0,0,0,6"/>
-            <TextBox x:Name="BaseUrlBox"
-                     Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                     Tag="https://..."
-                     FontSize="13" Padding="12,10"
-                     Background="#313244" Foreground="#CDD6F4"
-                     BorderBrush="#45475A" BorderThickness="1"
-                     CaretBrush="#CDD6F4" Margin="0,0,0,4">
-                <TextBox.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </TextBox.Resources>
-            </TextBox>
-            <TextBlock Text="URL completa da API do servidor Vault" FontSize="10"
-                       Foreground="#585B70" Margin="0,0,0,16"/>
+            <!-- ═══════════════════════════════════════
+                 RIGHT PANEL — Setup form
+            ═══════════════════════════════════════ -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource Brush.SidebarBg}"
+                    Padding="40,32,40,28">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
 
-            <!-- Vault ID -->
-            <TextBlock Text="Vault ID (GUID)" Foreground="#BAC2DE" FontSize="12"
-                       FontWeight="SemiBold" Margin="0,0,0,6"/>
-            <TextBox x:Name="VaultIdBox"
-                     Text="{Binding VaultId, UpdateSourceTrigger=PropertyChanged}"
-                     Tag="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                     FontSize="13" Padding="12,10"
-                     Background="#313244" Foreground="#CDD6F4"
-                     BorderBrush="#45475A" BorderThickness="1"
-                     CaretBrush="#CDD6F4" Margin="0,0,0,4">
-                <TextBox.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </TextBox.Resources>
-            </TextBox>
-            <TextBlock Text="Identificador unico do cofre, disponivel no painel admin"
-                       FontSize="10" Foreground="#585B70" Margin="0,0,0,16"/>
+                        <TextBlock Text="┌─ SETUP REQUIRED ─┐"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="#E8A04A" Margin="0,0,0,16"/>
 
-            <!-- Client ID -->
-            <TextBlock Text="Client ID" Foreground="#BAC2DE" FontSize="12"
-                       FontWeight="SemiBold" Margin="0,0,0,6"/>
-            <TextBox x:Name="ClientIdBox"
-                     Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
-                     Tag="ID do cliente registrado no servidor"
-                     FontSize="13" Padding="12,10"
-                     Background="#313244" Foreground="#CDD6F4"
-                     BorderBrush="#45475A" BorderThickness="1"
-                     CaretBrush="#CDD6F4" Margin="0,0,0,16">
-                <TextBox.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </TextBox.Resources>
-            </TextBox>
+                        <TextBlock Text="servidor.configurar"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="22" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Fg}"
+                                   Margin="0,0,0,6"/>
 
-            <!-- AD Domain (optional) -->
-            <TextBlock Text="Dominio AD (opcional)" Foreground="#BAC2DE" FontSize="12"
-                       FontWeight="SemiBold" Margin="0,0,0,6"/>
-            <TextBox x:Name="DomainBox"
-                     Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
-                     Tag="Dominio AD (opcional)"
-                     FontSize="13" Padding="12,10"
-                     Background="#313244" Foreground="#CDD6F4"
-                     BorderBrush="#45475A" BorderThickness="1"
-                     CaretBrush="#CDD6F4" Margin="0,0,0,4">
-                <TextBox.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </TextBox.Resources>
-            </TextBox>
-            <TextBlock Text="Prefixo do dominio AD (ex: EMPRESA). Deixe vazio para login local"
-                       FontSize="10" Foreground="#585B70" Margin="0,0,0,16"/>
+                        <TextBlock FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="11" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,26" LineHeight="18">
+                            <Run Text="// Defina os parametros de conexao."/>
+                            <LineBreak/>
+                            <Run Text="// Credenciais salvas com DPAPI."/>
+                        </TextBlock>
 
-            <!-- Client Secret -->
-            <TextBlock Text="Client Secret" Foreground="#BAC2DE" FontSize="12"
-                       FontWeight="SemiBold" Margin="0,0,0,6"/>
-            <PasswordBox x:Name="ClientSecretBox"
-                         FontSize="13" Padding="12,10"
-                         Background="#313244" Foreground="#CDD6F4"
-                         BorderBrush="#45475A" BorderThickness="1"
-                         Margin="0,0,0,4">
-                <PasswordBox.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </PasswordBox.Resources>
-            </PasswordBox>
-            <TextBlock Text="Protegido com DPAPI (criptografia do perfil Windows)"
-                       FontSize="10" Foreground="#585B70" Margin="0,0,0,20"/>
+                        <!-- URL -->
+                        <TextBlock Text="// URL DO SERVIDOR"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,4">
+                            <TextBox x:Name="BaseUrlBox"
+                                     Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource SentilTextBox}"/>
+                            <TextBlock Text="https://servidor:porta"
+                                       FontFamily="{StaticResource Font.Mono}" FontSize="11"
+                                       Foreground="{StaticResource Brush.Muted}"
+                                       VerticalAlignment="Center" Margin="25,0,0,0" Opacity="0.4"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding BaseUrl}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock Text="// URL completa da API"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}"
+                                   Margin="0,0,0,14"/>
 
-            <!-- Error message -->
-            <Border Background="#2B0D0D" CornerRadius="6" Padding="12,8" Margin="0,0,0,8"
-                    Visibility="{Binding ErrorMessage, Converter={StaticResource NotEmptyToVisibility}}">
-                <TextBlock Text="{Binding ErrorMessage}"
-                           Foreground="#F38BA8" FontSize="12" TextWrapping="Wrap"/>
+                        <!-- Vault ID -->
+                        <TextBlock Text="// VAULT ID"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,4">
+                            <TextBox x:Name="VaultIdBox"
+                                     Text="{Binding VaultId, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource SentilTextBox}"/>
+                            <TextBlock Text="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                       FontFamily="{StaticResource Font.Mono}" FontSize="11"
+                                       Foreground="{StaticResource Brush.Muted}"
+                                       VerticalAlignment="Center" Margin="25,0,0,0" Opacity="0.4"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding VaultId}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock Text="// GUID do cofre (painel admin)"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}"
+                                   Margin="0,0,0,14"/>
+
+                        <!-- Client ID -->
+                        <TextBlock Text="// CLIENT ID"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,5"/>
+                        <TextBox x:Name="ClientIdBox"
+                                 Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource SentilTextBox}"
+                                 Margin="0,0,0,4"/>
+                        <TextBlock Text="// ID registrado no servidor (ex: vault-desktop)"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}"
+                                   Margin="0,0,0,14"/>
+
+                        <!-- Domain (optional) -->
+                        <TextBlock Text="// DOMINIO AD  // opcional"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,4">
+                            <TextBox x:Name="DomainBox"
+                                     Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource SentilTextBox}"/>
+                            <TextBlock Text="EMPRESA"
+                                       FontFamily="{StaticResource Font.Mono}" FontSize="11"
+                                       Foreground="{StaticResource Brush.Muted}"
+                                       VerticalAlignment="Center" Margin="25,0,0,0" Opacity="0.4"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Domain}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock Text="// Prefixo AD. Vazio = login local"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}"
+                                   Margin="0,0,0,14"/>
+
+                        <!-- Client Secret -->
+                        <TextBlock Text="// CLIENT SECRET"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10" Foreground="{StaticResource Brush.Muted}"
+                                   Margin="0,0,0,5"/>
+                        <PasswordBox x:Name="ClientSecretBox"
+                                     Style="{StaticResource SentilPasswordBox}"
+                                     Margin="0,0,0,4"/>
+                        <TextBlock Text="// Protegido com DPAPI (perfil Windows)"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="9" Foreground="{StaticResource Brush.Border}"
+                                   Margin="0,0,0,18"/>
+
+                        <!-- Error -->
+                        <Border Background="#2A0A06"
+                                BorderBrush="{StaticResource Brush.Danger}"
+                                BorderThickness="1" CornerRadius="2"
+                                Padding="10,7" Margin="0,0,0,8"
+                                Visibility="{Binding ErrorMessage, Converter={StaticResource NotEmptyToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="✕ " Foreground="{StaticResource Brush.Danger}"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="11"/>
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           Foreground="{StaticResource Brush.Danger}"
+                                           FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Success -->
+                        <Border Background="#0E2018"
+                                BorderBrush="{StaticResource Brush.Accent}"
+                                BorderThickness="1" CornerRadius="2"
+                                Padding="10,7" Margin="0,0,0,14"
+                                Visibility="{Binding ConnectionVerified, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="✓ " Foreground="{StaticResource Brush.Accent}"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="11"/>
+                                <TextBlock Text="{Binding SuccessMessage}"
+                                           Foreground="{StaticResource Brush.Accent}"
+                                           FontFamily="{StaticResource Font.Mono}" FontSize="11"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Test connection -->
+                        <Button x:Name="TestButton"
+                                Content="&gt; testar.conexao()"
+                                Style="{StaticResource SentilButtonGhost}"
+                                FontFamily="{StaticResource Font.Mono}"
+                                FontSize="11" Padding="14,9"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,8"/>
+
+                        <!-- Save -->
+                        <Button x:Name="SaveButton"
+                                Content="&gt; salvar.configuracao()"
+                                Style="{StaticResource SentilButtonAccent}"
+                                Margin="0,0,0,0"/>
+
+                        <!-- Busy indicator -->
+                        <ProgressBar IsIndeterminate="True" Height="2" Margin="0,8,0,0"
+                                     Foreground="{StaticResource Brush.Accent}"
+                                     Background="Transparent" BorderThickness="0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
+
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
-            <!-- Success message -->
-            <Border Background="#0D2B0D" CornerRadius="6" Padding="12,8" Margin="0,0,0,12"
-                    Visibility="{Binding ConnectionVerified, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#x2713; " Foreground="#A6E3A1" FontWeight="Bold" FontSize="14"/>
-                    <TextBlock Text="{Binding SuccessMessage}" Foreground="#A6E3A1" FontSize="12"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Test Connection button -->
-            <Button x:Name="TestButton"
-                    Content="Testar Conexao"
-                    FontSize="13" Padding="0,10" Margin="0,0,0,8"
-                    Background="#313244" Foreground="#89B4FA"
-                    BorderBrush="#45475A" BorderThickness="1"
-                    Cursor="Hand">
-                <Button.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </Button.Resources>
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3D3F5A"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="#6C7086"/>
-                                <Setter Property="BorderBrush" Value="#313244"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
-
-            <!-- Save button -->
-            <Button x:Name="SaveButton"
-                    Content="Salvar Configuracao"
-                    FontSize="14" FontWeight="SemiBold"
-                    Padding="0,12"
-                    Background="#89B4FA" Foreground="#1E1E2E"
-                    BorderThickness="0" Cursor="Hand"
-                    IsDefault="True">
-                <Button.Resources>
-                    <Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style>
-                </Button.Resources>
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Setter Property="Background" Value="#89B4FA"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#B4D0FF"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#45475A"/>
-                                <Setter Property="Foreground" Value="#6C7086"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
-
-            <!-- Loading -->
-            <ProgressBar IsIndeterminate="True" Height="2" Margin="0,12,0,0"
-                         Foreground="#89B4FA" Background="Transparent" BorderThickness="0"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"/>
-
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

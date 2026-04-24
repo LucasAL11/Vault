@@ -29,10 +29,11 @@ public sealed partial class SetupViewModel : ObservableObject
         _credentials = credentials;
         _api = api;
 
-        // Pre-fill campos se já configurado (modo edição)
+        // Pre-fill campos se já configurado (modo edição).
+        // ClientId default: "vault-desktop" (nome registrado no servidor para este cliente).
         _baseUrl  = credentials.Get(AppConfig.BaseUrlKey)  ?? string.Empty;
         _vaultId  = credentials.Get(AppConfig.VaultIdKey)  ?? string.Empty;
-        _clientId = credentials.Get(AppConfig.ClientIdKey) ?? string.Empty;
+        _clientId = credentials.Get(AppConfig.ClientIdKey) ?? "vault-desktop";
         _domain   = credentials.Get(AppConfig.DomainKey)   ?? string.Empty;
     }
 

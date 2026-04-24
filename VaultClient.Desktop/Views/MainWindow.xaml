@@ -116,9 +116,8 @@
              CONTENT
         ═══════════════════════════════════════ -->
         <Grid Grid.Row="1">
-            <!-- Setup (first use or reconfiguration) -->
-            <Grid x:Name="SetupPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
-                  Visibility="Collapsed">
+            <!-- Setup (first use or reconfiguration) — fills the frame like LoginView -->
+            <Grid x:Name="SetupPanel" Visibility="Collapsed">
                 <views:SetupView x:Name="SetupViewControl"/>
             </Grid>
 
