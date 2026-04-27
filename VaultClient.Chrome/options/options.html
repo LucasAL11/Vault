@@ -1,106 +1,219 @@
 <!DOCTYPE html>
-<html class="dark" lang="pt-BR">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sentinel Vault - Settings</title>
+  <title>Sentil — Configuração</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="bg-glow bg-glow-top"></div>
-  <div class="bg-glow bg-glow-bottom"></div>
 
-  <!-- TopBar -->
-  <header>
-    <div class="header-brand">
-      <span class="material-symbols-outlined filled">lock</span>
-      <span class="header-title">Vault - Configuracoes</span>
+  <div class="ec-scanlines" aria-hidden="true"></div>
+
+  <!-- ── TOP BAR ────────────────────────────────────────── -->
+  <header class="ec-topbar">
+    <div class="ec-topbar-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z" fill="#7ce8a9"/>
+      </svg>
+      <span class="ec-topbar-path">/extension.config</span>
     </div>
-    <span class="header-sentinel">Sentinel</span>
+
+    <div class="ec-steps">
+      <div class="ec-step ec-step-active" id="step-1">
+        <div class="ec-step-dot"><span>1</span></div>
+        <span class="ec-step-label">connect</span>
+      </div>
+      <div class="ec-step-line"></div>
+      <div class="ec-step ec-step-pending" id="step-2">
+        <div class="ec-step-dot"><span>2</span></div>
+        <span class="ec-step-label">authorize</span>
+      </div>
+      <div class="ec-step-line"></div>
+      <div class="ec-step ec-step-pending" id="step-3">
+        <div class="ec-step-dot"><span>3</span></div>
+        <span class="ec-step-label">finish</span>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <!-- SERVIDOR -->
-    <section>
-      <div class="section-header">
-        <div class="section-bar"></div>
-        <h2 class="section-title">Servidor</h2>
-      </div>
-      <div class="section-card">
-        <div class="field-group">
-          <label class="field-label">URL do Servidor</label>
-          <input id="serverUrl" class="field-input" type="url" placeholder="http://localhost:5065">
-          <p class="field-hint">Endereco completo da API Vault</p>
+  <!-- ── BODY ──────────────────────────────────────────── -->
+  <div class="ec-body">
+
+    <!-- LEFT — form -->
+    <div class="ec-form-col">
+      <div class="ec-first-run">┌─ FIRST RUN ─┐</div>
+      <h1 class="ec-title">connect.extension()</h1>
+      <p class="ec-subtitle">
+        // Aponte este browser para o servidor Sentil da organização.<br>
+        // As credenciais são encriptadas localmente e nunca registadas.
+      </p>
+
+      <!-- Server URL -->
+      <div class="ec-field-group">
+        <div class="ec-field-header">
+          <label class="ec-label" for="serverUrl">Server URL</label>
+          <span class="ec-hint">hostname ou IP · path opcional</span>
         </div>
-      </div>
-    </section>
-
-    <!-- ACTIVE DIRECTORY -->
-    <section>
-      <div class="section-header">
-        <div class="section-bar"></div>
-        <h2 class="section-title">Active Directory</h2>
-      </div>
-      <div class="section-card">
-        <div class="field-group">
-          <label class="field-label">Dominio AD</label>
-          <input id="defaultDomain" class="field-input" type="text" placeholder="plt">
-          <p class="field-hint">Prefixo do dominio para login AD. Deixe vazio para login local</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- HMAC -->
-    <section>
-      <div class="section-header">
-        <div class="section-bar"></div>
-        <h2 class="section-title">Configuracoes Avancadas (HMAC)</h2>
-      </div>
-
-      <div class="info-grid" style="margin-bottom: 16px;">
-        <div class="info-box blue">
-          <div class="info-box-header">
-            <span class="material-symbols-outlined">info</span>
-            <span class="info-box-title">O que e o HMAC?</span>
+        <div class="ec-input-row">
+          <div class="ec-input-prefix">
+            <select id="protocol" class="ec-protocol-select">
+              <option value="https://">https://</option>
+              <option value="http://">http://</option>
+            </select>
           </div>
-          <p>Protocolo para revelacao segura de segredos via HMAC-SHA256. Requer emparelhamento atraves de Client ID e Client Secret.</p>
+          <input id="serverUrl" class="ec-input" type="text"
+                 placeholder="vault.sua-empresa.com" autocomplete="off">
+          <div class="ec-input-suffix">:443</div>
         </div>
-        <div class="info-box orange">
-          <div class="info-box-header">
-            <span class="material-symbols-outlined">warning</span>
-            <span class="info-box-title">Seguranca</span>
-          </div>
-          <p>Use credenciais exclusivas. Estes valores sao armazenados localmente no browser de forma persistente.</p>
+        <div class="ec-field-ok" id="url-ok" style="display:none">
+          <span>✓</span> acessível
+        </div>
+        <div class="ec-field-err" id="url-err" style="display:none">
+          <span>✗</span> <span id="url-err-msg"></span>
+        </div>
+      </div>
+
+      <!-- AD Domain -->
+      <div class="ec-field-group">
+        <div class="ec-field-header">
+          <label class="ec-label" for="defaultDomain">AD Domain</label>
+          <span class="ec-hint">NetBIOS ou FQDN · deixe vazio para login local</span>
+        </div>
+        <div class="ec-input-row">
+          <input id="defaultDomain" class="ec-input" type="text"
+                 placeholder="PLASTCOR" autocomplete="off">
         </div>
       </div>
 
-      <div class="section-card">
-        <div class="field-group">
-          <label class="field-label">Client ID</label>
-          <input id="clientId" class="field-input" type="text" placeholder="chrome-extension">
-          <p class="field-hint">ID registado em AuthChallenge:ClientSecrets no servidor</p>
+      <!-- Client ID -->
+      <div class="ec-field-group">
+        <div class="ec-field-header">
+          <label class="ec-label" for="clientId">Client ID</label>
+          <span class="ec-hint">identificador da aplicação registada</span>
         </div>
-        <div class="field-group">
-          <label class="field-label">Client Secret</label>
-          <div class="field-input-wrap">
-            <input id="clientSecret" class="field-input" type="password" placeholder="Chave partilhada HMAC" style="letter-spacing: 0.2em;">
-            <button type="button" class="field-input-icon" id="btn-toggle-secret">
-              <span class="material-symbols-outlined">visibility_off</span>
-            </button>
-          </div>
-          <p class="field-hint">Chave partilhada para gerar a prova HMAC ao revelar segredos</p>
+        <div class="ec-input-row">
+          <input id="clientId" class="ec-input" type="text"
+                 placeholder="sentil-ext-prod" autocomplete="off">
         </div>
       </div>
-    </section>
 
-    <div id="toast" class="toast"></div>
-  </main>
+      <!-- Client Password -->
+      <div class="ec-field-group">
+        <div class="ec-field-header">
+          <label class="ec-label" for="clientSecret">Client Password</label>
+          <span class="ec-hint">fornecido pelo IT durante o registo</span>
+        </div>
+        <div class="ec-input-row">
+          <input id="clientSecret" class="ec-input" type="password"
+                 placeholder="chave HMAC partilhada" autocomplete="off">
+          <button type="button" id="btn-toggle-secret" class="ec-input-btn" title="Mostrar / Ocultar">
+            <!-- eye open -->
+            <svg id="icon-eye-open" width="14" height="14" viewBox="0 0 14 14" fill="none"
+                 stroke="currentColor" stroke-width="1.4" style="display:none">
+              <path d="M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"/>
+              <circle cx="7" cy="7" r="2"/>
+              <path d="M2 2l10 10" stroke-linecap="round"/>
+            </svg>
+            <!-- eye closed -->
+            <svg id="icon-eye-closed" width="14" height="14" viewBox="0 0 14 14" fill="none"
+                 stroke="currentColor" stroke-width="1.4">
+              <path d="M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"/>
+              <circle cx="7" cy="7" r="2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="ec-field-ok" id="cred-ok" style="display:none">
+          <span>✓</span> credenciais validadas
+        </div>
+        <div class="ec-field-err" id="cred-err" style="display:none">
+          <span>✗</span> <span id="cred-err-msg"></span>
+        </div>
+      </div>
 
-  <!-- Bottom Actions -->
-  <footer>
-    <div class="footer-inner">
-      <button class="btn-test" id="btn-test">Testar Ligacao</button>
-      <button class="btn-save" id="btn-save">Guardar</button>
+      <!-- Advanced -->
+      <div class="ec-advanced">
+        <div class="ec-advanced-header">▸ ADVANCED</div>
+
+        <div class="ec-toggle-row">
+          <div class="ec-toggle-info">
+            <span class="ec-toggle-label">TLS certificate verification</span>
+            <span class="ec-toggle-desc">Enforce strict TLS chain validation. Recommended.</span>
+          </div>
+          <button type="button" class="ec-toggle ec-toggle-on" id="opt-tls" aria-checked="true">
+            <div class="ec-toggle-thumb"></div>
+          </button>
+        </div>
+
+        <div class="ec-toggle-row">
+          <div class="ec-toggle-info">
+            <span class="ec-toggle-label">Allow self-signed certificates</span>
+            <span class="ec-toggle-desc">Útil em ambientes de staging. Desactivado em produção.</span>
+          </div>
+          <button type="button" class="ec-toggle" id="opt-selfsign" aria-checked="false">
+            <div class="ec-toggle-thumb"></div>
+          </button>
+        </div>
+
+        <div class="ec-toggle-row">
+          <div class="ec-toggle-info">
+            <span class="ec-toggle-label">Start extension on browser launch</span>
+            <span class="ec-toggle-desc">Sentil desbloqueia ao iniciar e mantém sessão até inactividade.</span>
+          </div>
+          <button type="button" class="ec-toggle ec-toggle-on" id="opt-autostart" aria-checked="true">
+            <div class="ec-toggle-thumb"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — test panel -->
+    <div class="ec-test-col">
+      <div class="ec-test-panel">
+
+        <div class="ec-test-panel-header">
+          <span class="ec-test-title">▸ CONNECTION TEST</span>
+          <div class="ec-test-status" id="test-status-badge">
+            <span class="ec-status-dot" id="status-dot"></span>
+            <span id="status-label">IDLE</span>
+          </div>
+        </div>
+
+        <!-- URL preview -->
+        <div class="ec-url-preview">
+          <span class="ec-url-key">endpoint </span>
+          <span class="ec-url-proto" id="preview-protocol">https://</span><span
+               class="ec-url-host"  id="preview-host">&lt;not set&gt;</span><span
+               class="ec-url-path">/api/v1</span>
+        </div>
+
+        <!-- Log -->
+        <div class="ec-log" id="test-log">
+          <span class="ec-log-empty">// run test to verify the configuration<br>// no probe sent yet.</span>
+        </div>
+
+        <!-- Test button -->
+        <button id="btn-test" class="ec-test-btn">
+          &gt; test.connection()
+        </button>
+
+        <!-- Fingerprint -->
+        <div class="ec-fingerprint" id="fingerprint" style="display:none">
+          <div class="ec-fp-label">SERVER FINGERPRINT</div>
+          <div class="ec-fp-value">SHA256:<span class="ec-fp-hash" id="fp-hash"> —</span></div>
+          <div class="ec-fp-meta" id="fp-meta"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FOOTER ─────────────────────────────────────────── -->
+  <footer class="ec-footer">
+    <div class="ec-footer-meta">// sentil.ext v4.2.1 · © Plastcor · L.LUNA</div>
+    <div class="ec-footer-actions">
+      <button id="btn-cancel" class="ec-btn-ghost">cancel</button>
+      <button id="btn-save"   class="ec-btn-save" disabled>save + activate ⏎</button>
     </div>
   </footer>
 

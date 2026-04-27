@@ -30,19 +30,19 @@
 /* ── Tokens ── */
 :root {
   --app-bg:      #171717;
-  --sidebar-bg:  #1e1e1e;
-  --list-bg:     #1a1a1a;
+  --sidebar-bg:  #1E1E1E;
+  --list-bg:     #1A1A1A;
   --row-active:  #272727;
-  --fg:          #d0d0d0;
+  --fg:          #D0D0D0;
   --muted:       #737373;
-  --accent:      #5bad80;
-  --border:      #2c2c2c;
+  --accent:      #5BAD80;
+  --border:      #2C2C2C;
   --field-bg:    #141414;
   --chip-bg:     #242424;
-  --danger:      #c0523a;
-  --danger-bg:   #2a1410;
-  --warning:     #b8903a;
-  --success:     #4a8c65;
+  --danger:      #C0523A;
+  --danger-bg:   #2A1210;
+  --warning:     #B8903A;
+  --success:     #4A8C65;
 
   --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Consolas', monospace;
@@ -255,7 +255,7 @@ html, body {
 .btn-primary {
   width: 100%;
   background: var(--accent);
-  color: #0a120c;
+  color: #0A0A0A;
   border: none;
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
@@ -266,7 +266,7 @@ html, body {
   margin-top: 6px;
   transition: background 0.12s, opacity 0.12s;
 }
-.btn-primary:hover { background: #6dc492; }
+.btn-primary:hover { background: #6DC492; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-ghost {
@@ -429,17 +429,17 @@ html, body {
   background: var(--accent);
   border: none;
   border-radius: 50%;
-  color: #0a120c;
+  color: #0A0A0A;
   font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 12px rgba(124,232,169,0.3);
+  box-shadow: 0 2px 12px rgba(91,173,128,0.3);
   transition: background 0.12s;
   z-index: 10;
 }
-.fab:hover { background: #6dc492; }
+.fab:hover { background: #6DC492; }
 
 /* ══════════════════════════════════
    ADD CREDENTIAL
@@ -517,7 +517,7 @@ html, body {
 .expiry-badge {
   display: inline-flex;
   align-items: center;
-  background: #1e1204;
+  background: #1A1000;
   border: 1px solid var(--warning);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);

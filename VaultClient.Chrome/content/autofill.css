@@ -1,136 +1,390 @@
-/* ============================================================
-   Vault Password Manager - Content Script Styles
+/* ═══════════════════════════════════════════════════════════
+   SENTIL · Content Script Styles — autofill.css
    Injected into every page for the autofill UI
-   ============================================================ */
+   Design: Midnight Ops green
+═══════════════════════════════════════════════════════════ */
 
-/* --- Hide native "show password" buttons on vault-filled fields --- */
+/* ── Tokens ─────────────────────────────────────────────── */
+/* (prefixed with --sv- to avoid clashing with host page) */
 
+/* ── Hide native "show password" on vault-filled fields ─── */
 input[data-vault-filled]::-ms-reveal,
-input[data-vault-filled]::-ms-clear {
-  display: none !important;
-}
-
+input[data-vault-filled]::-ms-clear { display: none !important; }
 input[data-vault-filled]::-webkit-credentials-auto-fill-button,
 input[data-vault-filled]::-webkit-textfield-decoration-container {
-  display: none !important;
-  -webkit-appearance: none !important;
+  display: none !important; -webkit-appearance: none !important;
 }
 
-/* --- Badge on password fields --- */
+/* ══════════════════════════════════════════════════════════
+   Field badge — Sentil icon inside password field
+══════════════════════════════════════════════════════════ */
 
 .vault-autofill-badge {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
+  background: #0A0A0A;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
   cursor: pointer;
-  border-radius: 4px;
-  background: transparent;
-  transition: background 0.15s;
-  user-select: none;
+  border-radius: 2px;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
 }
 
-.vault-autofill-badge:hover {
-  background: rgba(79, 109, 245, 0.15);
+.vault-autofill-badge:hover { opacity: 0.85; }
+
+.vault-autofill-badge svg {
+  width: 12px;
+  height: 12px;
 }
 
-/* --- Inline dropdown menu --- */
+/* ══════════════════════════════════════════════════════════
+   Password Picker — floating credential picker
+   (appears when badge is clicked or keyboard shortcut)
+══════════════════════════════════════════════════════════ */
 
-.vault-inline-menu {
-  background: #1a1d27;
-  border: 1px solid #2d3039;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  color: #e1e4e8;
+.sentil-picker {
+  width: 380px;
+  background: #171717;
+  border: 1px solid rgba(91,173,128,0.4);
+  color: #D0D0D0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(91,173,128,0.08),
+    0 0 40px rgba(91,173,128,0.08);
+  position: relative;
   overflow: hidden;
-  max-height: 320px;
+  z-index: 2147483647;
 }
 
-.vault-inline-header {
+.sentil-picker::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(91,173,128,0.015) 0 1px,
+    transparent 1px 3px
+  );
+  pointer-events: none;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.sp-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.3);
+}
+
+.sp-logo {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.sp-chip {
+  font-size: 9px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  letter-spacing: 0.14em;
+}
+
+.sp-sealed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 10px;
+  font-family: "Consolas", monospace;
+  color: #5BAD80;
+  letter-spacing: 0.1em;
+}
+
+.sp-sealed-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #5BAD80;
+  box-shadow: 0 0 6px #5BAD80;
+}
+
+.sp-close {
+  background: transparent;
+  border: none;
+  color: #737373;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+}
+.sp-close:hover { color: #D0D0D0; }
+
+/* ── Host context ───────────────────────────────────────── */
+.sp-host {
+  position: relative;
   padding: 10px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #9ca3af;
-  border-bottom: 1px solid #2d3039;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
-.vault-inline-body {
-  max-height: 260px;
+.sp-host-label {
+  font-size: 9px;
+  font-family: "Consolas", monospace;
+  color: #555555;
+  letter-spacing: 0.14em;
+  margin-bottom: 4px;
+}
+
+.sp-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Consolas", monospace;
+}
+
+.sp-host-name {
+  font-size: 12px;
+  color: #D0D0D0;
+  letter-spacing: 0.02em;
+}
+
+.sp-host-count {
+  font-size: 10px;
+  color: #737373;
+  margin-left: auto;
+}
+
+/* ── Credential rows ────────────────────────────────────── */
+.sp-list {
+  max-height: 280px;
   overflow-y: auto;
 }
 
-.vault-inline-item {
+.sp-list::-webkit-scrollbar { width: 3px; }
+.sp-list::-webkit-scrollbar-track { background: transparent; }
+.sp-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 14px;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   cursor: pointer;
-  transition: background 0.12s;
-  white-space: nowrap;
+  position: relative;
+  transition: background 0.1s;
+}
+
+.sp-row:hover, .sp-row.sp-row-active {
+  background: #272727;
+  border-left-color: #5BAD80;
+}
+
+.sp-avatar {
+  width: 26px;
+  height: 26px;
+  background: rgba(91,173,128,0.12);
+  color: #5BAD80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sp-row-info { flex: 1; min-width: 0; }
+
+.sp-row-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-row-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #D0D0D0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.vault-inline-item:hover {
-  background: #252830;
+.sp-primary-badge {
+  font-size: 8px;
+  font-family: "Consolas", monospace;
+  color: #5BAD80;
+  letter-spacing: 0.12em;
+  border: 1px solid rgba(91,173,128,0.4);
+  padding: 0.5px 4px;
+  flex-shrink: 0;
 }
 
-.vault-inline-match {
-  color: #4f6df5;
-  font-weight: 500;
+.sp-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
 }
 
-.vault-inline-back {
-  padding: 8px 14px;
-  font-size: 12px;
-  color: #6b7280;
+.sp-row-user {
+  font-size: 10.5px;
+  color: #909090;
+  font-family: "Consolas", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-dot { font-size: 9px; color: #555555; }
+
+.sp-row-vault {
+  font-size: 10px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-row-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.sp-strength {
+  display: flex;
+  gap: 2px;
+}
+
+.sp-strength-pip {
+  width: 8px;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+}
+.sp-strength-pip.lit-low    { background: #C0523A; }
+.sp-strength-pip.lit-mid    { background: #B8903A; }
+.sp-strength-pip.lit-hi     { background: #5BAD80; }
+
+.sp-row-age {
+  font-size: 9.5px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  letter-spacing: 0.08em;
+}
+
+/* Active row fill button */
+.sp-fill-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sp-fill-btn {
+  background: #5BAD80;
+  color: #0A0A0A;
+  border: none;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-family: "Consolas", monospace;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  border-bottom: 1px solid #2d3039;
+}
+.sp-fill-btn:hover { filter: brightness(1.1); }
+
+.sp-copy-hint {
+  font-size: 8.5px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  letter-spacing: 0.08em;
 }
 
-.vault-inline-back:hover {
-  color: #e1e4e8;
-  background: #252830;
-}
-
-.vault-inline-loading {
-  padding: 20px 14px;
+/* ── Loading / empty / error in list ───────────────────── */
+.sp-list-status {
+  padding: 24px 14px;
   text-align: center;
-  color: #4f6df5;
-  font-size: 12px;
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  color: #555555;
+}
+.sp-list-status.is-loading { color: #5BAD80; }
+.sp-list-status.is-error   { color: #C0523A; }
+
+/* Back row */
+.sp-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  transition: color 0.12s;
+}
+.sp-back:hover { color: #D0D0D0; }
+
+/* ── Footer actions ─────────────────────────────────────── */
+.sp-footer {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.2);
 }
 
-.vault-inline-empty {
-  padding: 20px 14px;
-  text-align: center;
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.vault-inline-error {
-  padding: 12px 14px;
-  color: #f87171;
-  font-size: 12px;
-}
-
-/* Scrollbar */
-.vault-inline-body::-webkit-scrollbar {
-  width: 5px;
-}
-
-.vault-inline-body::-webkit-scrollbar-track {
+.sp-footer-btn {
+  flex: 1;
   background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #A0A0A0;
+  padding: 7px 8px;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sp-footer-btn:hover { color: #5BAD80; border-color: rgba(91,173,128,0.3); }
+
+/* ── Key hints ──────────────────────────────────────────── */
+.sp-hints {
+  position: relative;
+  padding: 7px 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.35);
+  font-size: 9.5px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  letter-spacing: 0.1em;
+  display: flex;
+  justify-content: space-between;
 }
 
-.vault-inline-body::-webkit-scrollbar-thumb {
-  background: #2d3039;
-  border-radius: 3px;
-}
+.sp-hints-keys { display: flex; gap: 14px; }
 
-/* --- Auto-match notification bar --- */
+/* ══════════════════════════════════════════════════════════
+   Auto-match bar — slides in from top when rules match
+══════════════════════════════════════════════════════════ */
 
 .vault-automatch-bar {
   position: fixed;
@@ -139,8 +393,8 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   right: 0;
   z-index: 2147483647;
   transform: translateY(-100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  font-family: "Segoe UI", system-ui, sans-serif;
 }
 
 .vault-automatch-bar.vault-automatch-visible {
@@ -152,211 +406,58 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, #0b1326 0%, #131b2e 100%);
-  border-bottom: 1px solid rgba(181, 196, 255, 0.15);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  background: #171717;
+  border-bottom: 1px solid rgba(91,173,128,0.25);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
 }
 
-.vault-automatch-icon {
-  font-size: 18px;
-  flex-shrink: 0;
+.vault-automatch-logo {
+  width: 16px; height: 16px; flex-shrink: 0;
 }
 
 .vault-automatch-text {
   flex: 1;
   font-size: 13px;
-  color: #dae2fd;
-  white-space: nowrap;
+  color: #A0A0A0;
+  font-family: "Consolas", monospace;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vault-automatch-text strong {
-  color: #b5c4ff;
+  color: #5BAD80;
   font-weight: 600;
 }
 
 .vault-automatch-btn {
   border: none;
-  border-radius: 6px;
   padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-family: "Consolas", monospace;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: filter 0.12s;
   flex-shrink: 0;
 }
 
 .vault-automatch-fill {
-  background: linear-gradient(135deg, #b5c4ff 0%, #638aff 100%);
-  color: #00297a;
+  background: #5BAD80;
+  color: #0A0A0A;
 }
-
-.vault-automatch-fill:hover {
-  filter: brightness(1.1);
-}
-
-.vault-automatch-fill:active {
-  transform: scale(0.95);
-}
+.vault-automatch-fill:hover { filter: brightness(1.1); }
 
 .vault-automatch-dismiss {
-  background: rgba(255, 255, 255, 0.08);
-  color: #8d90a0;
+  background: rgba(255,255,255,0.08);
+  color: #737373;
   font-size: 16px;
   padding: 4px 10px;
   line-height: 1;
 }
+.vault-automatch-dismiss:hover { background: rgba(255,255,255,0.14); color: #D0D0D0; }
 
-.vault-automatch-dismiss:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #e1e4e8;
-}
-
-/* ================================================================
-   Save credentials bar (Chrome/Firefox/Edge pattern)
-   ================================================================ */
-
-.vault-save-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 2147483647;
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-}
-
-.vault-save-bar.vault-save-visible {
-  transform: translateY(0);
-}
-
-.vault-save-inner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #0b1f13 0%, #0f2318 100%);
-  border-top: 1px solid rgba(134, 239, 172, 0.2);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
-}
-
-.vault-save-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.vault-save-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  gap: 2px;
-}
-
-.vault-save-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #86efac;
-  white-space: nowrap;
-}
-
-.vault-save-login {
-  font-size: 12px;
-  color: #9ca3af;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.vault-save-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.vault-save-select {
-  background: #1a2e22;
-  color: #d1fae5;
-  border: 1px solid rgba(134, 239, 172, 0.25);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  max-width: 160px;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2386efac'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 24px;
-}
-
-.vault-save-select:focus {
-  border-color: #86efac;
-}
-
-.vault-save-btn {
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.vault-save-confirm {
-  background: linear-gradient(135deg, #86efac 0%, #22c55e 100%);
-  color: #052e16;
-}
-
-/* Update variant — amber instead of green */
-.vault-save-update {
-  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 100%);
-  color: #431407;
-}
-
-.vault-save-confirm:hover {
-  filter: brightness(1.1);
-}
-
-.vault-save-confirm:active {
-  transform: scale(0.95);
-}
-
-.vault-save-never {
-  background: rgba(255, 255, 255, 0.06);
-  color: #6b7280;
-}
-
-.vault-save-never:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #9ca3af;
-}
-
-.vault-save-dismiss {
-  background: transparent;
-  color: #4b5563;
-  font-size: 18px;
-  padding: 2px 8px;
-  line-height: 1;
-}
-
-.vault-save-dismiss:hover {
-  color: #9ca3af;
-}
-
-/* ================================================================
-   Multi-rule expanded bar
-   ================================================================ */
-
-/* --- Multi-rule expanded bar --- */
-
+/* Multi-rule */
 .vault-automatch-multi {
   flex-direction: column;
   align-items: stretch;
@@ -369,12 +470,10 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(181, 196, 255, 0.1);
+  border-bottom: 1px solid rgba(91,173,128,0.1);
 }
 
-.vault-automatch-multi-header .vault-automatch-text {
-  flex: 1;
-}
+.vault-automatch-multi-header .vault-automatch-text { flex: 1; }
 
 .vault-automatch-rule-list {
   display: flex;
@@ -382,7 +481,7 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   max-height: 180px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(181, 196, 255, 0.2) transparent;
+  scrollbar-color: rgba(91,173,128,0.15) transparent;
 }
 
 .vault-automatch-rule-row {
@@ -390,22 +489,17 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  border-bottom: 1px solid rgba(181, 196, 255, 0.06);
+  border-bottom: 1px solid rgba(91,173,128,0.06);
   gap: 12px;
-  transition: background 0.12s;
+  transition: background 0.1s;
 }
-
-.vault-automatch-rule-row:last-child {
-  border-bottom: none;
-}
-
-.vault-automatch-rule-row:hover {
-  background: rgba(181, 196, 255, 0.06);
-}
+.vault-automatch-rule-row:last-child { border-bottom: none; }
+.vault-automatch-rule-row:hover { background: rgba(91,173,128,0.04); }
 
 .vault-automatch-rule-login {
   font-size: 13px;
-  color: #dae2fd;
+  font-family: "Consolas", monospace;
+  color: #A0A0A0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -414,5 +508,337 @@ input[data-vault-filled]::-webkit-textfield-decoration-container {
 
 .vault-automatch-rule-row .vault-automatch-fill {
   padding: 4px 12px;
+  font-size: 10px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Save popup — top-right corner popup (Chrome style)
+══════════════════════════════════════════════════════════ */
+
+.vault-save-popup {
+  position: fixed;
+  top: 56px;
+  right: 20px;
+  z-index: 2147483647;
+  width: 360px;
+  background: #1E1E1E;
+  border: 1px solid rgba(91,173,128,0.4);
+  color: #D0D0D0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.65), 0 0 40px rgba(91,173,128,0.08);
+  overflow: hidden;
+
+  /* animate in */
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.vault-save-popup::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(91,173,128,0.015) 0 1px,
+    transparent 1px 3px
+  );
+  pointer-events: none;
+}
+
+.vault-save-popup.sp-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Header */
+.sp-save-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.3);
+}
+
+.sp-save-chip {
+  font-size: 9px;
+  font-family: "Consolas", monospace;
+  color: #737373;
+  letter-spacing: 0.14em;
+}
+
+.sp-save-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #737373;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+.sp-save-close:hover { color: #D0D0D0; }
+
+/* Body */
+.sp-save-body {
+  position: relative;
+  padding: 14px 16px 8px;
+}
+
+.sp-save-tag {
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: #5BAD80;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+}
+
+.sp-save-title {
+  font-family: "Consolas", monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #D0D0D0;
+  margin-bottom: 4px;
+}
+
+.sp-save-subtitle {
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: #A0A0A0;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* Host row */
+.sp-save-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 12px;
+}
+
+.sp-save-host-avatar {
+  width: 22px;
+  height: 22px;
+  background: rgba(91,173,128,0.12);
+  color: #5BAD80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Consolas", monospace;
   font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sp-save-host-info { flex: 1; min-width: 0; }
+
+.sp-save-host-name {
+  font-family: "Consolas", monospace;
+  font-size: 11.5px;
+  color: #D0D0D0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-save-host-user {
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: #737373;
+  margin-top: 1px;
+}
+
+.sp-save-badge {
+  font-size: 9px;
+  font-family: "Consolas", monospace;
+  color: #5BAD80;
+  border: 1px solid rgba(91,173,128,0.4);
+  padding: 2px 5px;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+/* Name field */
+.sp-save-label {
+  font-family: "Consolas", monospace;
+  font-size: 9.5px;
+  color: #7a8276;
+  letter-spacing: 0.14em;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sp-save-input {
+  width: 100%;
+  background: #242424;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #D0D0D0;
+  padding: 7px 10px;
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+  outline: none;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+.sp-save-input:focus { border-color: rgba(91,173,128,0.4); }
+
+/* Password row */
+.sp-save-pwd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.sp-save-pwd-row.is-old {
+  background: rgba(216,87,62,0.06);
+  border: 1px solid rgba(216,87,62,0.25);
+}
+
+.sp-save-pwd-row.is-new {
+  background: rgba(91,173,128,0.06);
+  border: 1px solid rgba(91,173,128,0.4);
+}
+
+.sp-save-pwd-value {
+  flex: 1;
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+  color: #A0A0A0;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.sp-save-pwd-value.is-old { text-decoration: line-through; }
+
+.sp-save-pwd-eye {
+  background: transparent;
+  border: none;
+  color: #737373;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sp-save-pwd-eye:hover { color: #D0D0D0; }
+
+/* Strength */
+.sp-save-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sp-save-strength-pips {
+  display: flex;
+  gap: 2px;
+}
+
+.sp-save-pip {
+  width: 10px;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+}
+.sp-save-pip.lit { background: #5BAD80; }
+
+.sp-save-strength-label {
+  font-family: "Consolas", monospace;
+  font-size: 9.5px;
+  color: #5BAD80;
+  letter-spacing: 0.1em;
+}
+
+/* Vault selector */
+.sp-save-vault-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.sp-vault-chip {
+  padding: 5px 9px;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #A0A0A0;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.sp-vault-chip.sp-vault-active {
+  background: #242424;
+  border-color: rgba(91,173,128,0.4);
+  color: #5BAD80;
+}
+
+/* Footer */
+.sp-save-footer {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.3);
+}
+
+.sp-save-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #A0A0A0;
+  padding: 8px 10px;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sp-save-btn:hover { color: #D0D0D0; border-color: rgba(255,255,255,0.2); }
+
+.sp-save-btn-confirm {
+  flex: 1.4;
+  background: #5BAD80;
+  color: #0A0A0A;
+  border: none;
+  padding: 8px 10px;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.sp-save-btn-confirm:hover:not(:disabled) { filter: brightness(1.1); }
+.sp-save-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sp-save-btn-confirm.is-update {
+  background: #e8c97c;
+  color: #1A0A00;
+}
+
+/* Hint bar */
+.sp-save-hint {
+  position: relative;
+  padding: 6px 14px;
+  background: rgba(0,0,0,0.4);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-family: "Consolas", monospace;
+  font-size: 9.5px;
+  color: #737373;
+  letter-spacing: 0.1em;
+  display: flex;
+  justify-content: space-between;
 }

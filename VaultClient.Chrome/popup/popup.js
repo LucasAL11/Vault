@@ -268,7 +268,7 @@ async function doAutofill(secretName, itemEl) {
       errEl = document.createElement('div');
       errEl.id = 'secret-list-error';
       errEl.className = 'status-error';
-      listEl.parentElement?.appendChild(errEl);
+      $('#secret-list')?.parentElement?.appendChild(errEl);
     }
     errEl.textContent = err.message;
     show(errEl);

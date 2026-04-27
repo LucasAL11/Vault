@@ -34,6 +34,36 @@ public sealed class VaultApiClient
     public async Task PingAsync(CancellationToken ct = default)
         => await _http.GetAsync(_baseUrl, ct);
 
+    /// <summary>
+    /// Verifica se o par clientId+clientSecret está registrado no servidor.
+    /// Usa um HMAC estático (sem nonce) com janela de 5 minutos para prova.
+    /// Retorna <c>true</c> se as credenciais são válidas, <c>false</c> caso contrário.
+    /// Nunca lança exceção — erros de rede são retornados como <c>false</c>.
+    /// </summary>
+    public async Task<bool> VerifyClientSecretAsync(
+        string clientId, string clientSecret, CancellationToken ct = default)
+    {
+        try
+        {
+            var issuedAt = DateTimeOffset.UtcNow;
+            var proof    = ProofBuilder.BuildPing(clientId, issuedAt, clientSecret);
+
+            var response = await _http.PostAsJsonAsync(
+                $"{_baseUrl}/auth/verify-client",
+                new { clientId, issuedAt, proof },
+                ct);
+
+            if (!response.IsSuccessStatusCode) return false;
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            return doc.RootElement.TryGetProperty("valid", out var v) && v.GetBoolean();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     /// <summary>Login local com usuário + senha. Lança InvalidOperationException com detalhe em caso de erro.</summary>
@@ -226,6 +256,43 @@ public sealed class VaultApiClient
         return Encoding.UTF8.GetBytes(value);
     }
 
+    // ── Audit ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Busca o log de auditoria de um segredo (últimas <paramref name="take"/> entradas).
+    /// Requer VaultPermission.Admin. Retorna lista vazia em caso de erro/forbidden.
+    /// </summary>
+    public async Task<IReadOnlyList<SecretAuditEntry>> GetSecretAuditAsync(
+        Guid vaultId, string name, int take = 20, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await SendAsync(() => _http.GetAsync(
+                $"{_baseUrl}/vaults/{vaultId}/secrets/{Uri.EscapeDataString(name)}/audit?take={take}",
+                ct));
+
+            if (!response.IsSuccessStatusCode)
+                return [];
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("entries", out var entries))
+                return [];
+
+            return entries.EnumerateArray().Select(e => new SecretAuditEntry(
+                Action:        e.GetProperty("action").GetString()!,
+                Actor:         e.GetProperty("actor").GetString()!,
+                OccurredAtUtc: e.GetProperty("occurredAtUtc").GetDateTimeOffset(),
+                Details:       e.TryGetProperty("details", out var d) && d.ValueKind != JsonValueKind.Null
+                                   ? d.GetString()
+                                   : null
+            )).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     // ── Admin: AD Maps ────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<AdMapItem>> ListAdMapsAsync(
@@ -315,7 +382,24 @@ public sealed class VaultApiClient
         response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        return doc.RootElement.EnumerateArray().Select(v => new VaultItem(
+        return ParseVaultItems(doc.RootElement);
+    }
+
+    /// <summary>
+    /// Retorna somente os cofres aos quais o usuário logado tem acesso (sem exigir permissão admin).
+    /// Endpoint: GET /vaults/mine
+    /// </summary>
+    public async Task<IReadOnlyList<VaultItem>> ListMyVaultsAsync(CancellationToken ct = default)
+    {
+        var response = await SendAsync(() => _http.GetAsync($"{_baseUrl}/vaults/mine", ct));
+        response.EnsureSuccessStatusCode();
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return ParseVaultItems(doc.RootElement);
+    }
+
+    private static IReadOnlyList<VaultItem> ParseVaultItems(JsonElement root)
+        => root.EnumerateArray().Select(v => new VaultItem(
             Id: v.GetProperty("id").GetGuid(),
             Name: v.GetProperty("name").GetString()!,
             Slug: v.GetProperty("slug").GetString()!,
@@ -324,7 +408,6 @@ public sealed class VaultApiClient
             Group: v.TryGetProperty("group", out var g) ? g.GetString() ?? "" : "",
             Environment: v.TryGetProperty("environment", out var e) ? e.GetString() ?? "" : ""
         )).ToList();
-    }
 
     public async Task UpdateVaultAsync(
         Guid vaultId, string name, string description, CancellationToken ct = default)

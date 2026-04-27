@@ -15,7 +15,9 @@ public sealed partial class SecretsViewModel : ObservableObject
     private readonly CredentialStore _credentials;
     private readonly IConfiguration  _config;
 
-    public ObservableCollection<SecretItem> Secrets { get; } = [];
+    public ObservableCollection<SecretItem>       Secrets         { get; } = [];
+    public ObservableCollection<VaultItem>        AvailableVaults { get; } = [];
+    public ObservableCollection<SecretAuditEntry> AuditEntries    { get; } = [];
 
     [ObservableProperty] private bool       _isBusy;
     [ObservableProperty] private string     _statusMessage  = string.Empty;
@@ -25,6 +27,7 @@ public sealed partial class SecretsViewModel : ObservableObject
     [ObservableProperty] private bool       _isAdmin;
     [ObservableProperty] private bool       _isGlobalAdmin;
     [ObservableProperty] private string     _vaultName      = string.Empty;
+    [ObservableProperty] private VaultItem? _activeVault;
 
     // User display (sidebar strip)
     public string Username     => Environment.UserName;
@@ -35,9 +38,11 @@ public sealed partial class SecretsViewModel : ObservableObject
 
     // Selected secret + reveal state
     [ObservableProperty] private SecretItem? _selectedSecret;
-    [ObservableProperty] private string      _revealedValue  = string.Empty;
+    [ObservableProperty] private string      _revealedValue   = string.Empty;
     [ObservableProperty] private bool        _isRevealed;
     [ObservableProperty] private bool        _isRevealing;
+    [ObservableProperty] private bool        _isLoadingAudit;
+    [ObservableProperty] private bool        _hasAuditEntries;
 
     public event EventHandler? LoggedOut;
     public event EventHandler? OpenSettings;
@@ -46,7 +51,15 @@ public sealed partial class SecretsViewModel : ObservableObject
     // Leitura lazy — pickup imediato de mudancas feitas no SetupViewModel.Save()
     private string ClientId     => _credentials.Get(AppConfig.ClientIdKey)     ?? _config["Vault:ClientId"]     ?? "local-dev-client";
     private string ClientSecret => _credentials.Get(AppConfig.ClientSecretKey) ?? _config["Vault:ClientSecret"] ?? string.Empty;
-    private Guid   VaultId      => Guid.Parse(_credentials.Get(AppConfig.VaultIdKey) ?? _config["Vault:VaultId"] ?? Guid.Empty.ToString());
+
+    /// <summary>
+    /// Vault em uso: o selecionado na sidebar tem prioridade;
+    /// fallback para o último vault persistido nas credenciais (sessão anterior).
+    /// </summary>
+    private Guid VaultId => ActiveVault?.Id
+        ?? (Guid.TryParse(_credentials.Get(AppConfig.VaultIdKey) ?? _config["Vault:VaultId"], out var saved)
+            ? saved
+            : Guid.Empty);
 
     public SecretsViewModel(
         VaultApiClient api,
@@ -68,6 +81,43 @@ public sealed partial class SecretsViewModel : ObservableObject
 
         try
         {
+            // ── 1. Carrega lista de cofres acessíveis (somente na primeira vez) ──
+            if (AvailableVaults.Count == 0)
+            {
+                try
+                {
+                    var myVaults = await _api.ListMyVaultsAsync();
+                    AvailableVaults.Clear();
+                    foreach (var v in myVaults)
+                        AvailableVaults.Add(v);
+
+                    // Seleciona automaticamente o vault configurado no Setup (ou o primeiro disponível)
+                    var configuredId = Guid.Parse(
+                        _credentials.Get(AppConfig.VaultIdKey) ?? _config["Vault:VaultId"] ?? Guid.Empty.ToString());
+
+                    if (ActiveVault is null)
+                    {
+                        var picked = myVaults.FirstOrDefault(v => v.Id == configuredId)
+                                     ?? myVaults.FirstOrDefault();
+                        if (picked is not null)
+                        {
+                            AppConfig.SaveSelectedVault(_credentials, picked.Id, picked.Name);
+                            ActiveVault = picked;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Sem acesso a /vaults/mine (ex: local auth sem AD) — continua com o vault configurado
+                }
+            }
+
+            // ── 2. Atualiza o nome do cofre ativo na sidebar ─────────────────────
+            VaultName = ActiveVault?.Name
+                        ?? _credentials.Get(AppConfig.VaultNameKey)
+                        ?? string.Empty;
+
+            // ── 3. Carrega os segredos do vault ativo ────────────────────────────
             var items = await _api.ListSecretsAsync(VaultId);
             Secrets.Clear();
             foreach (var item in items)
@@ -81,6 +131,32 @@ public sealed partial class SecretsViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Ao trocar de vault na sidebar: limpa os segredos e recarrega para o novo vault.
+    /// Guard: se IsBusy=true significa que o próprio LoadAsync está fazendo o set inicial
+    /// de ActiveVault — não queremos re-entrar.
+    /// </summary>
+    partial void OnActiveVaultChanged(VaultItem? value)
+    {
+        if (value is null || IsBusy) return;
+        VaultName      = value.Name;
+        SelectedSecret = null;
+        Secrets.Clear();
+        LoadCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Troca o vault ativo — chamado pelo botão na sidebar.
+    /// Persiste a seleção para a próxima sessão.
+    /// </summary>
+    [RelayCommand]
+    private void SelectVault(VaultItem vault)
+    {
+        if (vault.Id == ActiveVault?.Id) return;
+        AppConfig.SaveSelectedVault(_credentials, vault.Id, vault.Name);
+        ActiveVault = vault;
     }
 
     /// <summary>
@@ -148,6 +224,15 @@ public sealed partial class SecretsViewModel : ObservableObject
     private void Logout()
     {
         _api.Logout();
+        // Limpa estado de sessão para que o próximo login recarregue do zero
+        AvailableVaults.Clear();
+        ActiveVault    = null;
+        Secrets.Clear();
+        SelectedSecret = null;
+        AuditEntries.Clear();
+        HasAuditEntries = false;
+        VaultName      = string.Empty;
+        StatusMessage  = string.Empty;
         LoggedOut?.Invoke(this, EventArgs.Empty);
     }
 
@@ -160,11 +245,41 @@ public sealed partial class SecretsViewModel : ObservableObject
         => OpenAdmin?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Ao mudar o segredo selecionado, esconde qualquer valor revelado anteriormente.
+    /// Ao mudar o segredo selecionado, esconde o valor revelado e carrega o audit (se admin).
     /// </summary>
     partial void OnSelectedSecretChanged(SecretItem? value)
     {
         HideValue();
+        AuditEntries.Clear();
+        HasAuditEntries = false;
+
+        if (value is not null && IsGlobalAdmin)
+            LoadAuditCommand.Execute(value);
+    }
+
+    /// <summary>
+    /// Carrega as entradas de auditoria do segredo selecionado.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadAuditAsync(SecretItem secret)
+    {
+        IsLoadingAudit = true;
+        try
+        {
+            var entries = await _api.GetSecretAuditAsync(VaultId, secret.Name, take: 20);
+            AuditEntries.Clear();
+            foreach (var e in entries)
+                AuditEntries.Add(e);
+            HasAuditEntries = AuditEntries.Count > 0;
+        }
+        catch
+        {
+            // Sem permissão ou falha de rede — silencioso
+        }
+        finally
+        {
+            IsLoadingAudit = false;
+        }
     }
 
     /// <summary>
@@ -220,6 +335,16 @@ public sealed partial class SecretsViewModel : ObservableObject
         if (!string.IsNullOrEmpty(RevealedValue))
             System.Windows.Clipboard.SetText(RevealedValue);
     }
+
+    [RelayCommand]
+    private void CopyName()
+    {
+        if (SelectedSecret is not null)
+            System.Windows.Clipboard.SetText(SelectedSecret.Name);
+    }
+
+    [RelayCommand]
+    private void HideRevealed() => HideValue();
 
     private void HideValue()
     {

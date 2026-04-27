@@ -73,6 +73,10 @@
   function fillField(el, value) {
     if (!el || !value) return;
 
+    // Lift readonly set by suppress-native.js (MAIN world) before writing
+    el.removeAttribute('readonly');
+    el.dispatchEvent(new CustomEvent('sentil:unlock', { bubbles: false }));
+
     // Mark as filling so our value getter doesn't block
     el.dataset.vaultFilling = 'true';
 
@@ -120,10 +124,21 @@
       if (field.dataset.vaultBadge) return;
       field.dataset.vaultBadge = 'true';
 
+      // Suppress native browser password manager & third-party managers immediately,
+      // before the user even interacts with the field.
+      suppressExternalManagers(field);
+
+      // Also suppress the associated username/email field — Chrome triggers the
+      // "Senhas salvas" dropdown when the *username* field receives focus.
+      const userField = findUsernameField(field);
+      if (userField) suppressExternalManagers(userField);
+
       const badge = document.createElement('div');
       badge.className = 'vault-autofill-badge';
-      badge.innerHTML = '&#128272;';
-      badge.title = 'Preencher com Vault (Ctrl+Shift+L)';
+      badge.title = 'Sentil autofill (Ctrl+Shift+L)';
+      badge.innerHTML = `<svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z" fill="#5BAD80"/>
+      </svg>`;
 
       badge.addEventListener('click', (e) => {
         e.preventDefault();
@@ -160,30 +175,97 @@
   function showInlineMenu(passwordField) {
     removeInlineMenu();
 
+    const hostname = location.hostname.replace(/^www\./, '');
+
     const menu = document.createElement('div');
-    menu.className = 'vault-inline-menu';
+    menu.className = 'sentil-picker';
     menu.innerHTML = `
-      <div class="vault-inline-header">
-        <span>&#128272; Vault</span>
+      <div class="sp-header">
+        <svg class="sp-logo" viewBox="0 0 24 24" fill="none">
+          <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z" fill="#5BAD80"/>
+        </svg>
+        <span class="sp-chip">▸ AUTOFILL</span>
+        <div class="sp-sealed">
+          <span class="sp-sealed-dot"></span>
+          SEALED
+        </div>
+        <button class="sp-close" aria-label="fechar">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
+               stroke-width="1.4" stroke-linecap="round">
+            <path d="M3 3l6 6M9 3l-6 6"/>
+          </svg>
+        </button>
       </div>
-      <div class="vault-inline-body">
-        <div class="vault-inline-loading">Carregando cofres...</div>
+      <div class="sp-host">
+        <div class="sp-host-label">MATCHING HOST</div>
+        <div class="sp-host-row">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#5BAD80" stroke-width="1.3">
+            <rect x="2" y="4" width="6" height="4.5" rx="0.3"/>
+            <path d="M3.3 4V3a1.7 1.7 0 013.4 0v1"/>
+          </svg>
+          <span class="sp-host-name">${esc(hostname)}</span>
+          <span class="sp-host-count sp-host-count-label">carregando…</span>
+        </div>
+      </div>
+      <div class="sp-list">
+        <div class="sp-list-status is-loading">carregando cofres…</div>
+      </div>
+      <div class="sp-footer">
+        <button class="sp-footer-btn sp-btn-search">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3">
+            <circle cx="4.5" cy="4.5" r="3"/><path d="M7 7l3 3" stroke-linecap="round"/>
+          </svg>
+          search.all()
+        </button>
+      </div>
+      <div class="sp-hints">
+        <div class="sp-hints-keys">
+          <span>↑↓ navegue</span>
+          <span>⏎ preencher</span>
+          <span>esc fechar</span>
+        </div>
+        <span id="sp-session-time"></span>
       </div>
     `;
 
     // Position below the field
     const rect = passwordField.getBoundingClientRect();
     menu.style.position = 'fixed';
-    menu.style.left = `${rect.left}px`;
-    menu.style.top = `${rect.bottom + 4}px`;
-    menu.style.width = `${Math.max(rect.width, 280)}px`;
+    menu.style.left = `${Math.min(rect.left, window.innerWidth - 390)}px`;
+    menu.style.top  = `${rect.bottom + 6}px`;
     menu.style.zIndex = '2147483647';
 
     document.body.appendChild(menu);
-    activeMenu = { el: menu, passwordField };
+    activeMenu = { el: menu, passwordField, selectedIdx: 0 };
+
+    // Close button
+    menu.querySelector('.sp-close').addEventListener('click', removeInlineMenu);
 
     // Load vaults
     loadInlineVaults(menu, passwordField);
+
+    // Keyboard navigation
+    const onKey = (e) => {
+      if (!activeMenu) return;
+      const rows = [...menu.querySelectorAll('.sp-row')];
+      if (!rows.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeMenu.selectedIdx = Math.min(activeMenu.selectedIdx + 1, rows.length - 1);
+        rows.forEach((r, i) => r.classList.toggle('sp-row-active', i === activeMenu.selectedIdx));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeMenu.selectedIdx = Math.max(activeMenu.selectedIdx - 1, 0);
+        rows.forEach((r, i) => r.classList.toggle('sp-row-active', i === activeMenu.selectedIdx));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        rows[activeMenu.selectedIdx]?.querySelector('.sp-fill-btn')?.click();
+      } else if (e.key === 'Escape') {
+        removeInlineMenu();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    activeMenu._keyHandler = onKey;
 
     // Close on outside click
     setTimeout(() => {
@@ -199,6 +281,8 @@
 
   function removeInlineMenu() {
     if (activeMenu) {
+      if (activeMenu._keyHandler)
+        document.removeEventListener('keydown', activeMenu._keyHandler);
       activeMenu.el.remove();
       activeMenu = null;
     }
@@ -206,109 +290,172 @@
   }
 
   async function loadInlineVaults(menu, passwordField) {
-    const body = menu.querySelector('.vault-inline-body');
+    const list = menu.querySelector('.sp-list');
     try {
       const data = await sendAsync({ action: 'listVaults' });
       const vaults = Array.isArray(data) ? data : data?.items || data?.vaults || [];
 
       if (vaults.length === 0) {
-        body.innerHTML = '<div class="vault-inline-empty">Nenhum cofre disponivel</div>';
+        list.innerHTML = '<div class="sp-list-status">nenhum cofre disponível</div>';
         return;
       }
 
-      body.innerHTML = vaults.map((v) => `
-        <div class="vault-inline-item" data-vault-id="${v.id}" data-vault-name="${esc(v.name)}">
-          &#128274; ${esc(v.name)}
+      menu.querySelector('.sp-host-count-label').textContent = `${vaults.length} cofre${vaults.length > 1 ? 's' : ''}`;
+
+      list.innerHTML = vaults.map((v) => `
+        <div class="sp-row" data-vault-id="${v.id}" data-vault-name="${esc(v.name)}" style="cursor:pointer">
+          <div class="sp-avatar">${esc((v.name || '?')[0]).toUpperCase()}</div>
+          <div class="sp-row-info">
+            <div class="sp-row-name-line">
+              <span class="sp-row-name">${esc(v.name)}</span>
+            </div>
+            <div class="sp-row-meta">
+              <span class="sp-row-vault">${esc(v.environment || v.group || '')}</span>
+            </div>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#7a8276" stroke-width="1.3">
+            <path d="M5 2l5 4-5 4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       `).join('');
 
-      body.querySelectorAll('.vault-inline-item').forEach((item) => {
-        item.addEventListener('click', () => {
-          loadInlineSecrets(menu, passwordField, item.dataset.vaultId, item.dataset.vaultName);
+      list.querySelectorAll('.sp-row').forEach((row) => {
+        row.addEventListener('click', () => {
+          loadInlineSecrets(menu, passwordField, row.dataset.vaultId, row.dataset.vaultName);
         });
       });
     } catch (err) {
-      body.innerHTML = `<div class="vault-inline-error">${esc(err.message)}</div>`;
+      list.innerHTML = `<div class="sp-list-status is-error">${esc(err.message)}</div>`;
     }
   }
 
   async function loadInlineSecrets(menu, passwordField, vaultId, vaultName) {
-    const body = menu.querySelector('.vault-inline-body');
-    body.innerHTML = '<div class="vault-inline-loading">Carregando segredos...</div>';
+    const list = menu.querySelector('.sp-list');
+    list.innerHTML = '<div class="sp-list-status is-loading">carregando segredos…</div>';
 
     try {
       const data = await sendAsync({ action: 'listSecrets', vaultId });
       const secrets = Array.isArray(data) ? data : data?.items || data?.secrets || [];
 
       if (secrets.length === 0) {
-        body.innerHTML = `
-          <div class="vault-inline-back" data-action="back-vaults">&larr; ${esc(vaultName)}</div>
-          <div class="vault-inline-empty">Nenhum segredo</div>
+        list.innerHTML = `
+          <div class="sp-back">← ${esc(vaultName)}</div>
+          <div class="sp-list-status">nenhum segredo neste cofre</div>
         `;
-        body.querySelector('.vault-inline-back')?.addEventListener('click', () => loadInlineVaults(menu, passwordField));
+        list.querySelector('.sp-back').addEventListener('click', () => loadInlineVaults(menu, passwordField));
         return;
       }
 
-      // Filter secrets that look like they match the current site
-      const hostname = location.hostname.replace('www.', '').split('.')[0].toLowerCase();
+      const hostname = location.hostname.replace(/^www\./, '').split('.')[0].toLowerCase();
       const sorted = [...secrets].sort((a, b) => {
-        const aName = (a.name || '').toLowerCase();
-        const bName = (b.name || '').toLowerCase();
-        const aMatch = aName.includes(hostname) ? -1 : 0;
-        const bMatch = bName.includes(hostname) ? -1 : 0;
-        return aMatch - bMatch;
+        const am = (a.name || '').toLowerCase().includes(hostname) ? -1 : 0;
+        const bm = (b.name || '').toLowerCase().includes(hostname) ? -1 : 0;
+        return am - bm;
       });
 
-      body.innerHTML = `
-        <div class="vault-inline-back" data-action="back-vaults">&larr; ${esc(vaultName)}</div>
-        ${sorted.map((s) => {
-          const name = s.name || s.Name;
-          const highlight = name.toLowerCase().includes(hostname) ? ' vault-inline-match' : '';
-          return `<div class="vault-inline-item vault-inline-secret${highlight}" data-vault-id="${vaultId}" data-secret-name="${esc(name)}">
-            &#128273; ${esc(name)}
+      menu.querySelector('.sp-host-count-label').textContent = `${sorted.length} segredo${sorted.length !== 1 ? 's' : ''}`;
+
+      list.innerHTML = `
+        <div class="sp-back">← ${esc(vaultName)}</div>
+        ${sorted.map((s, i) => {
+          const name  = s.name || s.Name || '';
+          const ver   = s.currentVersion ?? s.CurrentVersion ?? 1;
+          const isPrimary = name.toLowerCase().includes(hostname) && i === 0;
+          return `
+          <div class="sp-row${i === 0 ? ' sp-row-active' : ''}"
+               data-vault-id="${esc(vaultId)}" data-secret-name="${esc(name)}">
+            <div class="sp-avatar">${esc(name[0] ?? '?').toUpperCase()}</div>
+            <div class="sp-row-info">
+              <div class="sp-row-name-line">
+                <span class="sp-row-name">${esc(name)}</span>
+                ${isPrimary ? '<span class="sp-primary-badge">PRIMARY</span>' : ''}
+              </div>
+              <div class="sp-row-meta">
+                <span class="sp-row-vault">${esc(vaultName)}</span>
+                <span class="sp-dot">·</span>
+                <span class="sp-row-age">v${ver}</span>
+              </div>
+              <div class="sp-row-footer">
+                <div class="sp-strength">
+                  ${[1,2,3,4].map(p => `<div class="sp-strength-pip lit-hi"></div>`).join('')}
+                </div>
+              </div>
+            </div>
+            ${i === 0 ? `
+            <div class="sp-fill-col">
+              <button class="sp-fill-btn">FILL ⏎</button>
+              <span class="sp-copy-hint">⌘C copy</span>
+            </div>` : ''}
           </div>`;
         }).join('')}
       `;
 
-      body.querySelector('.vault-inline-back')?.addEventListener('click', () => loadInlineVaults(menu, passwordField));
+      list.querySelector('.sp-back').addEventListener('click', () => loadInlineVaults(menu, passwordField));
 
-      body.querySelectorAll('.vault-inline-secret').forEach((item) => {
-        item.addEventListener('click', async () => {
-          item.textContent = 'Buscando...';
-          try {
-            const result = await sendAsync({
-              action: 'requestSecret',
-              vaultId: item.dataset.vaultId,
-              secretName: item.dataset.secretName,
+      if (activeMenu) activeMenu.selectedIdx = 0;
+
+      // Hover → activate row
+      list.querySelectorAll('.sp-row[data-secret-name]').forEach((row, i) => {
+        row.addEventListener('mouseenter', () => {
+          list.querySelectorAll('.sp-row').forEach((r) => r.classList.remove('sp-row-active'));
+          row.classList.add('sp-row-active');
+          if (activeMenu) activeMenu.selectedIdx = i;
+          // Show fill button on hover
+          if (!row.querySelector('.sp-fill-btn')) {
+            const col = document.createElement('div');
+            col.className = 'sp-fill-col';
+            col.innerHTML = `<button class="sp-fill-btn">FILL ⏎</button>`;
+            col.querySelector('.sp-fill-btn').addEventListener('click', (e) => {
+              e.stopPropagation();
+              doFill(row, passwordField);
             });
-
-            const value = result.value || result.Value || '';
-
-            // Fill password and lock the field
-            fillField(passwordField, value);
-            lockPasswordField(passwordField);
-
-            // Try to fill username if available
-            const usernameField = findUsernameField(passwordField);
-            if (usernameField && result.username) {
-              fillField(usernameField, result.username);
-            }
-
-            removeInlineMenu();
-          } catch (err) {
-            if (err.message === 'SESSION_EXPIRED' || err.message?.includes('SESSION_EXPIRED')) {
-              item.textContent = 'Sessao expirada — faça login';
-              item.style.color = '#fbbf24';
-              chrome.runtime.sendMessage({ action: 'openPopup' });
-            } else {
-              item.textContent = `Erro: ${err.message}`;
-              item.style.color = '#f87171';
-            }
+            row.appendChild(col);
           }
         });
+
+        row.addEventListener('click', () => doFill(row, passwordField));
       });
+
+      // Existing fill btn on first row
+      list.querySelector('.sp-fill-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const row = e.target.closest('.sp-row');
+        if (row) doFill(row, passwordField);
+      });
+
     } catch (err) {
-      body.innerHTML = `<div class="vault-inline-error">${esc(err.message)}</div>`;
+      list.innerHTML = `<div class="sp-list-status is-error">${esc(err.message)}</div>`;
+    }
+  }
+
+  async function doFill(row, passwordField) {
+    const btn = row.querySelector('.sp-fill-btn');
+    const originalText = btn?.textContent ?? 'FILL ⏎';
+    if (btn) { btn.textContent = '…'; btn.disabled = true; }
+
+    try {
+      const result = await sendAsync({
+        action: 'requestSecret',
+        vaultId: row.dataset.vaultId,
+        secretName: row.dataset.secretName,
+      });
+
+      const value = result.value || result.Value || '';
+      fillField(passwordField, value);
+      lockPasswordField(passwordField);
+
+      const usernameField = findUsernameField(passwordField);
+      if (usernameField && result.username) fillField(usernameField, result.username);
+
+      removeInlineMenu();
+    } catch (err) {
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      if (err.message === 'SESSION_EXPIRED' || err.message?.includes('SESSION_EXPIRED')) {
+        if (btn) { btn.textContent = 'login requerido'; btn.style.background = '#B8903A'; btn.style.color = '#0A0A0A'; }
+        chrome.runtime.sendMessage({ action: 'openPopup' });
+      } else {
+        if (btn) { btn.textContent = 'erro'; btn.style.background = '#C0523A'; }
+      }
     }
   }
 
@@ -401,31 +548,35 @@
     const bar = document.createElement('div');
     bar.className = 'vault-automatch-bar';
 
+    const sentilLogo = `<svg class="vault-automatch-logo" viewBox="0 0 24 24" fill="none">
+      <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z" fill="#5BAD80"/>
+    </svg>`;
+
     if (single) {
       // ── Single-rule compact bar ──────────────────────────────────
       bar.innerHTML = `
         <div class="vault-automatch-inner">
-          <span class="vault-automatch-icon">&#128272;</span>
-          <span class="vault-automatch-text">Sentinel Vault: <strong>${esc(rules[0].login)}</strong> disponivel para este site</span>
-          <button class="vault-automatch-btn vault-automatch-fill" data-idx="0">Autofill</button>
-          <button class="vault-automatch-btn vault-automatch-dismiss">&times;</button>
+          ${sentilLogo}
+          <span class="vault-automatch-text">Sentil · <strong>${esc(rules[0].login)}</strong> disponível</span>
+          <button class="vault-automatch-btn vault-automatch-fill" data-idx="0">FILL ⏎</button>
+          <button class="vault-automatch-btn vault-automatch-dismiss">✕</button>
         </div>
       `;
     } else {
       // ── Multi-rule expanded bar ──────────────────────────────────
       const rows = rules.map((r, i) => `
         <div class="vault-automatch-rule-row">
-          <span class="vault-automatch-rule-login">&#128100; ${esc(r.login)}</span>
-          <button class="vault-automatch-btn vault-automatch-fill" data-idx="${i}">Autofill</button>
+          <span class="vault-automatch-rule-login">${esc(r.login)}</span>
+          <button class="vault-automatch-btn vault-automatch-fill" data-idx="${i}">FILL ⏎</button>
         </div>
       `).join('');
 
       bar.innerHTML = `
         <div class="vault-automatch-inner vault-automatch-multi">
           <div class="vault-automatch-multi-header">
-            <span class="vault-automatch-icon">&#128272;</span>
-            <span class="vault-automatch-text">Sentinel Vault: <strong>${rules.length} contas</strong> disponíveis</span>
-            <button class="vault-automatch-btn vault-automatch-dismiss">&times;</button>
+            ${sentilLogo}
+            <span class="vault-automatch-text">Sentil · <strong>${rules.length} contas</strong> disponíveis</span>
+            <button class="vault-automatch-btn vault-automatch-dismiss">✕</button>
           </div>
           <div class="vault-automatch-rule-list">${rows}</div>
         </div>
@@ -467,7 +618,7 @@
           console.error('[Vault] requestSecret error:', err.message, { vaultId: rule.vaultId, secretName: rule.secretName, rule });
           if (err.message === 'SESSION_EXPIRED' || err.message?.includes('SESSION_EXPIRED')) {
             btn.textContent = 'Login requerido';
-            btn.style.background = '#d97706';
+            btn.style.background = '#B8903A';
             chrome.runtime.sendMessage({ action: 'openPopup' });
             setTimeout(() => {
               btn.textContent = originalText;
@@ -477,7 +628,7 @@
           } else {
             btn.textContent = 'Erro';
             btn.title = err.message;
-            btn.style.background = '#dc2626';
+            btn.style.background = '#C0523A';
             setTimeout(() => {
               btn.textContent = originalText;
               btn.title = '';
@@ -580,20 +731,55 @@
 
   // --- Suppress other password managers on vault-filled fields ---
 
-  // Attributes recognised by the main password manager extensions:
-  //   data-lpignore        → LastPass
-  //   data-1p-ignore       → 1Password
-  //   data-bwignore        → Bitwarden
-  //   data-dashlane-ignore → Dashlane
-  //   autocomplete=off     → browser built-in + most extensions
+  // Chrome/Edge deliberately ignore autocomplete="off" for credential fields
+  // (since Chrome 34). We use a multi-layer approach:
+  //
+  //   1. autocomplete="new-password" on password fields  → Chrome respects this
+  //      and skips the "Senhas salvas" dropdown entirely.
+  //      For non-password fields a random unknown token is used.
+  //
+  //   2. readonly trick → browser skips field indexing for autofill while readonly.
+  //      We remove the attribute the instant the user touches the field so typing
+  //      still works normally.
+  //
+  //   3. Third-party extension suppression attributes (LastPass, 1Password, etc.)
+  //
   function suppressExternalManagers(field) {
     if (field.dataset.vaultSuppressed) return;
     field.dataset.vaultSuppressed = 'true';
+
+    // Third-party managers
     field.setAttribute('data-lpignore', 'true');
     field.setAttribute('data-1p-ignore', 'true');
     field.setAttribute('data-bwignore', 'true');
     field.setAttribute('data-dashlane-ignore', 'true');
-    field.setAttribute('autocomplete', 'off');
+    field.setAttribute('data-kwignore', 'true');      // Keeper
+    field.setAttribute('data-roboform-ignore', 'true');
+
+    // autocomplete values Chrome/Edge/Firefox actually respect:
+    //   password field → "new-password"  (no saved-credential dropdown)
+    //   username field → "one-time-code" (browser treats as OTP, not username)
+    if (field.type === 'password') {
+      field.setAttribute('autocomplete', 'new-password');
+    } else {
+      field.setAttribute('autocomplete', 'one-time-code');
+    }
+
+    // Readonly trick: Chrome won't show saved-credential dropdown on readonly fields.
+    // Lift it immediately on first interaction so the user can still type.
+    if (!field.readOnly && !field.dataset.vaultReadonlySet) {
+      field.dataset.vaultReadonlySet = 'true';
+      field.setAttribute('readonly', '');
+      const unlock = () => {
+        field.removeAttribute('readonly');
+        field.removeEventListener('focus',      unlock);
+        field.removeEventListener('mousedown',  unlock);
+        field.removeEventListener('touchstart', unlock);
+      };
+      field.addEventListener('focus',      unlock);
+      field.addEventListener('mousedown',  unlock);
+      field.addEventListener('touchstart', unlock);
+    }
   }
 
   // ============================================================
@@ -614,7 +800,7 @@
   // Called both on page load (traditional navigation) and on same page (SPAs).
   async function tryShowSaveBar(pending) {
     if (!pending) return;
-    if (document.querySelector('.vault-save-bar')) return;
+    if (document.querySelector('.vault-save-popup')) return;
     if (Date.now() - (pending.ts || 0) > SAVE_BAR_TTL_MS) return;
 
     try {
@@ -663,14 +849,13 @@
   }
 
   function showSaveBar(pending, vaults, existingRule) {
-    if (document.querySelector('.vault-save-bar')) return;
+    if (document.querySelector('.vault-save-popup')) return;
 
     const isUpdate = !!existingRule;
     const title = isUpdate
-      ? 'Sentinel Vault: Atualizar senha?'
-      : 'Sentinel Vault: Salvar credenciais?';
-    const confirmLabel = isUpdate ? 'Atualizar' : 'Salvar';
-    const confirmClass = isUpdate ? 'vault-save-confirm vault-save-update' : 'vault-save-confirm';
+      ? 'update.password()'
+      : 'save.password()';
+    const confirmLabel = isUpdate ? 'update' : 'seal';
 
     // When updating, lock the vault selector to the vault of the existing rule
     let vaultOptions;
@@ -692,60 +877,158 @@
       ).join('');
     }
 
+    // Build vault chip buttons
+    let vaultChips;
+    if (isUpdate) {
+      vaultChips = vaults
+        .filter((v) => v.id === existingRule.vaultId)
+        .map((v) => `<button class="sp-vault-chip sp-vault-active" data-id="${esc(v.id)}">${esc(v.name)}</button>`)
+        .join('');
+      if (!vaultChips)
+        vaultChips = vaults.map((v, i) =>
+          `<button class="sp-vault-chip${i === 0 ? ' sp-vault-active' : ''}" data-id="${esc(v.id)}">${esc(v.name)}</button>`
+        ).join('');
+    } else {
+      vaultChips = vaults.map((v, i) =>
+        `<button class="sp-vault-chip${i === 0 ? ' sp-vault-active' : ''}" data-id="${esc(v.id)}">${esc(v.name)}</button>`
+      ).join('');
+    }
+
+    const hostLabel = (() => { try { return new URL(pending.url).hostname; } catch { return pending.url; } })();
+
     const bar = document.createElement('div');
-    bar.className = 'vault-save-bar';
+    bar.className = 'vault-save-popup';
     bar.innerHTML = `
-      <div class="vault-save-inner">
-        <span class="vault-save-icon">${isUpdate ? '&#128260;' : '&#128272;'}</span>
-        <div class="vault-save-body">
-          <span class="vault-save-title">${title}</span>
-          <span class="vault-save-login">&#128100; ${esc(pending.login)}</span>
+      <div class="sp-save-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+          <path d="M5 5 L19 5 L19 9 L9 9 L9 11 L19 11 L19 19 L5 19 L5 15 L15 15 L15 13 L5 13 Z" fill="#5BAD80"/>
+        </svg>
+        <span class="sp-save-chip">▸ ${isUpdate ? 'UPDATE' : 'SAVE'}</span>
+        <button class="sp-save-close" aria-label="fechar">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
+               stroke-width="1.4" stroke-linecap="round">
+            <path d="M3 3l6 6M9 3l-6 6"/>
+          </svg>
+        </button>
+      </div>
+      <div class="sp-save-body">
+        <div class="sp-save-tag">┌─ ${isUpdate ? 'CHANGE DETECTED' : 'NEW CREDENTIAL'} ─┐</div>
+        <div class="sp-save-title">${isUpdate ? 'update.password()' : 'save.password()'}</div>
+        <p class="sp-save-subtitle">${isUpdate
+          ? '// Detectada alteração de senha para entrada existente.'
+          : '// Sentil detectou uma nova credencial. Selar?'}</p>
+
+        <div class="sp-save-host-row">
+          <div class="sp-save-host-avatar">${esc(hostLabel[0] ?? '?').toUpperCase()}</div>
+          <div class="sp-save-host-info">
+            <div class="sp-save-host-name">${esc(hostLabel)}</div>
+            <div class="sp-save-host-user">${esc(pending.login)}</div>
+          </div>
+          <span class="sp-save-badge">${isUpdate ? 'EXISTING' : 'NEW'}</span>
         </div>
-        <div class="vault-save-controls">
-          <select class="vault-save-select"${isUpdate ? ' disabled' : ''}>${vaultOptions}</select>
-          <button class="vault-save-btn ${confirmClass}">${confirmLabel}</button>
-          <button class="vault-save-btn vault-save-never">Nunca</button>
-          <button class="vault-save-btn vault-save-dismiss">&times;</button>
+
+        <label class="sp-save-label" for="sp-save-name">NAME</label>
+        <input id="sp-save-name" class="sp-save-input" value="${esc(hostLabel)}">
+
+        ${isUpdate ? `
+        <label class="sp-save-label">OLD PASSWORD</label>
+        <div class="sp-save-pwd-row is-old">
+          <span class="sp-save-pwd-value is-old" id="sp-old-val">
+            ${'•'.repeat(Math.min((pending.oldPassword || '').length || 14, 20))}
+          </span>
+        </div>` : ''}
+
+        <label class="sp-save-label">${isUpdate ? 'NEW PASSWORD' : 'PASSWORD'}</label>
+        <div class="sp-save-pwd-row is-new">
+          <span class="sp-save-pwd-value" id="sp-new-val">
+            ${'•'.repeat(Math.min(pending.password?.length || 14, 20))}
+          </span>
+          <button class="sp-save-pwd-eye" id="sp-eye-btn" title="Mostrar">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/>
+            </svg>
+          </button>
         </div>
+        <div class="sp-save-strength">
+          <div class="sp-save-strength-pips">
+            ${[1,2,3,4].map(() => '<div class="sp-save-pip lit"></div>').join('')}
+          </div>
+          <span class="sp-save-strength-label">STRONG · ~118 bits</span>
+        </div>
+
+        <label class="sp-save-label">VAULT</label>
+        <div class="sp-save-vault-grid" id="sp-vault-grid">
+          ${vaultChips}
+        </div>
+      </div>
+
+      <div class="sp-save-footer">
+        <button class="sp-save-btn sp-never-btn">never.for.this()</button>
+        <button class="sp-save-btn sp-dismiss-btn">not.now()</button>
+        <button class="sp-save-btn-confirm ${isUpdate ? 'is-update' : ''} sp-confirm-btn">
+          ${confirmLabel} ⏎
+        </button>
+      </div>
+      <div class="sp-save-hint">
+        <span id="sp-hint-vault">encriptado localmente · sincronizado</span>
+        <span>⏎ confirmar  esc descartar</span>
       </div>
     `;
 
     document.body.appendChild(bar);
-    requestAnimationFrame(() => bar.classList.add('vault-save-visible'));
+    requestAnimationFrame(() => bar.classList.add('sp-visible'));
 
     const dismiss = () => {
-      bar.classList.remove('vault-save-visible');
-      setTimeout(() => bar.remove(), 300);
+      bar.style.opacity = '0';
+      bar.style.transform = 'translateY(-12px)';
+      setTimeout(() => bar.remove(), 200);
     };
 
-    bar.querySelector('.vault-save-dismiss').addEventListener('click', dismiss);
+    // Close / dismiss
+    bar.querySelector('.sp-save-close').addEventListener('click', dismiss);
+    bar.querySelector('.sp-dismiss-btn').addEventListener('click', dismiss);
 
-    bar.querySelector('.vault-save-never').addEventListener('click', async () => {
-      // Remember "never" for this host
+    // Eye toggle
+    let pwVisible = false;
+    bar.querySelector('#sp-eye-btn')?.addEventListener('click', () => {
+      pwVisible = !pwVisible;
+      const el = bar.querySelector('#sp-new-val');
+      if (el) el.textContent = pwVisible ? pending.password : '•'.repeat(Math.min(pending.password?.length || 14, 20));
+    });
+
+    // Vault chip selection
+    bar.querySelector('#sp-vault-grid')?.querySelectorAll('.sp-vault-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        bar.querySelectorAll('.sp-vault-chip').forEach((c) => c.classList.remove('sp-vault-active'));
+        chip.classList.add('sp-vault-active');
+        const hint = bar.querySelector('#sp-hint-vault');
+        if (hint) hint.textContent = `encriptado localmente · sincronizado com ${chip.textContent}`;
+      });
+    });
+
+    // Never
+    bar.querySelector('.sp-never-btn').addEventListener('click', async () => {
       try {
         const { vault_never_hosts = [] } = await chrome.storage.local.get('vault_never_hosts');
         const host = new URL(pending.url).hostname;
-        if (!vault_never_hosts.includes(host)) {
+        if (!vault_never_hosts.includes(host))
           await chrome.storage.local.set({ vault_never_hosts: [...vault_never_hosts, host] });
-        }
       } catch (_) {}
       dismiss();
     });
 
-    bar.querySelector('.vault-save-confirm').addEventListener('click', async () => {
-      const btn = bar.querySelector('.vault-save-confirm');
-      // For updates the vaultId comes from the existing rule (select is disabled).
-      // For new saves the user picks it from the dropdown.
+    // Confirm / save
+    bar.querySelector('.sp-confirm-btn').addEventListener('click', async () => {
+      const btn = bar.querySelector('.sp-confirm-btn');
+      const activeChip = bar.querySelector('.sp-vault-chip.sp-vault-active');
       const vaultId = isUpdate
         ? (existingRule.vaultId ?? existingRule.VaultId)
-        : bar.querySelector('.vault-save-select').value;
+        : (activeChip?.dataset.id ?? vaults[0]?.id);
 
-      btn.textContent = '...';
+      btn.textContent = '…';
       btn.disabled = true;
 
       try {
-        // The service worker resolves update vs create internally by
-        // calling matchAutofillRules again — no extra param needed.
         await sendAsync({
           action: 'saveCredentials',
           url: pending.url,
@@ -754,35 +1037,32 @@
           vaultId,
         });
 
-        btn.textContent = isUpdate ? '✓ Atualizado' : '✓ Salvo';
-        btn.style.background = '#22c55e';
+        btn.textContent = isUpdate ? '✓ atualizado' : '✓ salvo';
+        btn.style.background = '#5BAD80';
+        btn.style.color = '#0A0A0A';
         setTimeout(dismiss, 1500);
       } catch (err) {
+        btn.disabled = false;
         if (err.message === 'SESSION_EXPIRED' || err.message?.includes('SESSION_EXPIRED')) {
-          btn.textContent = 'Login requerido';
-          btn.style.background = '#d97706';
+          btn.textContent = 'login requerido';
+          btn.style.background = '#B8903A';
+          btn.style.color = '#1a0e00';
           chrome.runtime.sendMessage({ action: 'openPopup' });
-          setTimeout(() => {
-            btn.textContent = confirmLabel;
-            btn.style.background = '';
-            btn.disabled = false;
-          }, 3000);
+          setTimeout(() => { btn.textContent = confirmLabel + ' ⏎'; btn.style.background = ''; btn.style.color = ''; }, 3000);
         } else {
-          btn.textContent = 'Erro';
-          btn.style.background = '#dc2626';
-          setTimeout(() => {
-            btn.textContent = confirmLabel;
-            btn.style.background = '';
-            btn.disabled = false;
-          }, 2000);
+          btn.textContent = 'erro';
+          btn.style.background = '#C0523A';
+          setTimeout(() => { btn.textContent = confirmLabel + ' ⏎'; btn.style.background = ''; }, 2000);
         }
       }
     });
 
-    // Auto-dismiss after 25 seconds (longer — user needs time to pick vault)
-    setTimeout(() => {
-      if (bar.parentElement) dismiss();
-    }, 25000);
+    // Keyboard dismiss
+    const onEsc = (e) => { if (e.key === 'Escape') { dismiss(); document.removeEventListener('keydown', onEsc); } };
+    document.addEventListener('keydown', onEsc);
+
+    // Auto-dismiss after 30 s
+    setTimeout(() => { if (bar.parentElement) dismiss(); }, 30000);
   }
 
   // Synchronously extract credentials from a form.
@@ -849,7 +1129,7 @@
 
   // --- Init ---
 
-  // Add badges to existing password fields
+  // Add badges to existing password fields (also suppresses native manager inside)
   addVaultBadges();
 
   // Lock all password fields

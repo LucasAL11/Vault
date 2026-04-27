@@ -19,9 +19,15 @@
   "content_scripts": [
     {
       "matches": ["https://*/*", "http://*/*"],
+      "js": ["content/suppress-native.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*/*", "http://*/*"],
       "js": ["content/autofill.js"],
       "css": ["content/autofill.css"],
-      "run_at": "document_idle"
+      "run_at": "document_end"
     }
   ],
   "action": {

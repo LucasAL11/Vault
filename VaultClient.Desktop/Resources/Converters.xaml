@@ -11,8 +11,18 @@
     <res:NullToVisibilityConverter x:Key="NotNullToVisibility"/>
     <!-- null → Visible, non-null → Collapsed -->
     <res:NullToVisibilityConverter x:Key="NullToVisibility" />
+    <res:RelativeTimeConverter      x:Key="RelativeTime"/>
+    <res:AuditActionLabelConverter  x:Key="AuditActionLabel"/>
+    <res:ActorNameConverter         x:Key="ActorName"/>
     <res:StatusTypeToBrushConverter x:Key="StatusTypeToBrush"/>
     <res:StatusTypeToBgBrushConverter x:Key="StatusTypeToBgBrush"/>
     <res:SelectedItemBrushConverter x:Key="SelectedItemBrush"/>
+    <!-- Vault ativo — dot verde aceso, texto accent -->
+    <res:GuidEqualToBrushConverter x:Key="VaultActiveDotBrush"
+                                   TrueBrush="#5BAD80"
+                                   FalseBrush="Transparent"/>
+    <res:GuidEqualToBrushConverter x:Key="VaultActiveFgBrush"
+                                   TrueBrush="#5BAD80"
+                                   FalseBrush="#737373"/>
 
 </ResourceDictionary>
