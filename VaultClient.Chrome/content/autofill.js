@@ -145,8 +145,8 @@
         e.stopPropagation();
         chrome.runtime.sendMessage({ action: 'getAuthState' }, (res) => {
           if (res?.authenticated) {
-            // Open popup for vault/secret selection
-            showInlineMenu(field);
+            // Open picker — badge click has no pre-matched rules
+            showInlineMenu(field, []);
           } else {
             // Open popup for login
             chrome.runtime.sendMessage({ action: 'openPopup' });
@@ -169,13 +169,18 @@
   }
 
   // --- Inline quick menu ---
+  // Hierarchy: Site Matches → Vault → Secret
 
   let activeMenu = null;
 
-  function showInlineMenu(passwordField) {
+  // siteMatches: array of autofill rules that matched the current URL
+  function showInlineMenu(passwordField, siteMatches = []) {
     removeInlineMenu();
 
     const hostname = location.hostname.replace(/^www\./, '');
+    const countLabel = siteMatches.length > 0
+      ? `${siteMatches.length} conta${siteMatches.length > 1 ? 's' : ''} disponív${siteMatches.length > 1 ? 'eis' : 'el'}`
+      : 'carregando…';
 
     const menu = document.createElement('div');
     menu.className = 'sentil-picker';
@@ -204,12 +209,10 @@
             <path d="M3.3 4V3a1.7 1.7 0 013.4 0v1"/>
           </svg>
           <span class="sp-host-name">${esc(hostname)}</span>
-          <span class="sp-host-count sp-host-count-label">carregando…</span>
+          <span class="sp-host-count sp-host-count-label">${esc(countLabel)}</span>
         </div>
       </div>
-      <div class="sp-list">
-        <div class="sp-list-status is-loading">carregando cofres…</div>
-      </div>
+      <div class="sp-list"></div>
       <div class="sp-footer">
         <button class="sp-footer-btn sp-btn-search">
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -236,13 +239,13 @@
     menu.style.zIndex = '2147483647';
 
     document.body.appendChild(menu);
-    activeMenu = { el: menu, passwordField, selectedIdx: 0 };
+    activeMenu = { el: menu, passwordField, selectedIdx: 0, siteMatches };
 
     // Close button
     menu.querySelector('.sp-close').addEventListener('click', removeInlineMenu);
 
-    // Load vaults
-    loadInlineVaults(menu, passwordField);
+    // Load home screen (matches + vaults)
+    loadInlineHome(menu, passwordField, siteMatches);
 
     // Keyboard navigation
     const onKey = (e) => {
@@ -289,21 +292,105 @@
     document.removeEventListener('click', closeMenuOnOutsideClick);
   }
 
-  async function loadInlineVaults(menu, passwordField) {
+  // ── Level 0: Home — site matches + vault list ────────────────
+  async function loadInlineHome(menu, passwordField, siteMatches) {
     const list = menu.querySelector('.sp-list');
+    list.innerHTML = '';
+
+    // ── Site matches section ──
+    if (siteMatches.length > 0) {
+      const matchHeader = document.createElement('div');
+      matchHeader.className = 'sp-section-label';
+      matchHeader.textContent = 'MATCH DO SITE';
+      list.appendChild(matchHeader);
+
+      siteMatches.forEach((rule, i) => {
+        const login = rule.login ?? rule.Login ?? '';
+        const row = document.createElement('div');
+        row.className = `sp-row${i === 0 ? ' sp-row-active' : ''}`;
+        row.dataset.ruleIdx = i;
+        row.innerHTML = `
+          <div class="sp-avatar">${esc((login || '?')[0]).toUpperCase()}</div>
+          <div class="sp-row-info">
+            <div class="sp-row-name-line">
+              <span class="sp-row-name">${esc(login)}</span>
+              ${i === 0 ? '<span class="sp-primary-badge">PRIMARY</span>' : ''}
+            </div>
+            <div class="sp-row-meta">
+              <span class="sp-row-vault">${esc(rule.secretName ?? rule.SecretName ?? '')}</span>
+            </div>
+          </div>
+          <div class="sp-fill-col">
+            <button class="sp-fill-btn">FILL ⏎</button>
+          </div>
+        `;
+
+        const fillBtn = row.querySelector('.sp-fill-btn');
+        const doMatchFill = async () => {
+          fillBtn.textContent = '…'; fillBtn.disabled = true;
+          try {
+            const secret = await sendAsync({
+              action: 'requestSecret',
+              vaultId: rule.vaultId ?? rule.VaultId,
+              secretName: rule.secretName ?? rule.SecretName,
+            });
+            const usernameField = findUsernameField(passwordField);
+            if (usernameField && login) fillField(usernameField, login);
+            fillField(passwordField, secret.value || secret.Value || '');
+            removeInlineMenu();
+          } catch (err) {
+            if (err.message?.includes('SESSION_EXPIRED')) {
+              fillBtn.textContent = 'login req.';
+              fillBtn.style.background = '#B8903A';
+              chrome.runtime.sendMessage({ action: 'openPopup' });
+            } else {
+              fillBtn.textContent = 'erro';
+              fillBtn.style.background = '#C0523A';
+            }
+            setTimeout(() => { fillBtn.textContent = 'FILL ⏎'; fillBtn.style.background = ''; fillBtn.disabled = false; }, 3000);
+          }
+        };
+
+        fillBtn.addEventListener('click', (e) => { e.stopPropagation(); doMatchFill(); });
+        row.addEventListener('click', doMatchFill);
+        list.appendChild(row);
+      });
+    }
+
+    // ── Vault list section ──
+    const vaultHeader = document.createElement('div');
+    vaultHeader.className = 'sp-section-divider';
+    vaultHeader.textContent = 'COFRES';
+    list.appendChild(vaultHeader);
+
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'sp-list-status is-loading';
+    loadingEl.textContent = 'carregando…';
+    list.appendChild(loadingEl);
+
     try {
       const data = await sendAsync({ action: 'listVaults' });
       const vaults = Array.isArray(data) ? data : data?.items || data?.vaults || [];
+      loadingEl.remove();
 
       if (vaults.length === 0) {
-        list.innerHTML = '<div class="sp-list-status">nenhum cofre disponível</div>';
+        const el = document.createElement('div');
+        el.className = 'sp-list-status';
+        el.textContent = 'nenhum cofre disponível';
+        list.appendChild(el);
         return;
       }
 
-      menu.querySelector('.sp-host-count-label').textContent = `${vaults.length} cofre${vaults.length > 1 ? 's' : ''}`;
+      if (siteMatches.length === 0) {
+        // Update count only when no site matches (otherwise count already set in header)
+        menu.querySelector('.sp-host-count-label').textContent =
+          `${vaults.length} cofre${vaults.length > 1 ? 's' : ''}`;
+      }
 
-      list.innerHTML = vaults.map((v) => `
-        <div class="sp-row" data-vault-id="${v.id}" data-vault-name="${esc(v.name)}" style="cursor:pointer">
+      vaults.forEach((v) => {
+        const row = document.createElement('div');
+        row.className = 'sp-row';
+        row.innerHTML = `
           <div class="sp-avatar">${esc((v.name || '?')[0]).toUpperCase()}</div>
           <div class="sp-row-info">
             <div class="sp-row-name-line">
@@ -313,20 +400,27 @@
               <span class="sp-row-vault">${esc(v.environment || v.group || '')}</span>
             </div>
           </div>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#7a8276" stroke-width="1.3">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#737373" stroke-width="1.3">
             <path d="M5 2l5 4-5 4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-        </div>
-      `).join('');
-
-      list.querySelectorAll('.sp-row').forEach((row) => {
-        row.addEventListener('click', () => {
-          loadInlineSecrets(menu, passwordField, row.dataset.vaultId, row.dataset.vaultName);
-        });
+        `;
+        row.addEventListener('click', () => loadInlineSecrets(menu, passwordField, v.id, v.name));
+        list.appendChild(row);
       });
+
+      // Reset keyboard index
+      if (activeMenu) activeMenu.selectedIdx = 0;
+
     } catch (err) {
-      list.innerHTML = `<div class="sp-list-status is-error">${esc(err.message)}</div>`;
+      loadingEl.className = 'sp-list-status is-error';
+      loadingEl.textContent = err.message;
     }
+  }
+
+  // ── Level 1: back to home ─────────────────────────────────
+  function loadInlineVaults(menu, passwordField) {
+    // Re-uses home with stored siteMatches
+    loadInlineHome(menu, passwordField, activeMenu?.siteMatches ?? []);
   }
 
   async function loadInlineSecrets(menu, passwordField, vaultId, vaultName) {
@@ -342,7 +436,7 @@
           <div class="sp-back">← ${esc(vaultName)}</div>
           <div class="sp-list-status">nenhum segredo neste cofre</div>
         `;
-        list.querySelector('.sp-back').addEventListener('click', () => loadInlineVaults(menu, passwordField));
+        list.querySelector('.sp-back').addEventListener('click', () => loadInlineHome(menu, passwordField, activeMenu?.siteMatches ?? []));
         return;
       }
 
@@ -390,7 +484,7 @@
         }).join('')}
       `;
 
-      list.querySelector('.sp-back').addEventListener('click', () => loadInlineVaults(menu, passwordField));
+      list.querySelector('.sp-back').addEventListener('click', () => loadInlineHome(menu, passwordField, activeMenu?.siteMatches ?? []));
 
       if (activeMenu) activeMenu.selectedIdx = 0;
 
@@ -479,7 +573,7 @@
     if (msg.action === 'showAutofillMenu') {
       const pwFields = findPasswordFields();
       if (pwFields.length > 0) {
-        showInlineMenu(pwFields[0]);
+        showInlineMenu(pwFields[0], []);
       }
       sendResponse({ success: true });
     }
@@ -528,7 +622,8 @@
       const pwFields = findPasswordFields();
       if (pwFields.length === 0) return;
 
-      showAutoMatchBar(matches, pwFields[0]);
+      // Open the inline picker with site matches pre-loaded at the top
+      showInlineMenu(pwFields[0], matches);
     } catch (_) {
       // Silently ignore — user may not be logged in or API unavailable
     }
